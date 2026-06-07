@@ -44,7 +44,10 @@ export default function HeroSection({ piece, priority, showScrollHint }: Props) 
 function ScrollHint() {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center gap-2 text-neutral-500">
-      <span className="text-[10px] uppercase tracking-[0.3em]">Scroll</span>
+      <span className="text-[10px] uppercase tracking-[0.3em]">
+        <span className="[@media(pointer:coarse)]:hidden">Scroll</span>
+        <span className="hidden [@media(pointer:coarse)]:inline">Swipe</span>
+      </span>
       <svg
         className="animate-scroll-hint h-4 w-4"
         viewBox="0 0 24 24"
