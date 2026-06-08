@@ -12,8 +12,8 @@ export default function Navbar() {
         </Link>
         <ul className="flex gap-8 text-xs uppercase tracking-[0.15em] text-neutral-400">
           <li>
-            <Link href="#" className="transition-colors hover:text-neutral-100">
-              Work
+            <Link href="/art" className="transition-colors hover:text-neutral-100">
+              Art
             </Link>
           </li>
           <li>

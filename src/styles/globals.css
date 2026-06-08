@@ -3,6 +3,16 @@
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-hanken: var(--font-hanken), system-ui, sans-serif;
+  --font-display: var(--font-cormorant), Georgia, serif;
+
+  --color-warm-bg: #0c0b0a;
+  --color-warm-bg-1: #121110;
+  --color-warm-text: #ece7dc;
+  --color-warm-text-dim: #a39c8e;
+  --color-warm-text-faint: #6a655b;
+  --color-accent: #c4a368;
+  --color-accent-soft: #d8bd8c;
 }
 
 html {
