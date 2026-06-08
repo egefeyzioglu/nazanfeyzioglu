@@ -17,7 +17,7 @@ export default function Navbar() {
             </Link>
           </li>
           <li>
-            <Link href="#" className="transition-colors hover:text-neutral-100">
+            <Link href="/about" className="transition-colors hover:text-neutral-100">
               About
             </Link>
           </li>
