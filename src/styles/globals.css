@@ -24,32 +24,3 @@ body {
   color: #ededed;
 }
 
-.snap-container {
-  scroll-snap-type: y mandatory;
-  scroll-behavior: smooth;
-  scrollbar-width: none;
-}
-
-.snap-container::-webkit-scrollbar {
-  display: none;
-}
-
-.snap-section {
-  scroll-snap-align: start;
-}
-
-@keyframes scroll-hint {
-  0%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.6;
-  }
-  50% {
-    transform: translateY(6px);
-    opacity: 1;
-  }
-}
-
-.animate-scroll-hint {
-  animation: scroll-hint 2s ease-in-out infinite;
-}
