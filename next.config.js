@@ -7,6 +7,9 @@ import "./src/env.js";
 /** @type {import("next").NextConfig} */
 const config = {
   images: {
+    // Serve images directly instead of through Vercel's metered Image
+    // Optimization endpoint, which returns HTTP 402 once the plan quota is hit.
+    unoptimized: true,
     remotePatterns: [{ protocol: "https", hostname: "picsum.photos" }],
   },
 };
