@@ -7,6 +7,8 @@ export type HeroPiece = {
   blurb: string;
   width: number;
   height: number;
+  /** Displayed card height on desktop, in vh — varied per piece for a staggered row. */
+  heightVh: number;
 };
 
 export const heroPieces: HeroPiece[] = [
@@ -20,6 +22,7 @@ export const heroPieces: HeroPiece[] = [
       "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce vehicula gravida ex in tempor. Mauris hendrerit malesuada tortor ut luctus.",
     width: 2560,
     height: 1517,
+    heightVh: 54,
   },
   {
     src: "/live-site-media/Inside-my-mind-scaled.jpeg",
@@ -31,6 +34,7 @@ export const heroPieces: HeroPiece[] = [
       "Integer felis dolor, ultricies ut augue a, pulvinar tempor odio. Donec dictum libero accumsan, pharetra nisl vel, mollis ante.",
     width: 1922,
     height: 2560,
+    heightVh: 66,
   },
   {
     src: "/live-site-media/Carnaval_1-scaled.jpg",
@@ -42,6 +46,7 @@ export const heroPieces: HeroPiece[] = [
       "Integer felis dolor, ultricies ut augue a, pulvinar tempor odio. Donec dictum libero accumsan, pharetra nisl vel, mollis ante.",
     width: 2560,
     height: 1707,
+    heightVh: 44,
   },
   {
     src: "/live-site-media/Side-by-side.jpeg",
@@ -53,6 +58,7 @@ export const heroPieces: HeroPiece[] = [
       "Praesent vehicula, lorem ut viverra rhoncus, lectus nibh tincidunt risus, sed pharetra justo lacus quis sapien.",
     width: 1536,
     height: 2048,
+    heightVh: 60,
   },
   {
     src: "/live-site-media/Complex_Bonds-1-scaled.jpg",
@@ -64,6 +70,7 @@ export const heroPieces: HeroPiece[] = [
       "Quisque orci velit, tempor id tristique ut, faucibus a magna. Suspendisse potenti. Praesent ultrices porta velit, vel mattis nibh.",
     width: 2560,
     height: 1920,
+    heightVh: 50,
   },
   {
     src: "/live-site-media/Dream-1-scaled.jpeg",
@@ -75,6 +82,7 @@ export const heroPieces: HeroPiece[] = [
       "Quisque orci velit, tempor id tristique ut, faucibus a magna. Suspendisse potenti. Praesent ultrices porta velit, vel mattis nibh.",
     width: 1713,
     height: 2560,
+    heightVh: 70,
   },
   {
     src: "/live-site-media/Dark-Dream-scaled.jpg",
@@ -86,6 +94,7 @@ export const heroPieces: HeroPiece[] = [
       "Aliquam erat volutpat. Sed eu lectus nec lacus ultricies vulputate. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices.",
     width: 2560,
     height: 1920,
+    heightVh: 47,
   },
   {
     src: "/live-site-media/Fun-World-scaled.jpeg",
@@ -97,5 +106,6 @@ export const heroPieces: HeroPiece[] = [
       "Curabitur eget nibh in metus aliquam pretium. Nullam pharetra, ipsum at posuere maximus, justo lectus accumsan velit, in ornare ipsum.",
     width: 2560,
     height: 1763,
+    heightVh: 58,
   },
 ];

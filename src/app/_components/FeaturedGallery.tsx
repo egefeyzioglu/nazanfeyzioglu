@@ -73,7 +73,8 @@ export default function FeaturedGallery({ pieces }: Props) {
                 width={piece.width}
                 height={piece.height}
                 sizes="(max-width: 768px) 80vw, 40vw"
-                className="block h-auto w-[80vw] max-w-sm object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:scale-[1.02] md:h-[58vh] md:w-auto md:max-w-none"
+                style={{ "--card-h": `${piece.heightVh}vh` } as React.CSSProperties}
+                className="block h-auto w-[80vw] max-w-sm object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:scale-[1.02] md:h-[var(--card-h)] md:w-auto md:max-w-none"
                 priority={i === 0}
               />
             </div>
