@@ -22,6 +22,17 @@ export const heroPieces: HeroPiece[] = [
     height: 1517,
   },
   {
+    src: "/live-site-media/Inside-my-mind-scaled.jpeg",
+    title: "Inside My Mind",
+    medium: "Ink and acrylic on canvas",
+    year: "2023",
+    size: "90 × 120 cm",
+    blurb:
+      "Integer felis dolor, ultricies ut augue a, pulvinar tempor odio. Donec dictum libero accumsan, pharetra nisl vel, mollis ante.",
+    width: 1922,
+    height: 2560,
+  },
+  {
     src: "/live-site-media/Carnaval_1-scaled.jpg",
     title: "Carnival I",
     medium: "Oil on canvas",
@@ -33,6 +44,17 @@ export const heroPieces: HeroPiece[] = [
     height: 1707,
   },
   {
+    src: "/live-site-media/Side-by-side.jpeg",
+    title: "Side by Side",
+    medium: "Ink on canvas",
+    year: "2023",
+    size: "75 × 100 cm",
+    blurb:
+      "Praesent vehicula, lorem ut viverra rhoncus, lectus nibh tincidunt risus, sed pharetra justo lacus quis sapien.",
+    width: 1536,
+    height: 2048,
+  },
+  {
     src: "/live-site-media/Complex_Bonds-1-scaled.jpg",
     title: "Complex Bonds",
     medium: "Oil on canvas",
@@ -42,6 +64,17 @@ export const heroPieces: HeroPiece[] = [
       "Quisque orci velit, tempor id tristique ut, faucibus a magna. Suspendisse potenti. Praesent ultrices porta velit, vel mattis nibh.",
     width: 2560,
     height: 1920,
+  },
+  {
+    src: "/live-site-media/Dream-1-scaled.jpeg",
+    title: "Dream I",
+    medium: "Pen and acrylic on paper",
+    year: "2023",
+    size: "60 × 80 cm",
+    blurb:
+      "Quisque orci velit, tempor id tristique ut, faucibus a magna. Suspendisse potenti. Praesent ultrices porta velit, vel mattis nibh.",
+    width: 1713,
+    height: 2560,
   },
   {
     src: "/live-site-media/Dark-Dream-scaled.jpg",
