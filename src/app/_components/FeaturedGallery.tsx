@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 
 import type { HeroPiece } from "src/app/_data/heroPieces";
 
@@ -9,8 +9,17 @@ type Props = {
   pieces: HeroPiece[];
 };
 
+type TweakValues = {
+  heroGap: number;
+  heroPaddingTop: number;
+};
+
 export default function FeaturedGallery({ pieces }: Props) {
   const [selected, setSelected] = useState<HeroPiece | null>(null);
+  const [tweaks, setTweaks] = useState<TweakValues>({
+    heroGap: 64,
+    heroPaddingTop: 40,
+  });
   const dialogRef = useRef<HTMLDialogElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
@@ -52,12 +61,17 @@ export default function FeaturedGallery({ pieces }: Props) {
   }, [selected]);
 
   const close = () => setSelected(null);
+  const galleryStyle = {
+    gap: `${tweaks.heroGap}px`,
+    paddingTop: `${tweaks.heroPaddingTop}px`,
+  } satisfies CSSProperties;
 
   return (
     <>
       <div
         ref={scrollerRef}
-        className="flex flex-col items-center gap-16 px-6 py-16 md:h-screen md:flex-row md:items-start md:gap-[clamp(40px,5vw,96px)] md:overflow-x-auto md:px-[clamp(40px,6vw,96px)] md:pb-0 md:pt-10"
+        style={galleryStyle}
+        className="flex flex-col items-center px-6 pb-16 md:h-screen md:flex-row md:items-start md:overflow-x-auto md:px-[clamp(40px,6vw,96px)] md:pb-0"
       >
         {pieces.map((piece, i) => (
           <button
@@ -73,17 +87,20 @@ export default function FeaturedGallery({ pieces }: Props) {
                 width={piece.width}
                 height={piece.height}
                 sizes="(max-width: 768px) 80vw, 40vw"
-                style={{ "--card-h": `${piece.heightVh}vh` } as React.CSSProperties}
+                style={
+                  { "--card-h": `${piece.heightVh}vh` } as React.CSSProperties
+                }
                 className="block h-auto w-[80vw] max-w-sm object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] group-hover:scale-[1.02] md:h-[var(--card-h)] md:w-auto md:max-w-none"
                 priority={i === 0}
               />
             </div>
-            <p className="mt-3 font-display text-base italic text-neutral-700 transition-colors group-hover:text-neutral-900">
+            <p className="font-display mt-3 text-base text-neutral-700 italic transition-colors group-hover:text-neutral-900">
               {piece.title}
             </p>
           </button>
         ))}
       </div>
+      <HeroTweakPanel values={tweaks} onChange={setTweaks} />
 
       <dialog
         ref={dialogRef}
@@ -93,6 +110,83 @@ export default function FeaturedGallery({ pieces }: Props) {
         {selected && <PieceDetail piece={selected} onClose={close} />}
       </dialog>
     </>
+  );
+}
+
+function HeroTweakPanel({
+  values,
+  onChange,
+}: {
+  values: TweakValues;
+  onChange: (values: TweakValues) => void;
+}) {
+  return (
+    <div className="fixed bottom-4 left-4 z-[60] w-[min(calc(100vw-32px),240px)] border border-neutral-900/15 bg-neutral-950/90 p-4 text-neutral-50 shadow-[0_18px_48px_-24px_rgba(0,0,0,0.65)] backdrop-blur-md">
+      <div className="space-y-4">
+        <TweakSlider
+          id="hero-gap"
+          label="Gap between hero elements"
+          min={24}
+          max={128}
+          step={4}
+          value={values.heroGap}
+          onChange={(heroGap) => onChange({ ...values, heroGap })}
+        />
+        <TweakSlider
+          id="hero-padding-top"
+          label="Padding above hero elements"
+          min={0}
+          max={120}
+          step={4}
+          value={values.heroPaddingTop}
+          onChange={(heroPaddingTop) => onChange({ ...values, heroPaddingTop })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function TweakSlider({
+  id,
+  label,
+  min,
+  max,
+  step,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label htmlFor={id} className="block">
+      <span className="mb-2 flex items-baseline justify-between gap-3">
+        <span className="text-[11px] font-medium tracking-[0.14em] text-neutral-300 uppercase">
+          {label}
+        </span>
+        <output
+          htmlFor={id}
+          className="shrink-0 font-mono text-xs text-neutral-50"
+        >
+          {value}px
+        </output>
+      </span>
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.currentTarget.value))}
+        className="block h-6 w-full cursor-pointer accent-neutral-50"
+      />
+    </label>
   );
 }
 
@@ -109,7 +203,7 @@ function PieceDetail({
         type="button"
         onClick={onClose}
         aria-label="Close"
-        className="absolute right-5 top-5 z-10 flex h-10 w-10 cursor-pointer items-center justify-center text-neutral-400 transition-colors hover:text-neutral-900"
+        className="absolute top-5 right-5 z-10 flex h-10 w-10 cursor-pointer items-center justify-center text-neutral-400 transition-colors hover:text-neutral-900"
       >
         <svg
           viewBox="0 0 24 24"
@@ -132,12 +226,12 @@ function PieceDetail({
           className="object-contain p-6 md:p-12"
         />
       </div>
-      <aside className="flex w-full shrink-0 flex-col gap-6 overflow-y-auto border-t border-neutral-900/10 p-8 md:w-[380px] md:justify-center md:border-l md:border-t-0 md:p-12 lg:w-[440px] lg:p-16">
+      <aside className="flex w-full shrink-0 flex-col gap-6 overflow-y-auto border-t border-neutral-900/10 p-8 md:w-[380px] md:justify-center md:border-t-0 md:border-l md:p-12 lg:w-[440px] lg:p-16">
         <header className="space-y-3">
-          <h2 className="font-display text-4xl font-light italic leading-tight md:text-5xl">
+          <h2 className="font-display text-4xl leading-tight font-light italic md:text-5xl">
             {piece.title}
           </h2>
-          <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+          <p className="text-xs tracking-[0.2em] text-neutral-500 uppercase">
             {piece.medium} · {piece.year} · {piece.size}
           </p>
         </header>
