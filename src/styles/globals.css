@@ -1,56 +1,180 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --font-hanken: var(--font-hanken), system-ui, sans-serif;
-  --font-display: var(--font-cormorant), Georgia, serif;
+  --font-spectral: var(--font-spectral), Georgia, serif;
+  --font-mono: var(--font-space-mono), ui-monospace, monospace;
 
-  --color-warm-bg: #0c0b0a;
-  --color-warm-bg-1: #121110;
-  --color-warm-text: #ece7dc;
-  --color-warm-text-dim: #a39c8e;
-  --color-warm-text-faint: #6a655b;
-  --color-accent: #c4a368;
-  --color-accent-soft: #d8bd8c;
+  /* Surfaces */
+  --color-paper: #fcfbf8;
+  --color-panel: #f0ede5;
+
+  /* Ink + text */
+  --color-ink: #1c1a17;
+  --color-mute: #5c574d;
+  --color-ink-soft: #3a362f;
+  --color-stone: #6e695e;
+  --color-stone-2: #8a8478;
+  --color-ash: #a39d90;
+  --color-ash-2: #bdb7aa;
+
+  /* Accent */
+  --color-clay: #c75b45;
+  --color-clay-soft: #e3b6ab;
+
+  /* Lines */
+  --color-line: #e7e3da;
+  --color-line-soft: #ece8df;
+  --color-line-2: #d9d4c9;
 }
 
-html {
-  background-color: #0a0a0a;
-  color-scheme: dark;
+/* Base resets live in the `base` layer so Tailwind utilities (e.g. text-paper
+   on an <a>) still win — unlayered rules would otherwise override every
+   layered utility regardless of specificity. */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    background-color: #fcfbf8;
+  }
+
+  body {
+    background: #fcfbf8;
+    color: #1c1a17;
+    font-family: var(--font-spectral), Georgia, serif;
+  }
+
+  ::selection {
+    background: #c75b45;
+    color: #fcfbf8;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
-body {
-  color: #ededed;
+/* Horizontal series rail scrollbar */
+.nagon-rail {
+  scrollbar-width: thin;
+  scrollbar-color: #d9d4c9 transparent;
+}
+.nagon-rail::-webkit-scrollbar {
+  height: 8px;
+}
+.nagon-rail::-webkit-scrollbar-thumb {
+  background: #ddd8cc;
+  border-radius: 99px;
+}
+.nagon-rail::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.snap-container {
-  scroll-snap-type: y mandatory;
-  scroll-behavior: smooth;
-  scrollbar-width: none;
-}
-
-.snap-container::-webkit-scrollbar {
-  display: none;
-}
-
-.snap-section {
-  scroll-snap-align: start;
-}
-
-@keyframes scroll-hint {
-  0%,
+/* Hanging-artwork swing animation (home series rail) */
+@keyframes nagonSettle {
+  0% {
+    transform: rotate(-2.6deg);
+  }
+  16% {
+    transform: rotate(2.1deg);
+  }
+  34% {
+    transform: rotate(-1.5deg);
+  }
+  54% {
+    transform: rotate(0.9deg);
+  }
+  74% {
+    transform: rotate(-0.4deg);
+  }
   100% {
-    transform: translateY(0);
-    opacity: 0.6;
-  }
-  50% {
-    transform: translateY(6px);
-    opacity: 1;
+    transform: rotate(0);
   }
 }
-
-.animate-scroll-hint {
-  animation: scroll-hint 2s ease-in-out infinite;
+@keyframes nagonSwing {
+  0% {
+    transform: rotate(0);
+  }
+  18% {
+    transform: rotate(3deg);
+  }
+  42% {
+    transform: rotate(-2.1deg);
+  }
+  66% {
+    transform: rotate(1.2deg);
+  }
+  85% {
+    transform: rotate(-0.5deg);
+  }
+  100% {
+    transform: rotate(0);
+  }
+}
+.swing {
+  transform-origin: top center;
+  will-change: transform;
+  animation: nagonSettle 3.6s cubic-bezier(0.36, 0.07, 0.2, 1) both;
+  cursor: pointer;
+}
+.swing:nth-of-type(2) {
+  animation-delay: 0.16s;
+}
+.swing:nth-of-type(3) {
+  animation-delay: 0.32s;
+}
+.swing:nth-of-type(4) {
+  animation-delay: 0.1s;
+}
+.swing:nth-of-type(5) {
+  animation-delay: 0.26s;
+}
+.swing:nth-of-type(6) {
+  animation-delay: 0.4s;
+}
+.swing:nth-of-type(7) {
+  animation-delay: 0.2s;
+}
+.swing:hover {
+  animation: nagonSwing 1.9s ease-in-out;
+}
+.swing:hover .swing-img {
+  box-shadow: 0 26px 40px -24px rgba(0, 0, 0, 0.5);
+}
+.swing-img {
+  transition: box-shadow 0.35s ease;
+}
+.serieslink:hover .openpip {
+  color: #c75b45;
 }
 
+/* Add-to-cart button hover */
+.cart-btn {
+  transition: background 0.25s ease;
+}
+.cart-btn:hover {
+  background: #c75b45 !important;
+}
+
+/* Sidebar nav hover */
+.nav-link {
+  transition: color 0.2s ease;
+}
+.nav-link:hover {
+  color: #1c1a17;
+}
+.hover-clay {
+  transition: border-color 0.25s ease, color 0.25s ease;
+}
+.hover-clay:hover {
+  color: #c75b45;
+  border-color: #c75b45;
+}

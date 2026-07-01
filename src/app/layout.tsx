@@ -1,41 +1,36 @@
 import "src/styles/globals.css";
 
 import { type Metadata } from "next";
-import { Cormorant_Garamond, Geist, Hanken_Grotesk } from "next/font/google";
+import { Spectral, Space_Mono } from "next/font/google";
 
 export const metadata: Metadata = {
-  title: "Nazan Feyzioglu",
-  description: "Selected works by Nazan Feyzioglu.",
+  title: "Nazan Feyzioğlu — Painter",
+  description:
+    "Selected series, originals and prints by Nazan Feyzioğlu, a self-taught visual artist based in Toronto.",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 
-const geist = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist-sans",
-});
-
-const hanken = Hanken_Grotesk({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-  variable: "--font-hanken",
-});
-
-const cormorant = Cormorant_Garamond({
+const spectral = Spectral({
   subsets: ["latin"],
   weight: ["300", "400", "500"],
   style: ["normal", "italic"],
-  variable: "--font-cormorant",
+  variable: "--font-spectral",
+});
+
+const spaceMono = Space_Mono({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-space-mono",
 });
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className={`${geist.variable} ${hanken.variable} ${cormorant.variable}`}
-    >
-      <body className="font-sans antialiased">{children}</body>
+    <html lang="en" className={`${spectral.variable} ${spaceMono.variable}`}>
+      <body className="bg-paper font-spectral text-ink antialiased">
+        {children}
+      </body>
     </html>
   );
 }
