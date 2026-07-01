@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import ArtImage from "src/app/_components/ArtImage";
 import Sidebar from "src/app/_components/Sidebar";
+import { imageDimensions } from "src/app/_data/imageDimensions";
 import { getSeries, series, type Work } from "src/app/_data/series";
 
 export function generateStaticParams() {
@@ -51,9 +52,9 @@ export default async function SeriesPage({
           </h1>
         </div>
 
-        <div className="mt-[10px] flex flex-col">
-          {s.works.map((work) => (
-            <WorkRow key={work.title} work={work} />
+        <div className="flex flex-col">
+          {s.works.map((work, i) => (
+            <WorkRow key={work.title} work={work} first={i === 0} />
           ))}
         </div>
       </main>
@@ -61,69 +62,88 @@ export default async function SeriesPage({
   );
 }
 
-function WorkRow({ work }: { work: Work }) {
+/**
+ * Portfolio-scale display width for a work's "plate", chosen from the image's
+ * intrinsic aspect ratio so landscape pieces read wide and portrait pieces stay
+ * a comfortable height rather than towering down the page.
+ */
+function plateWidth(image: string): number {
+  const dim = imageDimensions[image] ?? { w: 1000, h: 1000 };
+  const ratio = dim.w / dim.h;
+  if (ratio > 1.2) return 600;
+  if (ratio < 0.82) return 400;
+  return 500;
+}
+
+function WorkRow({ work, first }: { work: Work; first: boolean }) {
+  const width = plateWidth(work.image);
+
   return (
-    <div className="grid grid-cols-1 items-start gap-8 border-t border-line-soft py-[34px] md:grid-cols-[300px_minmax(0,1fr)] md:gap-[46px]">
-      <div className="min-w-0 overflow-hidden leading-[0]">
-        <ArtImage
-          src={work.image}
-          alt={work.title}
-          sizes="(max-width: 768px) 100vw, 300px"
-        />
-      </div>
-
-      <div className="pt-1">
-        <div className="font-spectral text-[28px] leading-[1.1] italic">
-          {work.title}
-        </div>
-        <div className="mt-[11px] font-mono text-[11px] tracking-[0.04em] text-stone-2">
-          {work.medium}
+    <article className={first ? "pt-12 pb-14 md:pt-14 md:pb-[72px]" : "py-14 md:py-[72px]"}>
+      <figure className="m-0 flex flex-col gap-9 md:flex-row md:items-center md:gap-[60px]">
+        {/* Framed plate — echoes the hanging pieces on the home rail. */}
+        <div
+          className="w-full flex-none overflow-hidden bg-panel leading-[0] shadow-[0_22px_38px_-26px_rgba(0,0,0,0.5)]"
+          style={{ maxWidth: width }}
+        >
+          <ArtImage
+            src={work.image}
+            alt={work.title}
+            sizes={`(max-width: 768px) 100vw, ${width}px`}
+            priority={first}
+          />
         </div>
 
-        {work.digital ? (
-          <>
-            <div className="mt-[18px] flex flex-wrap items-center gap-[9px]">
-              <span className="border border-clay-soft px-[9px] py-[5px] font-mono text-[9.5px] tracking-[0.2em] text-clay uppercase">
-                Digital
-              </span>
-              <span className="border border-line px-[9px] py-[5px] font-mono text-[9.5px] tracking-[0.16em] text-ash uppercase">
-                Original in preparation
-              </span>
-            </div>
-            {work.note && (
-              <div className="mt-[14px] max-w-[330px] font-spectral text-[15px] leading-[1.55] text-stone italic">
-                {work.note}
+        {/* Wall label, mounted beside the work */}
+        <figcaption className="min-w-0 md:max-w-[320px]">
+          <h2 className="font-spectral text-[27px] leading-[1.12] italic">
+            {work.title}
+          </h2>
+          <div className="mt-[10px] font-mono text-[11px] leading-[1.7] tracking-[0.04em] text-stone-2">
+            {work.medium}
+          </div>
+
+          {work.digital ? (
+            <>
+              <div className="mt-[16px] flex flex-wrap items-center gap-[9px]">
+                <span className="border border-clay-soft px-[9px] py-[5px] font-mono text-[9.5px] tracking-[0.2em] text-clay uppercase">
+                  Digital
+                </span>
+                <span className="border border-line px-[9px] py-[5px] font-mono text-[9.5px] tracking-[0.16em] text-ash uppercase">
+                  Original in preparation
+                </span>
               </div>
-            )}
-            <div className="mt-5 flex items-center gap-4">
+              {work.note && (
+                <p className="mt-[14px] max-w-[380px] font-spectral text-[15px] leading-[1.55] text-stone italic">
+                  {work.note}
+                </p>
+              )}
+              <div className="mt-[18px] flex items-center gap-[15px] font-mono text-[11px] tracking-[0.14em] uppercase">
+                <a
+                  href="#"
+                  className="hover-clay border-b border-clay-soft pb-[3px] text-clay"
+                >
+                  Digital edition
+                </a>
+                <Link href="/contact" className="hover-clay text-stone-2">
+                  Commission →
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div className="mt-[18px] flex items-baseline gap-[13px] font-mono text-[11px] tracking-[0.14em] uppercase">
+              <span className="text-stone">{work.price}</span>
+              <span className="text-line-2">·</span>
               <a
                 href="#"
-                className="cart-btn bg-ink px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] text-paper uppercase"
+                className="hover-clay border-b border-clay-soft pb-[3px] text-clay"
               >
-                Digital edition
+                Add to cart
               </a>
-              <Link
-                href="/contact"
-                className="hover-clay border-b border-clay-soft pb-[3px] font-mono text-[11px] tracking-[0.14em] text-clay uppercase"
-              >
-                Commission →
-              </Link>
             </div>
-          </>
-        ) : (
-          <div className="mt-[22px] flex items-center gap-[18px]">
-            <span className="font-spectral text-[23px] text-ink">
-              {work.price}
-            </span>
-            <a
-              href="#"
-              className="cart-btn bg-ink px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] text-paper uppercase"
-            >
-              Add to cart
-            </a>
-          </div>
-        )}
-      </div>
-    </div>
+          )}
+        </figcaption>
+      </figure>
+    </article>
   );
 }
