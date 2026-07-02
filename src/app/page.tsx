@@ -2,15 +2,12 @@ import Link from "next/link";
 
 import ArtImage from "src/app/_components/ArtImage";
 import Sidebar from "src/app/_components/Sidebar";
-import { getSeries, railOrder } from "src/app/_data/series";
+import { getAllSeries, getContent } from "src/server/queries";
 
-export default function HomePage() {
-  const cards = railOrder
-    .map(({ slug, workCount }) => {
-      const s = getSeries(slug);
-      return s ? { ...s, workCount } : null;
-    })
-    .filter((c): c is NonNullable<typeof c> => c !== null);
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const [cards, content] = await Promise.all([getAllSeries(), getContent()]);
 
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink md:flex-row">
@@ -19,7 +16,7 @@ export default function HomePage() {
       <main className="flex min-h-[700px] flex-1 flex-col md:ml-[280px] md:h-screen md:min-w-0">
         <div className="flex-none px-9 pt-12 md:px-[72px] md:pt-12">
           <div className="font-mono text-[10.5px] tracking-[0.3em] text-ash uppercase">
-            Selected Series — 2023 / 2026
+            {content["home.eyebrow"]}
           </div>
         </div>
 
@@ -40,9 +37,11 @@ export default function HomePage() {
 
                 <div className="swing-img w-full overflow-hidden bg-panel shadow-[0_18px_30px_-22px_rgba(0,0,0,0.45)]">
                   <ArtImage
-                    src={card.cover}
+                    src={card.coverImage}
                     alt={card.title}
                     sizes="300px"
+                    width={card.coverWidth}
+                    height={card.coverHeight}
                   />
                 </div>
 
@@ -51,7 +50,8 @@ export default function HomePage() {
                     {card.title}
                   </div>
                   <div className="openpip mt-[7px] font-mono text-[10px] tracking-[0.14em] text-ash uppercase transition-colors duration-200">
-                    {card.workCount} →
+                    {card.works.length} work{card.works.length === 1 ? "" : "s"}{" "}
+                    →
                   </div>
                 </div>
               </Link>

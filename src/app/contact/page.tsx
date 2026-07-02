@@ -1,8 +1,15 @@
 import Sidebar from "src/app/_components/Sidebar";
+import { getContent } from "src/server/queries";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Contact — Nazan Feyzioğlu" };
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const content = await getContent();
+  const email = content["contact.email"];
+  const instagram = content["sidebar.instagram"];
+
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink md:flex-row">
       <Sidebar active="contact" />
@@ -12,14 +19,14 @@ export default function ContactPage() {
           Contact
         </div>
         <h1 className="mt-[18px] max-w-[620px] text-[44px] leading-[1.1] font-light tracking-[-0.015em] text-balance">
-          For acquisitions, commissions &amp; exhibitions.
+          {content["contact.heading"]}
         </h1>
 
         <a
-          href="mailto:nazanfeyzioglu@yahoo.com"
+          href={`mailto:${email}`}
           className="hover-clay mt-10 inline-block border-b border-line-2 pb-[5px] font-spectral text-[40px] font-light tracking-[-0.01em]"
         >
-          nazanfeyzioglu@yahoo.com
+          {email}
         </a>
 
         <div className="mt-16 grid max-w-[760px] grid-cols-1 gap-10 sm:grid-cols-3">
@@ -28,7 +35,7 @@ export default function ContactPage() {
               Based in
             </div>
             <div className="text-[16px] leading-[1.6] text-ink-soft">
-              Toronto, Canada
+              {content["contact.basedIn"]}
             </div>
           </div>
           <div>
@@ -37,7 +44,7 @@ export default function ContactPage() {
             </div>
             <div className="text-[16px] leading-[1.7] text-ink-soft">
               <a
-                href="https://instagram.com/nazanfeyzioglu"
+                href={`https://instagram.com/${instagram}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover-clay border-b border-line"
@@ -46,7 +53,7 @@ export default function ContactPage() {
               </a>
               <br />
               <span className="font-mono text-[12px] text-stone-2">
-                @nazanfeyzioglu
+                @{instagram}
               </span>
             </div>
           </div>
@@ -65,9 +72,7 @@ export default function ContactPage() {
         </div>
 
         <p className="mt-[66px] max-w-[560px] text-[19px] leading-[1.6] font-light text-mute text-pretty">
-          Tell me a little about the wall it&apos;s for, and I&apos;ll send
-          availability, sizes and pricing — for originals, prints, or a new
-          commission.
+          {content["contact.outro"]}
         </p>
       </main>
     </div>

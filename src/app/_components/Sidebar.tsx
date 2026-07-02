@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { getContent } from "src/server/queries";
+
 export type NavKey = "series" | "prints" | "about" | "exhibitions" | "contact";
 
 const NAV: { key: NavKey; label: string; href: string }[] = [
@@ -10,7 +12,10 @@ const NAV: { key: NavKey; label: string; href: string }[] = [
   { key: "contact", label: "Contact", href: "/contact" },
 ];
 
-export default function Sidebar({ active }: { active: NavKey }) {
+export default async function Sidebar({ active }: { active: NavKey }) {
+  const content = await getContent();
+  const instagram = content["sidebar.instagram"];
+
   return (
     <aside className="z-10 flex flex-col justify-between border-b border-line bg-paper px-9 py-10 md:fixed md:top-0 md:left-0 md:h-screen md:w-[280px] md:border-r md:border-b-0 md:px-[38px] md:py-[46px]">
       <div>
@@ -47,18 +52,20 @@ export default function Sidebar({ active }: { active: NavKey }) {
       </div>
 
       <div className="mt-10 font-mono text-[10px] leading-[2] tracking-[0.16em] text-ash uppercase md:mt-0">
-        <div>Toronto, Canada</div>
+        <div>{content["sidebar.location"]}</div>
         <div>Est. 2026</div>
-        <div className="mt-[14px] flex gap-[14px]">
-          <a
-            href="https://instagram.com/nazanfeyzioglu"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover-clay text-stone"
-          >
-            Instagram
-          </a>
-        </div>
+        {instagram && (
+          <div className="mt-[14px] flex gap-[14px]">
+            <a
+              href={`https://instagram.com/${instagram}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover-clay text-stone"
+            >
+              Instagram
+            </a>
+          </div>
+        )}
       </div>
     </aside>
   );

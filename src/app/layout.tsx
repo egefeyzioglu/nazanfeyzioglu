@@ -1,7 +1,10 @@
 import "src/styles/globals.css";
 
+import { ClerkProvider } from "@clerk/nextjs";
 import { type Metadata } from "next";
 import { Spectral, Space_Mono } from "next/font/google";
+
+import { env } from "src/env";
 
 export const metadata: Metadata = {
   title: "Nazan Feyzioğlu — Painter",
@@ -26,11 +29,21 @@ const spaceMono = Space_Mono({
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return (
+  const body = (
     <html lang="en" className={`${spectral.variable} ${spaceMono.variable}`}>
       <body className="bg-paper font-spectral text-ink antialiased">
         {children}
       </body>
     </html>
+  );
+
+  // Until the Clerk keys are configured, render without the provider so the
+  // public site keeps working; /admin shows a setup notice in that state.
+  if (!env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return body;
+
+  return (
+    <ClerkProvider signInUrl="/sign-in" afterSignOutUrl="/">
+      {body}
+    </ClerkProvider>
   );
 }

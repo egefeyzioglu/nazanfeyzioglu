@@ -2,11 +2,18 @@ import Link from "next/link";
 
 import ArtImage from "src/app/_components/ArtImage";
 import Sidebar from "src/app/_components/Sidebar";
-import { printGroups } from "src/app/_data/prints";
+import { getContent, getPrintGroups } from "src/server/queries";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Prints — Nazan Feyzioğlu" };
 
-export default function PrintsPage() {
+export default async function PrintsPage() {
+  const [groups, content] = await Promise.all([
+    getPrintGroups(),
+    getContent(),
+  ]);
+
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink md:flex-row">
       <Sidebar active="prints" />
@@ -16,28 +23,28 @@ export default function PrintsPage() {
           Prints
         </div>
         <h1 className="mt-[18px] text-[44px] leading-[1.1] font-light tracking-[-0.015em]">
-          Signed limited-edition prints.
+          {content["prints.heading"]}
         </h1>
         <p className="mt-5 mb-[6px] max-w-[560px] text-[17px] leading-[1.6] font-light text-mute text-pretty">
-          Archival giclée prints of selected paintings, grouped by series. Each is
-          signed and numbered. Paper, sizes and pricing are being finalised.
+          {content["prints.intro"]}
         </p>
 
-        {printGroups.map((group) => (
-          <section key={group.series}>
+        {groups.map((group) => (
+          <section key={group.id}>
             <div className="mt-12 flex items-baseline gap-[14px] border-b-2 border-ink pb-[10px]">
               <div className="font-spectral text-[26px] italic">
-                {group.series}
+                {group.title}
               </div>
               <div className="font-mono text-[10px] tracking-[0.2em] text-ash-2 uppercase">
-                {group.count}
+                {group.prints.length} print
+                {group.prints.length === 1 ? "" : "s"}
               </div>
             </div>
 
             <div className="flex flex-col">
               {group.prints.map((print) => (
                 <div
-                  key={print.title}
+                  key={print.id}
                   className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-5 border-b border-line-soft py-[22px] md:grid-cols-[150px_minmax(0,1fr)_auto] md:gap-[30px]"
                 >
                   <div className="leading-[0]">
@@ -45,6 +52,8 @@ export default function PrintsPage() {
                       src={print.image}
                       alt={print.title}
                       sizes="(max-width: 768px) 80px, 150px"
+                      width={print.imageWidth}
+                      height={print.imageHeight}
                     />
                   </div>
                   <div>
@@ -58,7 +67,9 @@ export default function PrintsPage() {
                     </div>
                   </div>
                   <div className="col-span-2 flex items-center justify-between gap-3 md:col-span-1 md:flex-col md:items-end md:gap-3">
-                    <span className="font-spectral text-[23px]">$ —</span>
+                    <span className="font-spectral text-[23px]">
+                      {print.price ?? "$ —"}
+                    </span>
                     <a
                       href="#"
                       className="cart-btn bg-ink px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap text-paper uppercase"
