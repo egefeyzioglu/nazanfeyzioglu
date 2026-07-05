@@ -109,6 +109,36 @@ export const CONTENT_FIELDS: ContentField[] = [
     default: "Selected exhibitions & fairs",
   },
   {
+    key: "nav.series",
+    label: "Nav link — Series",
+    group: "Sidebar",
+    default: "Series",
+  },
+  {
+    key: "nav.prints",
+    label: "Nav link — Prints",
+    group: "Sidebar",
+    default: "Prints",
+  },
+  {
+    key: "nav.about",
+    label: "Nav link — About",
+    group: "Sidebar",
+    default: "About",
+  },
+  {
+    key: "nav.exhibitions",
+    label: "Nav link — Exhibitions",
+    group: "Sidebar",
+    default: "Exhibitions",
+  },
+  {
+    key: "nav.contact",
+    label: "Nav link — Contact",
+    group: "Sidebar",
+    default: "Contact",
+  },
+  {
     key: "sidebar.location",
     label: "Location line",
     group: "Sidebar",

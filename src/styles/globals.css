@@ -215,6 +215,18 @@
   outline: 1px dashed var(--color-clay);
 }
 
+/* Inside the editor preview, everything that isn't an editable copy region
+   is intentionally inert — make that legible on hover instead of feeling
+   broken. Editable regions keep the text cursor. */
+.cms-preview,
+.cms-preview a,
+.cms-preview button {
+  cursor: not-allowed;
+}
+.cms-preview .cms-editable {
+  cursor: text;
+}
+
 /* The editor renders real page bodies inside a scrollable panel; neutralise
    the viewport-coupled bits of the public layout (fixed sidebar, screen
    heights, sidebar offset) so the preview lays out inside its container. */

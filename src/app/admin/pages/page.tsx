@@ -150,7 +150,7 @@ export default function AdminPagesEditor() {
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 font-mono text-[11px] tracking-[0.12em] uppercase ${
+            className={`cursor-pointer px-4 py-2 font-mono text-[11px] tracking-[0.12em] uppercase ${
               tab === t.key
                 ? "border border-line border-b-paper bg-paper text-ink"
                 : "text-stone hover:text-clay"
@@ -165,6 +165,7 @@ export default function AdminPagesEditor() {
       <EditProvider value={edit}>
         <div
           className="cms-preview mt-6 overflow-auto border border-line"
+          title="Not editable here — artwork, prints and exhibition entries are managed in their own admin sections."
           // The previews are the real page components; swallow link clicks so
           // editing text inside a link doesn't navigate away.
           onClickCapture={(e) => {

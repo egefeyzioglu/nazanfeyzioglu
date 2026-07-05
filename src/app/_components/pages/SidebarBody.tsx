@@ -44,6 +44,7 @@ export default function SidebarBody({
               <Link
                 key={item.key}
                 href={item.href}
+                draggable={false}
                 className={`nav-link flex items-center gap-[11px] py-[9px] font-mono text-[12px] tracking-[0.12em] uppercase ${
                   isActive ? "text-ink" : "text-stone"
                 }`}
@@ -51,7 +52,10 @@ export default function SidebarBody({
                 {isActive && (
                   <span className="inline-block h-[6px] w-[6px] rounded-full bg-clay" />
                 )}
-                {item.label}
+                <EditableText
+                  k={`nav.${item.key}`}
+                  value={content[`nav.${item.key}`] ?? item.label}
+                />
               </Link>
             );
           })}

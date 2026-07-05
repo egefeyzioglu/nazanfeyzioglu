@@ -46,7 +46,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`px-4 py-2 font-mono text-[11px] tracking-[0.12em] uppercase disabled:opacity-40 ${styles}`}
+      className={`cursor-pointer px-4 py-2 font-mono text-[11px] tracking-[0.12em] uppercase disabled:opacity-40 disabled:cursor-default ${styles}`}
     >
       {children}
     </button>
@@ -66,7 +66,7 @@ export function RowControls({
   disabled?: boolean;
 }) {
   const btn =
-    "border border-line px-2 py-1 font-mono text-[11px] text-stone hover:border-clay hover:text-clay disabled:opacity-30";
+    "cursor-pointer border border-line px-2 py-1 font-mono text-[11px] text-stone hover:border-clay hover:text-clay disabled:opacity-30";
   return (
     <div className="flex items-center gap-1">
       <button
@@ -89,7 +89,7 @@ export function RowControls({
       </button>
       <button
         type="button"
-        className="border border-line px-2 py-1 font-mono text-[11px] text-stone hover:border-red-700 hover:text-red-700 disabled:opacity-30"
+        className="cursor-pointer border border-line px-2 py-1 font-mono text-[11px] text-stone hover:border-red-700 hover:text-red-700 disabled:opacity-30"
         onClick={() => {
           if (window.confirm("Delete this item? This cannot be undone.")) {
             onDelete();

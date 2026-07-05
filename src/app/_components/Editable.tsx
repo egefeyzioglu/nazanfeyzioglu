@@ -27,7 +27,10 @@ const EditContext = createContext<EditContextValue | null>(null);
 export const EditProvider = EditContext.Provider;
 
 function serializeSingleLine(el: HTMLElement): string {
-  return el.innerText.replace(/\s*\n\s*/g, " ").trim();
+  // textContent, not innerText: innerText reflects CSS text-transform (the
+  // nav links and eyebrows render uppercase), which would clobber the
+  // stored casing.
+  return (el.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
 function serializeParagraphs(el: HTMLElement): string {

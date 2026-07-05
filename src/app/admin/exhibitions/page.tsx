@@ -238,7 +238,7 @@ function ExhibitionCard({
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="hover-clay font-mono text-[11px] tracking-[0.1em] text-stone uppercase"
+            className="hover-clay cursor-pointer font-mono text-[11px] tracking-[0.1em] text-stone uppercase"
           >
             {open ? "Close" : "Edit"}
           </button>
