@@ -18,6 +18,11 @@ export const env = createEnv({
     CLERK_SECRET_KEY: z.string().optional(),
     /** UploadThing token used by the /api/uploadthing route for admin image uploads. */
     UPLOADTHING_TOKEN: z.string(),
+    /**
+     * Set to "1" to open /admin without auth — only honoured in development
+     * and only while the Clerk keys above are unset.
+     */
+    ADMIN_DEV_BYPASS: z.string().optional(),
   },
 
   /**
@@ -39,6 +44,7 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     UPLOADTHING_TOKEN: process.env.UPLOADTHING_TOKEN,
+    ADMIN_DEV_BYPASS: process.env.ADMIN_DEV_BYPASS,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },

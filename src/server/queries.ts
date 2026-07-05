@@ -6,10 +6,7 @@
 import "server-only";
 
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
-import {
-  EXHIBITION_CATEGORIES,
-  EXHIBITION_CATEGORY_LABELS,
-} from "src/lib/exhibitions";
+import { groupExhibitions } from "src/lib/exhibitions";
 import { db } from "src/server/db";
 import { siteContent } from "src/server/db/schema";
 
@@ -41,11 +38,7 @@ export async function getExhibitionGroups() {
   const rows = await db.query.exhibitions.findMany({
     orderBy: (e, { asc }) => [asc(e.position)],
   });
-  return EXHIBITION_CATEGORIES.map((category) => ({
-    category,
-    heading: EXHIBITION_CATEGORY_LABELS[category],
-    entries: rows.filter((e) => e.category === category),
-  })).filter((g) => g.entries.length > 0);
+  return groupExhibitions(rows);
 }
 
 /** All site copy, with defaults filled in for any keys missing from the DB. */
@@ -56,10 +49,3 @@ export async function getContent(): Promise<Record<string, string>> {
   return content;
 }
 
-/** Splits a multi-paragraph content value into paragraphs. */
-export function paragraphs(value: string | undefined): string[] {
-  return (value ?? "")
-    .split(/\n\s*\n/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-}

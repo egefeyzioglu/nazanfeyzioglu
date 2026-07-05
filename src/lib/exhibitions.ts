@@ -8,3 +8,14 @@ export const EXHIBITION_CATEGORY_LABELS: Record<ExhibitionCategory, string> = {
   fair: "Art Fairs",
   group: "Group Exhibitions",
 };
+
+/** Groups exhibition rows into their page sections; empty sections are skipped. */
+export function groupExhibitions<T extends { category: ExhibitionCategory }>(
+  rows: T[],
+) {
+  return EXHIBITION_CATEGORIES.map((category) => ({
+    category,
+    heading: EXHIBITION_CATEGORY_LABELS[category],
+    entries: rows.filter((e) => e.category === category),
+  })).filter((g) => g.entries.length > 0);
+}

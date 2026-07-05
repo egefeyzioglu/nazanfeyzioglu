@@ -2,7 +2,11 @@ import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { clerkConfigured, getAdminStatus } from "src/server/auth";
+import {
+  clerkConfigured,
+  devBypassActive,
+  getAdminStatus,
+} from "src/server/auth";
 import { TRPCReactProvider } from "src/trpc/react";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +17,7 @@ const NAV = [
   { label: "Series", href: "/admin/series" },
   { label: "Prints", href: "/admin/prints" },
   { label: "Exhibitions", href: "/admin/exhibitions" },
-  { label: "Page copy", href: "/admin/content" },
+  { label: "Pages", href: "/admin/pages" },
 ];
 
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
@@ -34,27 +38,33 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  if (!clerkConfigured()) {
+  const bypass = devBypassActive();
+
+  if (!clerkConfigured() && !bypass) {
     return (
       <Notice title="Admin panel not configured yet">
         Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY in .env
         (from a Clerk application at dashboard.clerk.com), restart the dev
         server, then sign in and set {`{ "role": "admin" }`} in your user&apos;s
-        Public metadata in the Clerk dashboard.
+        Public metadata in the Clerk dashboard. For local development before
+        Clerk is set up, you can instead set ADMIN_DEV_BYPASS=1 in .env.
       </Notice>
     );
   }
 
-  const { userId, isAdmin } = await getAdminStatus();
-  if (!userId) redirect("/sign-in");
-  if (!isAdmin) {
-    return (
-      <Notice title="No admin access">
-        You&apos;re signed in, but this account doesn&apos;t have the admin
-        role. In the Clerk dashboard, open Users → your user → Metadata and set
-        Public metadata to {`{ "role": "admin" }`}, then reload this page.
-      </Notice>
-    );
+  if (!bypass) {
+    const { userId, isAdmin } = await getAdminStatus();
+    if (!userId) redirect("/sign-in");
+    if (!isAdmin) {
+      return (
+        <Notice title="No admin access">
+          You&apos;re signed in, but this account doesn&apos;t have the admin
+          role. In the Clerk dashboard, open Users → your user → Metadata and
+          set Public metadata to {`{ "role": "admin" }`}, then reload this
+          page.
+        </Notice>
+      );
+    }
   }
 
   return (
@@ -80,7 +90,13 @@ export default async function AdminLayout({
             >
               View site →
             </Link>
-            <UserButton />
+            {bypass ? (
+              <span className="border border-clay-soft px-2 py-1 font-mono text-[9.5px] tracking-[0.14em] text-clay uppercase">
+                Dev mode — auth bypassed
+              </span>
+            ) : (
+              <UserButton />
+            )}
           </div>
         </header>
         <main className="mx-auto max-w-[960px] px-6 py-10 md:px-10">

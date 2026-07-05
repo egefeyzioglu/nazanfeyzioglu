@@ -10,6 +10,20 @@ export function clerkConfigured(): boolean {
   return Boolean(env.CLERK_SECRET_KEY && env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 }
 
+/**
+ * Local-development escape hatch: with ADMIN_DEV_BYPASS=1 the admin panel is
+ * open without signing in, but ONLY while running in development AND before
+ * any Clerk keys are configured — it can never bypass a configured Clerk app
+ * or a production build.
+ */
+export function devBypassActive(): boolean {
+  return (
+    env.NODE_ENV === "development" &&
+    !clerkConfigured() &&
+    env.ADMIN_DEV_BYPASS === "1"
+  );
+}
+
 type AdminStatus = { userId: string | null; isAdmin: boolean };
 
 /**
@@ -23,6 +37,7 @@ type AdminStatus = { userId: string | null; isAdmin: boolean };
  * session-token customisation.
  */
 export async function getAdminStatus(): Promise<AdminStatus> {
+  if (devBypassActive()) return { userId: "dev-bypass", isAdmin: true };
   if (!clerkConfigured()) return { userId: null, isAdmin: false };
 
   const { userId, sessionClaims } = await auth();

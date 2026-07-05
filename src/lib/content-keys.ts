@@ -125,3 +125,15 @@ export const CONTENT_FIELDS: ContentField[] = [
 export const CONTENT_DEFAULTS: Record<string, string> = Object.fromEntries(
   CONTENT_FIELDS.map((f) => [f.key, f.default]),
 );
+
+export const CONTENT_LABELS: Record<string, string> = Object.fromEntries(
+  CONTENT_FIELDS.map((f) => [f.key, `${f.group} — ${f.label}`]),
+);
+
+/** Splits a multi-paragraph content value into paragraphs. */
+export function paragraphs(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
