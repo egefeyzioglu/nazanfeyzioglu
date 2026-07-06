@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 /** Shared admin form styling and small controls. */
 
@@ -171,6 +171,7 @@ export function CollapsibleRowCard({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const contentId = useId();
   return (
     <div className={cardCls}>
       <div
@@ -191,6 +192,8 @@ export function CollapsibleRowCard({
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls={contentId}
             className="hover-clay cursor-pointer font-mono text-[11px] tracking-[0.1em] text-stone uppercase"
           >
             {open ? "Close" : "Edit"}
@@ -198,7 +201,11 @@ export function CollapsibleRowCard({
           {controls}
         </div>
       </div>
-      {open && <div className="border-t border-line-soft p-6">{children}</div>}
+      {open && (
+        <div id={contentId} className="border-t border-line-soft p-6">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
