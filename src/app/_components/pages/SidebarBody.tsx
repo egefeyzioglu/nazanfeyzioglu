@@ -45,6 +45,7 @@ export default function SidebarBody({
                 key={item.key}
                 href={item.href}
                 draggable={false}
+                aria-current={isActive ? "page" : undefined}
                 className={`nav-link flex items-center gap-[11px] py-[9px] font-mono text-[12px] tracking-[0.12em] uppercase ${
                   isActive ? "text-ink" : "text-stone"
                 }`}

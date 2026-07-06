@@ -80,8 +80,14 @@ export default function AdminPagesEditor() {
       {
         onSuccess: () => {
           void utils.content.list.invalidate().then(() => {
-            drafts.current.clear();
-            setDirtyCount(0);
+            // Drop only what this save persisted — edits made while the
+            // save was in flight stay dirty and re-render via getInitial.
+            for (const e of entries) {
+              if (drafts.current.get(e.key) === e.value) {
+                drafts.current.delete(e.key);
+              }
+            }
+            setDirtyCount(drafts.current.size);
             setResetKey((k) => k + 1);
           });
         },
@@ -97,6 +103,16 @@ export default function AdminPagesEditor() {
 
   if (loading) {
     return <p className="font-mono text-[11px] text-ash">Loading…</p>;
+  }
+
+  const loadError =
+    content.error ?? series.error ?? prints.error ?? exhibitions.error;
+  if (loadError) {
+    return (
+      <p className="font-mono text-[11px] text-red-700">
+        Failed to load: {loadError.message}
+      </p>
+    );
   }
 
   const homeCards = (series.data ?? []).map((s) => ({
