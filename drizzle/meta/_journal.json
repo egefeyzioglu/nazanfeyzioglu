@@ -8,6 +8,20 @@
       "when": 1783307598862,
       "tag": "0000_chemical_changeling",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783322109678,
+      "tag": "0001_stripe-orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783322125826,
+      "tag": "0002_drop-print-display-price",
+      "breakpoints": true
     }
   ]
 }

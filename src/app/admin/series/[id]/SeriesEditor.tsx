@@ -27,6 +27,7 @@ type WorkRow = {
   medium: string;
   price: string | null;
   digital: boolean;
+  digitalPriceCents: number | null;
   note: string | null;
 };
 
@@ -71,11 +72,11 @@ export default function SeriesEditor({ id }: { id: number }) {
   const [addingWork, setAddingWork] = useState(false);
 
   if (query.isLoading) {
-    return <p className="font-mono text-[11px] text-ash">Loading…</p>;
+    return <p className="text-ash font-mono text-[11px]">Loading…</p>;
   }
   if (!s) {
     return (
-      <p className="font-mono text-[11px] text-ash">
+      <p className="text-ash font-mono text-[11px]">
         Series not found.{" "}
         <Link href="/admin/series" className="text-clay">
           Back to series
@@ -90,7 +91,7 @@ export default function SeriesEditor({ id }: { id: number }) {
     <div>
       <Link
         href="/admin/series"
-        className="hover-clay font-mono text-[11px] tracking-[0.14em] text-stone uppercase"
+        className="hover-clay text-stone font-mono text-[11px] tracking-[0.14em] uppercase"
       >
         ← All series
       </Link>
@@ -158,7 +159,7 @@ export default function SeriesEditor({ id }: { id: number }) {
               {updateSeries.isPending ? "Saving…" : "Save series"}
             </Button>
             {updateSeries.isSuccess && !updateSeries.isPending && (
-              <span className="font-mono text-[10px] text-ash">Saved.</span>
+              <span className="text-ash font-mono text-[10px]">Saved.</span>
             )}
           </div>
         </form>
@@ -243,6 +244,7 @@ type WorkFormValues = {
   medium: string;
   price: string | null;
   digital: boolean;
+  digitalPriceCents: number | null;
   note: string | null;
 };
 
@@ -263,6 +265,12 @@ function WorkForm({
   const [medium, setMedium] = useState(initial?.medium ?? "");
   const [price, setPrice] = useState(initial?.price ?? "");
   const [digital, setDigital] = useState(initial?.digital ?? false);
+  const [digitalPrice, setDigitalPrice] = useState(
+    initial?.digitalPriceCents === null ||
+      initial?.digitalPriceCents === undefined
+      ? ""
+      : (initial.digitalPriceCents / 100).toString(),
+  );
   const [note, setNote] = useState(initial?.note ?? "");
   const [image, setImage] = useState<ImageValue | null>(
     initial
@@ -288,6 +296,10 @@ function WorkForm({
           medium,
           price: price.trim() || null,
           digital,
+          digitalPriceCents:
+            digitalPrice.trim() === ""
+              ? null
+              : Math.round(parseFloat(digitalPrice) * 100),
           note: note.trim() || null,
         });
       }}
@@ -333,13 +345,25 @@ function WorkForm({
         </label>
       </div>
       {digital && (
-        <Field label="Digital edition note">
-          <textarea
-            className={`${inputCls} min-h-[60px]`}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </Field>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field label="Digital edition price (CAD, blank = inquire only)">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className={inputCls}
+              value={digitalPrice}
+              onChange={(e) => setDigitalPrice(e.target.value)}
+            />
+          </Field>
+          <Field label="Digital edition note">
+            <textarea
+              className={`${inputCls} min-h-[60px]`}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </Field>
+        </div>
       )}
       <ImageField label="Artwork image" value={image} onChange={setImage} />
       {error && <p className="font-mono text-[11px] text-red-700">{error}</p>}

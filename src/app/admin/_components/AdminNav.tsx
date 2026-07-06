@@ -7,6 +7,7 @@ const NAV = [
   { label: "Series", href: "/admin/series" },
   { label: "Prints", href: "/admin/prints" },
   { label: "Exhibitions", href: "/admin/exhibitions" },
+  { label: "Orders", href: "/admin/orders" },
   { label: "Pages", href: "/admin/pages" },
 ];
 

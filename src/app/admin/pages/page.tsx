@@ -43,8 +43,7 @@ export default function AdminPagesEditor() {
   const drafts = useRef(new Map<string, string>());
 
   const baseline = useMemo(
-    () =>
-      Object.fromEntries((content.data ?? []).map((f) => [f.key, f.value])),
+    () => Object.fromEntries((content.data ?? []).map((f) => [f.key, f.value])),
     [content.data],
   );
   const labels = useMemo(
@@ -106,7 +105,7 @@ export default function AdminPagesEditor() {
     exhibitions.isLoading;
 
   if (loading) {
-    return <p className="font-mono text-[11px] text-ash">Loading…</p>;
+    return <p className="text-ash font-mono text-[11px]">Loading…</p>;
   }
 
   const loadError =
@@ -128,6 +127,20 @@ export default function AdminPagesEditor() {
     workCount: s.workCount,
   }));
   const printGroups = (prints.data ?? []).filter((g) => g.prints.length > 0);
+  const previewPrintGroups = printGroups.map((g) => ({
+    id: g.id,
+    title: g.title,
+    prints: g.prints.map((p) => ({
+      id: p.id,
+      title: p.title,
+      image: p.image,
+      imageWidth: p.imageWidth,
+      imageHeight: p.imageHeight,
+      spec: p.spec,
+      edition: p.edition,
+      priceCents: p.priceCents,
+    })),
+  }));
   const exhibitionGroups = groupExhibitions(exhibitions.data ?? []);
 
   return (
@@ -196,7 +209,7 @@ export default function AdminPagesEditor() {
             if ((e.target as HTMLElement).closest("a")) e.preventDefault();
           }}
         >
-          <div className="flex min-w-[860px] flex-col bg-paper text-ink md:flex-row">
+          <div className="bg-paper text-ink flex min-w-[860px] flex-col md:flex-row">
             <SidebarBody active={tab} content={baseline} />
             {tab === "series" && (
               <HomeBody cards={homeCards} content={baseline} />
@@ -204,7 +217,11 @@ export default function AdminPagesEditor() {
             {tab === "about" && <AboutBody content={baseline} />}
             {tab === "contact" && <ContactBody content={baseline} />}
             {tab === "prints" && (
-              <PrintsBody groups={printGroups} content={baseline} />
+              <PrintsBody
+                groups={previewPrintGroups}
+                content={baseline}
+                checkoutEnabled={false}
+              />
             )}
             {tab === "exhibitions" && (
               <ExhibitionsBody groups={exhibitionGroups} content={baseline} />

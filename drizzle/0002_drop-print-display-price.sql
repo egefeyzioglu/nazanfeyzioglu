@@ -1,0 +1,1 @@
+ALTER TABLE "nazanfeyzioglu_print" DROP COLUMN "price";

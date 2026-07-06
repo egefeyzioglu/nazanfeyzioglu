@@ -28,6 +28,27 @@ export const env = createEnv({
      * and only while the Clerk keys above are unset.
      */
     ADMIN_DEV_BYPASS: z.string().optional(),
+    /**
+     * Stripe secret key. Optional so the site builds and runs before Stripe
+     * is configured — without it, buy buttons fall back to contact links.
+     */
+    STRIPE_SECRET_KEY: z.string().optional(),
+    /**
+     * Signing secret for the /api/stripe/webhook endpoint (whsec_…), from the
+     * webhook configuration in the Stripe Dashboard. Required for orders to
+     * be recorded.
+     */
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    /**
+     * Optional Dashboard-defined shipping rate (shr_…) applied to print
+     * checkouts. When unset, print checkouts charge no shipping.
+     */
+    STRIPE_SHIPPING_RATE_ID: z.string().optional(),
+    /**
+     * Canonical site origin (e.g. "https://nazanfeyzioglu.com") used for
+     * Stripe redirect URLs. When unset, the request's own origin is used.
+     */
+    SITE_URL: z.string().url().optional(),
   },
 
   /**
@@ -50,6 +71,10 @@ export const env = createEnv({
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     UPLOADTHING_TOKEN: process.env.UPLOADTHING_TOKEN,
     ADMIN_DEV_BYPASS: process.env.ADMIN_DEV_BYPASS,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+    STRIPE_SHIPPING_RATE_ID: process.env.STRIPE_SHIPPING_RATE_ID,
+    SITE_URL: process.env.SITE_URL,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },

@@ -15,7 +15,8 @@ const printFields = {
   imageHeight: z.number().int().positive(),
   spec: z.string().min(1),
   edition: z.string().min(1),
-  price: z.string().max(128).nullish(),
+  priceCents: z.number().int().positive().nullish(),
+  editionSize: z.number().int().positive().nullish(),
 };
 
 export const printsRouter = createTRPCRouter({
@@ -68,9 +69,7 @@ export const printsRouter = createTRPCRouter({
           await tx
             .update(prints)
             .set({ position })
-            .where(
-              and(eq(prints.id, id), eq(prints.seriesId, input.seriesId)),
-            );
+            .where(and(eq(prints.id, id), eq(prints.seriesId, input.seriesId)));
         }
       });
     }),

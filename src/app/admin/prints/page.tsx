@@ -15,6 +15,7 @@ import {
   PageHeader,
   RowControls,
 } from "src/app/admin/_components/ui";
+import { formatPrice } from "src/lib/orders";
 import { api } from "src/trpc/react";
 
 type PrintRow = {
@@ -25,7 +26,8 @@ type PrintRow = {
   imageHeight: number;
   spec: string;
   edition: string;
-  price: string | null;
+  priceCents: number | null;
+  editionSize: number | null;
 };
 
 type PrintFormValues = Omit<PrintRow, "id">;
@@ -43,7 +45,7 @@ export default function AdminPrintsPage() {
   const [addingFor, setAddingFor] = useState<number | null>(null);
 
   if (list.isLoading) {
-    return <p className="font-mono text-[11px] text-ash">Loading…</p>;
+    return <p className="text-ash font-mono text-[11px]">Loading…</p>;
   }
   if (list.error) {
     return (
@@ -141,7 +143,7 @@ export default function AdminPrintsPage() {
                   />
                 ))}
                 {group.prints.length === 0 && (
-                  <p className="font-mono text-[10.5px] text-ash">
+                  <p className="text-ash font-mono text-[10.5px]">
                     No prints in this series yet.
                   </p>
                 )}
@@ -170,7 +172,16 @@ function PrintForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [spec, setSpec] = useState(initial?.spec ?? "");
   const [edition, setEdition] = useState(initial?.edition ?? "");
-  const [price, setPrice] = useState(initial?.price ?? "");
+  const [price, setPrice] = useState(
+    initial?.priceCents === null || initial?.priceCents === undefined
+      ? ""
+      : (initial.priceCents / 100).toString(),
+  );
+  const [editionSize, setEditionSize] = useState(
+    initial?.editionSize === null || initial?.editionSize === undefined
+      ? ""
+      : initial.editionSize.toString(),
+  );
   const [image, setImage] = useState<ImageValue | null>(
     initial
       ? {
@@ -194,7 +205,10 @@ function PrintForm({
           imageHeight: image.height,
           spec,
           edition,
-          price: price.trim() || null,
+          priceCents:
+            price.trim() === "" ? null : Math.round(parseFloat(price) * 100),
+          editionSize:
+            editionSize.trim() === "" ? null : parseInt(editionSize, 10),
         });
       }}
     >
@@ -225,12 +239,24 @@ function PrintForm({
             onChange={(e) => setEdition(e.target.value)}
           />
         </Field>
-        <Field label="Price (blank shows “$ —”)">
+        <Field label="Price (CAD, blank = not for sale)">
           <input
+            type="number"
+            min="0"
+            step="0.01"
             className={inputCls}
             value={price}
-            placeholder="180 CAD"
             onChange={(e) => setPrice(e.target.value)}
+          />
+        </Field>
+        <Field label="Edition size (blank = unlimited)">
+          <input
+            type="number"
+            min="1"
+            step="1"
+            className={inputCls}
+            value={editionSize}
+            onChange={(e) => setEditionSize(e.target.value)}
           />
         </Field>
       </div>
@@ -271,7 +297,9 @@ function PrintCard({
         </div>
       }
       title={print.title}
-      subtitle={`${print.spec} · ${print.edition} · ${print.price ?? "$ —"}`}
+      subtitle={`${print.spec} · ${print.edition} · ${
+        print.priceCents === null ? "$ —" : formatPrice(print.priceCents)
+      }${print.editionSize !== null ? ` · limit ${print.editionSize}` : ""}`}
       controls={controls}
     >
       <PrintForm
