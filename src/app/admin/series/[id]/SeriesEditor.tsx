@@ -8,6 +8,7 @@ import ImageField, {
 } from "src/app/admin/_components/ImageField";
 import {
   Button,
+  cardCls,
   Field,
   inputCls,
   labelCls,
@@ -92,11 +93,13 @@ export default function SeriesEditor({ id }: { id: number }) {
       >
         ← All series
       </Link>
-      <h1 className="mt-4 text-[28px] font-light">{s.title}</h1>
+      <h1 className="mt-4 mb-6 font-spectral text-[30px] leading-none font-light tracking-[-0.01em]">
+        {s.title}
+      </h1>
 
       {form && (
         <form
-          className="mt-6 flex flex-col gap-4 border border-line bg-white/40 p-5"
+          className={`flex flex-col gap-4 p-6 ${cardCls}`}
           onSubmit={(e) => {
             e.preventDefault();
             if (!form.cover) return;
@@ -125,7 +128,7 @@ export default function SeriesEditor({ id }: { id: number }) {
                 className={inputCls}
                 value={form.slug}
                 required
-                pattern="[a-z0-9-]+"
+                pattern="[a-z0-9\-]+"
                 onChange={(e) => setForm({ ...form, slug: e.target.value })}
               />
             </Field>
@@ -160,15 +163,20 @@ export default function SeriesEditor({ id }: { id: number }) {
         </form>
       )}
 
-      <div className="mt-10 flex items-baseline justify-between">
-        <h2 className="text-[20px] font-light">Works ({s.works.length})</h2>
+      <div className="mt-12 mb-4 flex items-baseline justify-between border-b border-line pb-3">
+        <h2 className="font-spectral text-[21px] font-light">
+          Works{" "}
+          <span className="font-mono text-[12px] text-ash">
+            ({s.works.length})
+          </span>
+        </h2>
         <Button variant="ghost" onClick={() => setAddingWork((v) => !v)}>
           {addingWork ? "Cancel" : "+ Add work"}
         </Button>
       </div>
 
       {addingWork && (
-        <div className="mt-4 border border-line bg-white/40 p-5">
+        <div className={`mb-4 p-6 ${cardCls}`}>
           <WorkForm
             pending={createWork.isPending}
             error={createWork.error?.message}
@@ -314,6 +322,7 @@ function WorkForm({
         <label className="flex items-center gap-2 pb-2">
           <input
             type="checkbox"
+            className="h-4 w-4 accent-clay"
             checked={digital}
             onChange={(e) => setDigital(e.target.checked)}
           />
@@ -358,11 +367,15 @@ function WorkCard({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="border border-line bg-white/40">
+    <div className={cardCls}>
       <div className="grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-4 p-3">
-        <div className="border border-line bg-panel">
+        <div className="overflow-hidden rounded-lg border border-line bg-panel">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={work.image} alt="" className="block h-auto w-full" />
+          <img
+            src={work.image}
+            alt=""
+            className="block aspect-square h-auto w-full object-cover"
+          />
         </div>
         <div className="min-w-0">
           <div className="font-spectral text-[17px] italic">{work.title}</div>
@@ -370,7 +383,7 @@ function WorkCard({
             {work.medium} · {work.digital ? "digital" : (work.price ?? "—")}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pr-1">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
@@ -382,7 +395,7 @@ function WorkCard({
         </div>
       </div>
       {open && (
-        <div className="border-t border-line-soft p-5">
+        <div className="border-t border-line-soft p-6">
           <WorkForm
             key={work.id}
             initial={work}

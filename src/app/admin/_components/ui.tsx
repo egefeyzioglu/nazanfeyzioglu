@@ -2,11 +2,15 @@
 
 /** Shared admin form styling and small controls. */
 
+/** Floating white surface used for forms, list rows and cards. */
+export const cardCls =
+  "rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(28,26,23,0.04),0_18px_36px_-28px_rgba(28,26,23,0.32)]";
+
 export const inputCls =
-  "w-full border border-line bg-white/60 px-3 py-2 font-mono text-[12px] text-ink outline-none focus:border-clay";
+  "w-full rounded-md border border-line-2 bg-paper px-3 py-2.5 font-mono text-[12px] text-ink outline-none transition placeholder:text-ash-2 focus:border-clay focus:ring-2 focus:ring-clay/15";
 
 export const labelCls =
-  "mb-1 block font-mono text-[10px] tracking-[0.18em] text-ash uppercase";
+  "mb-1.5 block font-mono text-[10px] tracking-[0.18em] text-stone uppercase";
 
 export function Field({
   label,
@@ -20,6 +24,42 @@ export function Field({
       <span className={labelCls}>{label}</span>
       {children}
     </label>
+  );
+}
+
+/** Page title band shared by every admin section. */
+export function PageHeader({
+  eyebrow,
+  title,
+  description,
+  actions,
+}: {
+  eyebrow?: string;
+  title: string;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-line pb-5">
+      <div className="min-w-0">
+        {eyebrow && (
+          <div className="mb-2 font-mono text-[10px] tracking-[0.28em] text-clay uppercase">
+            {eyebrow}
+          </div>
+        )}
+        <h1 className="font-spectral text-[30px] leading-none font-light tracking-[-0.01em] text-ink">
+          {title}
+        </h1>
+        {description && (
+          <p className="mt-3 max-w-[580px] font-mono text-[11px] leading-[1.75] text-stone">
+            {description}
+          </p>
+        )}
+      </div>
+      {actions && (
+        <div className="flex flex-none items-center gap-3">{actions}</div>
+      )}
+    </div>
   );
 }
 
@@ -37,16 +77,19 @@ export function Button({
   disabled?: boolean;
 }) {
   const styles = {
-    primary: "bg-ink text-paper",
-    ghost: "border border-line text-stone hover:border-clay hover:text-clay",
-    danger: "border border-line text-stone hover:border-red-700 hover:text-red-700",
+    primary:
+      "border border-ink bg-ink text-paper hover:bg-ink-soft hover:border-ink-soft",
+    ghost:
+      "border border-line-2 bg-white text-mute hover:border-clay hover:text-clay",
+    danger:
+      "border border-line-2 bg-white text-mute hover:border-red-700 hover:text-red-700",
   }[variant];
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`cursor-pointer px-4 py-2 font-mono text-[11px] tracking-[0.12em] uppercase disabled:opacity-40 disabled:cursor-default ${styles}`}
+      className={`cursor-pointer rounded-md px-4 py-2.5 font-mono text-[11px] tracking-[0.12em] uppercase transition disabled:cursor-default disabled:opacity-40 ${styles}`}
     >
       {children}
     </button>
@@ -66,11 +109,11 @@ export function RowControls({
   disabled?: boolean;
 }) {
   const base =
-    "cursor-pointer border border-line px-2 py-1 font-mono text-[11px] text-stone disabled:opacity-30";
+    "grid h-7 w-7 cursor-pointer place-items-center rounded-md border border-line-2 bg-white font-mono text-[12px] text-stone transition disabled:cursor-default disabled:opacity-30";
   const btn = `${base} hover:border-clay hover:text-clay`;
   const btnDanger = `${base} hover:border-red-700 hover:text-red-700`;
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1.5">
       <button
         type="button"
         className={btn}

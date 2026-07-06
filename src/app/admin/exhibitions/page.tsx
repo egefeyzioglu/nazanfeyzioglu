@@ -4,9 +4,11 @@ import { useState } from "react";
 
 import {
   Button,
+  cardCls,
   Field,
   inputCls,
   movedIds,
+  PageHeader,
   RowControls,
 } from "src/app/admin/_components/ui";
 import {
@@ -64,15 +66,19 @@ export default function AdminExhibitionsPage() {
 
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-[28px] font-light">Exhibitions</h1>
-        <Button variant="ghost" onClick={() => setAdding((v) => !v)}>
-          {adding ? "Cancel" : "+ Add entry"}
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Content"
+        title="Exhibitions"
+        description="Solo shows and art fairs. Order within each section sets how they appear on the site."
+        actions={
+          <Button variant="ghost" onClick={() => setAdding((v) => !v)}>
+            {adding ? "Cancel" : "+ Add entry"}
+          </Button>
+        }
+      />
 
       {adding && (
-        <div className="mt-6 border border-line bg-white/40 p-5">
+        <div className={`mb-8 p-6 ${cardCls}`}>
           <ExhibitionForm
             pending={create.isPending}
             error={create.error?.message}
@@ -84,10 +90,10 @@ export default function AdminExhibitionsPage() {
         </div>
       )}
 
-      <div className="mt-8 flex flex-col gap-10">
+      <div className="flex flex-col gap-10">
         {groups.map((group) => (
           <section key={group.category}>
-            <div className="border-b border-line pb-2 font-mono text-[11px] tracking-[0.26em] text-clay uppercase">
+            <div className="border-b border-line pb-3 font-mono text-[11px] tracking-[0.26em] text-clay uppercase">
               {CATEGORY_LABELS[group.category]}
             </div>
             <div className="mt-3 flex flex-col gap-3">
@@ -230,15 +236,15 @@ function ExhibitionCard({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="border border-line bg-white/40">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 p-3">
+    <div className={cardCls}>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 p-4">
         <div className="min-w-0">
           <div className="font-spectral text-[17px] italic">{entry.name}</div>
           <div className="mt-[2px] truncate font-mono text-[10.5px] text-stone-2">
             {entry.location} · {entry.date}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pr-1">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
@@ -250,7 +256,7 @@ function ExhibitionCard({
         </div>
       </div>
       {open && (
-        <div className="border-t border-line-soft p-5">
+        <div className="border-t border-line-soft p-6">
           <ExhibitionForm
             key={entry.id}
             initial={entry}

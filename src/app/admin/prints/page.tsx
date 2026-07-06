@@ -7,9 +7,11 @@ import ImageField, {
 } from "src/app/admin/_components/ImageField";
 import {
   Button,
+  cardCls,
   Field,
   inputCls,
   movedIds,
+  PageHeader,
   RowControls,
 } from "src/app/admin/_components/ui";
 import { api } from "src/trpc/react";
@@ -52,18 +54,19 @@ export default function AdminPrintsPage() {
 
   return (
     <div>
-      <h1 className="text-[28px] font-light">Prints</h1>
-      <p className="mt-2 font-mono text-[11px] leading-[1.8] text-stone">
-        Grouped by series — create a series first to list prints under it.
-      </p>
+      <PageHeader
+        eyebrow="Content"
+        title="Prints"
+        description="Signed limited-edition prints, grouped by series. Create a series first to list prints under it."
+      />
 
-      <div className="mt-6 flex flex-col gap-10">
+      <div className="flex flex-col gap-10">
         {(list.data ?? []).map((group) => {
           const ids = group.prints.map((p) => p.id);
           return (
             <section key={group.id}>
-              <div className="flex items-baseline justify-between border-b-2 border-ink pb-2">
-                <div className="font-spectral text-[20px] italic">
+              <div className="flex items-baseline justify-between border-b border-line pb-3">
+                <div className="font-spectral text-[21px] italic">
                   {group.title}
                 </div>
                 <Button
@@ -77,7 +80,7 @@ export default function AdminPrintsPage() {
               </div>
 
               {addingFor === group.id && (
-                <div className="mt-4 border border-line bg-white/40 p-5">
+                <div className={`mt-4 p-6 ${cardCls}`}>
                   <PrintForm
                     pending={create.isPending}
                     error={create.error?.message}
@@ -257,11 +260,15 @@ function PrintCard({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="border border-line bg-white/40">
+    <div className={cardCls}>
       <div className="grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-4 p-3">
-        <div className="border border-line bg-panel">
+        <div className="overflow-hidden rounded-lg border border-line bg-panel">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={print.image} alt="" className="block h-auto w-full" />
+          <img
+            src={print.image}
+            alt=""
+            className="block aspect-square h-auto w-full object-cover"
+          />
         </div>
         <div className="min-w-0">
           <div className="font-spectral text-[17px] italic">{print.title}</div>
@@ -269,7 +276,7 @@ function PrintCard({
             {print.spec} · {print.edition} · {print.price ?? "$ —"}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pr-1">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
@@ -281,7 +288,7 @@ function PrintCard({
         </div>
       </div>
       {open && (
-        <div className="border-t border-line-soft p-5">
+        <div className="border-t border-line-soft p-6">
           <PrintForm
             key={print.id}
             initial={print}
