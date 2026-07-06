@@ -4,14 +4,19 @@
  * already has series unless called with `--force`, which wipes and reseeds all
  * CMS tables.
  */
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 
 import { CONTENT_FIELDS } from "../../lib/content-keys";
 import * as schema from "./schema";
 
-const url = process.env.DATABASE_URL ?? "file:./db.sqlite";
-const db = drizzle(createClient({ url }), { schema });
+const url = process.env.DATABASE_URL;
+if (!url) {
+  console.error("DATABASE_URL is not set.");
+  process.exit(1);
+}
+const pool = new Pool({ connectionString: url });
+const db = drizzle(pool, { schema });
 
 /** Intrinsic pixel dimensions of the launch assets, to avoid layout shift. */
 const DIMS: Record<string, { w: number; h: number }> = {
@@ -521,7 +526,10 @@ async function main() {
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(async () => {
+    await pool.end();
+    process.exit(0);
+  })
   .catch((err) => {
     console.error(err);
     process.exit(1);

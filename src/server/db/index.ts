@@ -1,19 +1,21 @@
-import { createClient, type Client } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 
 import { env } from "src/env";
 import * as schema from "./schema";
 
 /**
- * Cache the database connection in development. This avoids creating a new connection on every HMR
- * update.
+ * Cache the connection pool in development. This avoids creating a new pool on
+ * every HMR update. In production on Vercel, use the pooled (PgBouncer)
+ * connection string from the Neon integration so serverless invocations share
+ * server-side connections.
  */
 const globalForDb = globalThis as unknown as {
-  client: Client | undefined;
+  pool: Pool | undefined;
 };
 
-export const client =
-  globalForDb.client ?? createClient({ url: env.DATABASE_URL });
-if (env.NODE_ENV !== "production") globalForDb.client = client;
+export const pool =
+  globalForDb.pool ?? new Pool({ connectionString: env.DATABASE_URL });
+if (env.NODE_ENV !== "production") globalForDb.pool = pool;
 
-export const db = drizzle(client, { schema });
+export const db = drizzle(pool, { schema });

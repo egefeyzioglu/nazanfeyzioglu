@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { CONTENT_FIELDS } from "src/lib/content-keys";
@@ -42,7 +41,7 @@ export const contentRouter = createTRPCRouter({
             .values(e)
             .onConflictDoUpdate({
               target: siteContent.key,
-              set: { value: e.value, updatedAt: sql`(unixepoch())` },
+              set: { value: e.value, updatedAt: new Date() },
             });
         }
       });

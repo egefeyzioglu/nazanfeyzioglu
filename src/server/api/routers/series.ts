@@ -81,8 +81,8 @@ export const seriesRouter = createTRPCRouter({
   delete: adminProcedure
     .input(z.object({ id: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      // Delete children explicitly rather than relying on SQLite enforcing
-      // ON DELETE CASCADE, which requires the foreign_keys pragma.
+      // Postgres would cascade these via the FK, but the explicit deletes
+      // keep the full effect of this mutation visible in one place.
       await ctx.db.transaction(async (tx) => {
         await tx.delete(works).where(eq(works.seriesId, input.id));
         await tx.delete(prints).where(eq(prints.seriesId, input.id));

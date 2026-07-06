@@ -1,16 +1,34 @@
 # Nazan Feyzioğlu — portfolio site
 
-Artist portfolio for Nazan Feyzioğlu, built on the [T3 Stack](https://create.t3.gg/) (Next.js App Router, Drizzle + SQLite, tRPC, Tailwind v4), with a CMS admin panel backed by Clerk auth and UploadThing image hosting.
+Artist portfolio for Nazan Feyzioğlu, built on the [T3 Stack](https://create.t3.gg/) (Next.js App Router, Drizzle + Postgres, tRPC, Tailwind v4), with a CMS admin panel backed by Clerk auth and UploadThing image hosting.
 
 ## Getting started
 
 ```bash
 pnpm install
 cp .env.example .env      # then fill in the values below
-pnpm db:migrate           # create the SQLite tables
+docker run -d --name nazanfeyzioglu-postgres \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=nazanfeyzioglu -p 5432:5432 \
+  -v nazanfeyzioglu-pgdata:/var/lib/postgresql/data postgres:16
+pnpm db:migrate           # create the Postgres tables
 pnpm db:seed              # load the launch content (add --force to wipe & reseed)
 pnpm dev
 ```
+
+On later boots the database is just `docker start nazanfeyzioglu-postgres`.
+
+## Database (Vercel)
+
+The CMS lives in Postgres. In production, provision it through the Vercel
+dashboard so everything stays native to Vercel:
+
+1. In your Vercel project, open **Storage → Create Database → Neon (Postgres)**
+   and connect it to the project. The integration injects `DATABASE_URL`
+   (use the **pooled** connection string) into all environments.
+2. Run the schema migration and seed against it once:
+   `DATABASE_URL="<neon pooled url>" pnpm db:migrate && DATABASE_URL="<neon pooled url>" pnpm db:seed`
+3. Deploy. The app connects through `pg` with a shared pool, so it works with
+   Neon's PgBouncer endpoint on serverless functions.
 
 ## CMS / admin panel
 
