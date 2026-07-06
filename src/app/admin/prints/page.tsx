@@ -8,6 +8,7 @@ import ImageField, {
 import {
   Button,
   cardCls,
+  CollapsibleRowCard,
   Field,
   inputCls,
   movedIds,
@@ -257,48 +258,30 @@ function PrintCard({
   error?: string;
   controls: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <div className={cardCls}>
-      <div className="grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-4 p-3">
+    <CollapsibleRowCard
+      thumb={
         <div className="overflow-hidden rounded-lg border border-line bg-panel">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={print.image}
-            alt=""
+            alt={print.title}
             className="block aspect-square h-auto w-full object-cover"
           />
         </div>
-        <div className="min-w-0">
-          <div className="font-spectral text-[17px] italic">{print.title}</div>
-          <div className="mt-[2px] truncate font-mono text-[10.5px] text-stone-2">
-            {print.spec} · {print.edition} · {print.price ?? "$ —"}
-          </div>
-        </div>
-        <div className="flex items-center gap-3 pr-1">
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="hover-clay cursor-pointer font-mono text-[11px] tracking-[0.1em] text-stone uppercase"
-          >
-            {open ? "Close" : "Edit"}
-          </button>
-          {controls}
-        </div>
-      </div>
-      {open && (
-        <div className="border-t border-line-soft p-6">
-          <PrintForm
-            key={print.id}
-            initial={print}
-            onSubmit={onSave}
-            pending={pending}
-            error={error}
-            submitLabel="Save print"
-          />
-        </div>
-      )}
-    </div>
+      }
+      title={print.title}
+      subtitle={`${print.spec} · ${print.edition} · ${print.price ?? "$ —"}`}
+      controls={controls}
+    >
+      <PrintForm
+        key={print.id}
+        initial={print}
+        onSubmit={onSave}
+        pending={pending}
+        error={error}
+        submitLabel="Save print"
+      />
+    </CollapsibleRowCard>
   );
 }

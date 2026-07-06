@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   Button,
   cardCls,
+  CollapsibleRowCard,
   Field,
   inputCls,
   movedIds,
@@ -233,40 +234,20 @@ function ExhibitionCard({
   error?: string;
   controls: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <div className={cardCls}>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 p-4">
-        <div className="min-w-0">
-          <div className="font-spectral text-[17px] italic">{entry.name}</div>
-          <div className="mt-[2px] truncate font-mono text-[10.5px] text-stone-2">
-            {entry.location} · {entry.date}
-          </div>
-        </div>
-        <div className="flex items-center gap-3 pr-1">
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="hover-clay cursor-pointer font-mono text-[11px] tracking-[0.1em] text-stone uppercase"
-          >
-            {open ? "Close" : "Edit"}
-          </button>
-          {controls}
-        </div>
-      </div>
-      {open && (
-        <div className="border-t border-line-soft p-6">
-          <ExhibitionForm
-            key={entry.id}
-            initial={entry}
-            onSubmit={onSave}
-            pending={pending}
-            error={error}
-            submitLabel="Save entry"
-          />
-        </div>
-      )}
-    </div>
+    <CollapsibleRowCard
+      title={entry.name}
+      subtitle={`${entry.location} · ${entry.date}`}
+      controls={controls}
+    >
+      <ExhibitionForm
+        key={entry.id}
+        initial={entry}
+        onSubmit={onSave}
+        pending={pending}
+        error={error}
+        submitLabel="Save entry"
+      />
+    </CollapsibleRowCard>
   );
 }

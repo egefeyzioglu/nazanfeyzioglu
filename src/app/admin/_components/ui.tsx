@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 /** Shared admin form styling and small controls. */
 
 /** Floating white surface used for forms, list rows and cards. */
@@ -145,6 +147,58 @@ export function RowControls({
       >
         ✕
       </button>
+    </div>
+  );
+}
+
+/**
+ * Collapsible list row used by the print, work and exhibition editors: a card
+ * with a header (optional thumbnail, title, subtitle, an Edit/Close toggle and
+ * reorder/delete `controls`) that reveals `children` — the row's edit form —
+ * when expanded.
+ */
+export function CollapsibleRowCard({
+  thumb,
+  title,
+  subtitle,
+  controls,
+  children,
+}: {
+  thumb?: React.ReactNode;
+  title: React.ReactNode;
+  subtitle: React.ReactNode;
+  controls: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={cardCls}>
+      <div
+        className={`grid items-center gap-4 ${
+          thumb
+            ? "grid-cols-[56px_minmax(0,1fr)_auto] p-3"
+            : "grid-cols-[minmax(0,1fr)_auto] p-4"
+        }`}
+      >
+        {thumb}
+        <div className="min-w-0">
+          <div className="font-spectral text-[17px] italic">{title}</div>
+          <div className="mt-[2px] truncate font-mono text-[10.5px] text-stone-2">
+            {subtitle}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 pr-1">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="hover-clay cursor-pointer font-mono text-[11px] tracking-[0.1em] text-stone uppercase"
+          >
+            {open ? "Close" : "Edit"}
+          </button>
+          {controls}
+        </div>
+      </div>
+      {open && <div className="border-t border-line-soft p-6">{children}</div>}
     </div>
   );
 }

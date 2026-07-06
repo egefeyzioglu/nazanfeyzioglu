@@ -9,6 +9,7 @@ import ImageField, {
 import {
   Button,
   cardCls,
+  CollapsibleRowCard,
   Field,
   inputCls,
   labelCls,
@@ -364,48 +365,30 @@ function WorkCard({
   error?: string;
   controls: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <div className={cardCls}>
-      <div className="grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-4 p-3">
+    <CollapsibleRowCard
+      thumb={
         <div className="overflow-hidden rounded-lg border border-line bg-panel">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={work.image}
-            alt=""
+            alt={work.title}
             className="block aspect-square h-auto w-full object-cover"
           />
         </div>
-        <div className="min-w-0">
-          <div className="font-spectral text-[17px] italic">{work.title}</div>
-          <div className="mt-[2px] truncate font-mono text-[10.5px] text-stone-2">
-            {work.medium} · {work.digital ? "digital" : (work.price ?? "—")}
-          </div>
-        </div>
-        <div className="flex items-center gap-3 pr-1">
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="hover-clay cursor-pointer font-mono text-[11px] tracking-[0.1em] text-stone uppercase"
-          >
-            {open ? "Close" : "Edit"}
-          </button>
-          {controls}
-        </div>
-      </div>
-      {open && (
-        <div className="border-t border-line-soft p-6">
-          <WorkForm
-            key={work.id}
-            initial={work}
-            onSubmit={onSave}
-            pending={pending}
-            error={error}
-            submitLabel="Save work"
-          />
-        </div>
-      )}
-    </div>
+      }
+      title={work.title}
+      subtitle={`${work.medium} · ${work.digital ? "digital" : (work.price ?? "—")}`}
+      controls={controls}
+    >
+      <WorkForm
+        key={work.id}
+        initial={work}
+        onSubmit={onSave}
+        pending={pending}
+        error={error}
+        submitLabel="Save work"
+      />
+    </CollapsibleRowCard>
   );
 }

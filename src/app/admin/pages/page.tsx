@@ -167,11 +167,13 @@ export default function AdminPagesEditor() {
         </p>
       )}
 
-      <div className="mb-6 flex flex-wrap gap-1.5">
+      <div className="mb-6 flex flex-wrap gap-1.5" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={`cursor-pointer rounded-full px-3.5 py-1.5 font-mono text-[11px] tracking-[0.12em] uppercase transition-colors ${
               tab === t.key
