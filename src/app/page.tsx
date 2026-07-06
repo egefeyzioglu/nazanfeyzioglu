@@ -1,66 +1,25 @@
-import Link from "next/link";
-
-import ArtImage from "src/app/_components/ArtImage";
 import Sidebar from "src/app/_components/Sidebar";
-import { getSeries, railOrder } from "src/app/_data/series";
+import HomeBody from "src/app/_components/pages/HomeBody";
+import { getAllSeries, getContent } from "src/server/queries";
 
-export default function HomePage() {
-  const cards = railOrder
-    .map(({ slug, workCount }) => {
-      const s = getSeries(slug);
-      return s ? { ...s, workCount } : null;
-    })
-    .filter((c): c is NonNullable<typeof c> => c !== null);
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const [series, content] = await Promise.all([getAllSeries(), getContent()]);
+
+  const cards = series.map((s) => ({
+    slug: s.slug,
+    title: s.title,
+    coverImage: s.coverImage,
+    coverWidth: s.coverWidth,
+    coverHeight: s.coverHeight,
+    workCount: s.works.length,
+  }));
 
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink md:flex-row">
       <Sidebar active="series" />
-
-      <main className="flex min-h-[700px] flex-1 flex-col md:ml-[280px] md:h-screen md:min-w-0">
-        <div className="flex-none px-9 pt-12 md:px-[72px] md:pt-12">
-          <div className="font-mono text-[10.5px] tracking-[0.3em] text-ash uppercase">
-            Selected Series — 2023 / 2026
-          </div>
-        </div>
-
-        <div className="nagon-rail flex-1 overflow-x-auto md:min-h-0 md:overflow-y-hidden">
-          <div className="relative flex min-h-[560px] w-max min-w-full items-start gap-16 px-9 pt-[84px] md:px-[72px]">
-            <div className="absolute top-[84px] right-0 left-0 h-[2px] bg-ink" />
-
-            {cards.map((card) => (
-              <Link
-                key={card.slug}
-                href={`/series/${card.slug}`}
-                className="swing serieslink flex w-[300px] flex-none flex-col items-center"
-              >
-                {/* Hanging cord + pin */}
-                <div className="relative h-[34px] w-px bg-[#b9b3a6]">
-                  <span className="absolute top-[-4px] left-[-3.5px] h-[8px] w-[8px] rounded-full bg-ink" />
-                </div>
-
-                <div className="swing-img w-full overflow-hidden bg-panel shadow-[0_18px_30px_-22px_rgba(0,0,0,0.45)]">
-                  <ArtImage
-                    src={card.cover}
-                    alt={card.title}
-                    sizes="300px"
-                  />
-                </div>
-
-                <div className="mt-[18px] text-center">
-                  <div className="font-spectral text-[20px] leading-[1.2] italic">
-                    {card.title}
-                  </div>
-                  <div className="openpip mt-[7px] font-mono text-[10px] tracking-[0.14em] text-ash uppercase transition-colors duration-200">
-                    {card.workCount} →
-                  </div>
-                </div>
-              </Link>
-            ))}
-
-            <div className="w-6 flex-none" />
-          </div>
-        </div>
-      </main>
+      <HomeBody cards={cards} content={content} />
     </div>
   );
 }

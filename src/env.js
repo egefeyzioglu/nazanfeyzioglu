@@ -11,6 +11,23 @@ export const env = createEnv({
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
+    /**
+     * Clerk secret key. Optional so the public site builds and runs before the
+     * Clerk application is configured — the /admin panel requires it.
+     */
+    CLERK_SECRET_KEY: z.string().optional(),
+    /**
+     * UploadThing token used by the /api/uploadthing route for admin image
+     * uploads. Optional so the site boots before UploadThing is configured;
+     * without it, admin uploads fail but the manual /public path field still
+     * works.
+     */
+    UPLOADTHING_TOKEN: z.string().optional(),
+    /**
+     * Set to "1" to open /admin without auth — only honoured in development
+     * and only while the Clerk keys above are unset.
+     */
+    ADMIN_DEV_BYPASS: z.string().optional(),
   },
 
   /**
@@ -19,7 +36,8 @@ export const env = createEnv({
    * `NEXT_PUBLIC_`.
    */
   client: {
-    // NEXT_PUBLIC_CLIENTVAR: z.string(),
+    /** Clerk publishable key. Optional until the Clerk application is configured. */
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().optional(),
   },
 
   /**
@@ -29,7 +47,11 @@ export const env = createEnv({
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
-    // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
+    CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+    UPLOADTHING_TOKEN: process.env.UPLOADTHING_TOKEN,
+    ADMIN_DEV_BYPASS: process.env.ADMIN_DEV_BYPASS,
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
+      process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

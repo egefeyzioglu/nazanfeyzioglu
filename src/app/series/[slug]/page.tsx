@@ -3,12 +3,12 @@ import { notFound } from "next/navigation";
 
 import ArtImage from "src/app/_components/ArtImage";
 import Sidebar from "src/app/_components/Sidebar";
-import { imageDimensions } from "src/app/_data/imageDimensions";
-import { getSeries, series, type Work } from "src/app/_data/series";
+import { getSeriesBySlug } from "src/server/queries";
+import { type works } from "src/server/db/schema";
 
-export function generateStaticParams() {
-  return series.map((s) => ({ slug: s.slug }));
-}
+export const dynamic = "force-dynamic";
+
+type Work = typeof works.$inferSelect;
 
 export async function generateMetadata({
   params,
@@ -16,7 +16,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const s = getSeries(slug);
+  const s = await getSeriesBySlug(slug);
   return {
     title: s ? `${s.title} — Nazan Feyzioğlu` : "Series — Nazan Feyzioğlu",
   };
@@ -28,8 +28,12 @@ export default async function SeriesPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const s = getSeries(slug);
+  const s = await getSeriesBySlug(slug);
   if (!s) notFound();
+
+  const meta = `${s.works.length} work${s.works.length === 1 ? "" : "s"}${
+    s.statusNote ? ` · ${s.statusNote}` : ""
+  }`;
 
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink md:flex-row">
@@ -45,7 +49,7 @@ export default async function SeriesPage({
 
         <div className="mt-[34px] border-b border-line pb-7">
           <div className="font-mono text-[10.5px] tracking-[0.3em] text-ash uppercase">
-            Series · {s.meta}
+            Series · {meta}
           </div>
           <h1 className="mt-[14px] text-[46px] leading-[1.06] font-light tracking-[-0.015em]">
             {s.title}
@@ -54,7 +58,7 @@ export default async function SeriesPage({
 
         <div className="flex flex-col">
           {s.works.map((work, i) => (
-            <WorkRow key={work.title} work={work} first={i === 0} />
+            <WorkRow key={work.id} work={work} first={i === 0} />
           ))}
         </div>
       </main>
@@ -67,16 +71,15 @@ export default async function SeriesPage({
  * intrinsic aspect ratio so landscape pieces read wide and portrait pieces stay
  * a comfortable height rather than towering down the page.
  */
-function plateWidth(image: string): number {
-  const dim = imageDimensions[image] ?? { w: 1000, h: 1000 };
-  const ratio = dim.w / dim.h;
+function plateWidth(work: Work): number {
+  const ratio = work.imageWidth / work.imageHeight;
   if (ratio > 1.2) return 600;
   if (ratio < 0.82) return 400;
   return 500;
 }
 
 function WorkRow({ work, first }: { work: Work; first: boolean }) {
-  const width = plateWidth(work.image);
+  const width = plateWidth(work);
 
   return (
     <article className={first ? "pt-12 pb-14 md:pt-14 md:pb-[72px]" : "py-14 md:py-[72px]"}>
@@ -91,6 +94,8 @@ function WorkRow({ work, first }: { work: Work; first: boolean }) {
             alt={work.title}
             sizes={`(max-width: 768px) 100vw, ${width}px`}
             priority={first}
+            width={work.imageWidth}
+            height={work.imageHeight}
           />
         </div>
 
