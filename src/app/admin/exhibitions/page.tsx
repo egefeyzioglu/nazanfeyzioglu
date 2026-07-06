@@ -95,8 +95,12 @@ export default function AdminExhibitionsPage() {
                 <ExhibitionCard
                   key={entry.id}
                   entry={entry}
-                  pending={update.isPending}
-                  error={update.error?.message}
+                  pending={update.isPending && update.variables?.id === entry.id}
+                  error={
+                    update.variables?.id === entry.id
+                      ? update.error?.message
+                      : undefined
+                  }
                   onSave={(values) =>
                     update.mutate({ id: entry.id, ...values })
                   }

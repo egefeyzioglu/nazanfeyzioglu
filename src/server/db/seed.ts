@@ -443,26 +443,27 @@ const EXHIBITIONS: {
 
 async function main() {
   const force = process.argv.includes("--force");
-  const existing = await db.select().from(schema.series).limit(1);
-  if (existing.length > 0) {
-    if (!force) {
-      console.log("Database already has series — pass --force to reseed.");
-      return;
+  // One transaction around the check, the --force wipe, and every insert, so
+  // a failure can't leave the CMS partially cleared or partially seeded.
+  await db.transaction(async (tx) => {
+    const existing = await tx.select().from(schema.series).limit(1);
+    if (existing.length > 0) {
+      if (!force) {
+        console.log("Database already has series — pass --force to reseed.");
+        return;
+      }
+      // --force intentionally wipes every CMS table before reseeding.
+      await tx.delete(schema.prints);
+      await tx.delete(schema.works);
+      await tx.delete(schema.series);
+      await tx.delete(schema.exhibitions);
+      await tx.delete(schema.siteContent);
+      console.log("Cleared existing CMS rows.");
     }
-    // --force intentionally wipes every CMS table before reseeding.
-    /* eslint-disable drizzle/enforce-delete-with-where */
-    await db.delete(schema.prints);
-    await db.delete(schema.works);
-    await db.delete(schema.series);
-    await db.delete(schema.exhibitions);
-    await db.delete(schema.siteContent);
-    /* eslint-enable drizzle/enforce-delete-with-where */
-    console.log("Cleared existing CMS rows.");
-  }
 
-  for (const [i, s] of SERIES.entries()) {
-    const [row] = await db
-      .insert(schema.series)
+    for (const [i, s] of SERIES.entries()) {
+      const [row] = await tx
+        .insert(schema.series)
       .values({
         slug: s.slug,
         title: s.title,
@@ -472,50 +473,51 @@ async function main() {
         statusNote: s.statusNote,
         position: i,
       })
-      .returning();
-    if (!row) throw new Error(`Failed to insert series ${s.slug}`);
+        .returning();
+      if (!row) throw new Error(`Failed to insert series ${s.slug}`);
 
-    if (s.works.length > 0) {
-      await db.insert(schema.works).values(
-        s.works.map((w, j) => ({
-          seriesId: row.id,
-          title: w.title,
-          image: w.image,
-          ...dim(w.image),
-          medium: w.medium,
-          price: w.price,
-          digital: w.digital ?? false,
-          note: w.note,
-          position: j,
-        })),
-      );
+      if (s.works.length > 0) {
+        await tx.insert(schema.works).values(
+          s.works.map((w, j) => ({
+            seriesId: row.id,
+            title: w.title,
+            image: w.image,
+            ...dim(w.image),
+            medium: w.medium,
+            price: w.price,
+            digital: w.digital ?? false,
+            note: w.note,
+            position: j,
+          })),
+        );
+      }
+      if (s.prints.length > 0) {
+        await tx.insert(schema.prints).values(
+          s.prints.map((p, j) => ({
+            seriesId: row.id,
+            title: p.title,
+            image: p.image,
+            ...dim(p.image),
+            spec: p.spec,
+            edition: p.edition,
+            position: j,
+          })),
+        );
+      }
     }
-    if (s.prints.length > 0) {
-      await db.insert(schema.prints).values(
-        s.prints.map((p, j) => ({
-          seriesId: row.id,
-          title: p.title,
-          image: p.image,
-          ...dim(p.image),
-          spec: p.spec,
-          edition: p.edition,
-          position: j,
-        })),
-      );
-    }
-  }
 
-  await db.insert(schema.exhibitions).values(
-    EXHIBITIONS.map((e, i) => ({ ...e, position: i })),
-  );
+    await tx.insert(schema.exhibitions).values(
+      EXHIBITIONS.map((e, i) => ({ ...e, position: i })),
+    );
 
-  await db.insert(schema.siteContent).values(
-    CONTENT_FIELDS.map((f) => ({ key: f.key, value: f.default })),
-  );
+    await tx.insert(schema.siteContent).values(
+      CONTENT_FIELDS.map((f) => ({ key: f.key, value: f.default })),
+    );
 
-  console.log(
-    `Seeded ${SERIES.length} series, ${SERIES.reduce((n, s) => n + s.works.length, 0)} works, ${SERIES.reduce((n, s) => n + s.prints.length, 0)} prints, ${EXHIBITIONS.length} exhibitions, ${CONTENT_FIELDS.length} content fields.`,
-  );
+    console.log(
+      `Seeded ${SERIES.length} series, ${SERIES.reduce((n, s) => n + s.works.length, 0)} works, ${SERIES.reduce((n, s) => n + s.prints.length, 0)} prints, ${EXHIBITIONS.length} exhibitions, ${CONTENT_FIELDS.length} content fields.`,
+    );
+  });
 }
 
 main()

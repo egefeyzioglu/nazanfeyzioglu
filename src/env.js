@@ -16,8 +16,13 @@ export const env = createEnv({
      * Clerk application is configured — the /admin panel requires it.
      */
     CLERK_SECRET_KEY: z.string().optional(),
-    /** UploadThing token used by the /api/uploadthing route for admin image uploads. */
-    UPLOADTHING_TOKEN: z.string(),
+    /**
+     * UploadThing token used by the /api/uploadthing route for admin image
+     * uploads. Optional so the site boots before UploadThing is configured;
+     * without it, admin uploads fail but the manual /public path field still
+     * works.
+     */
+    UPLOADTHING_TOKEN: z.string().optional(),
     /**
      * Set to "1" to open /admin without auth — only honoured in development
      * and only while the Clerk keys above are unset.

@@ -1,7 +1,11 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { adminProcedure, createTRPCRouter } from "src/server/api/trpc";
+import {
+  adminProcedure,
+  createTRPCRouter,
+  uniqueIds,
+} from "src/server/api/trpc";
 import { EXHIBITION_CATEGORIES, exhibitions } from "src/server/db/schema";
 
 const exhibitionFields = {
@@ -21,8 +25,11 @@ export const exhibitionsRouter = createTRPCRouter({
   create: adminProcedure
     .input(z.object(exhibitionFields))
     .mutation(async ({ ctx, input }) => {
-      const rows = await ctx.db.select().from(exhibitions);
-      const max = rows.reduce((m, r) => Math.max(m, r.position), -1);
+      const [{ max }] = (await ctx.db
+        .select({
+          max: sql<number>`coalesce(max(${exhibitions.position}), -1)`,
+        })
+        .from(exhibitions)) as [{ max: number }];
       const [row] = await ctx.db
         .insert(exhibitions)
         .values({ ...input, position: max + 1 })
@@ -49,15 +56,15 @@ export const exhibitionsRouter = createTRPCRouter({
     ),
 
   reorder: adminProcedure
-    .input(z.object({ ids: z.array(z.number().int()) }))
+    .input(z.object({ ids: uniqueIds }))
     .mutation(async ({ ctx, input }) => {
-      await Promise.all(
-        input.ids.map((id, position) =>
-          ctx.db
+      await ctx.db.transaction(async (tx) => {
+        for (const [position, id] of input.ids.entries()) {
+          await tx
             .update(exhibitions)
             .set({ position })
-            .where(eq(exhibitions.id, id)),
-        ),
-      );
+            .where(eq(exhibitions.id, id));
+        }
+      });
     }),
 });

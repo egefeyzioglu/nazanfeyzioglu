@@ -23,7 +23,11 @@ export const contentRouter = createTRPCRouter({
       z.object({
         entries: z
           .array(z.object({ key: z.string(), value: z.string() }))
-          .min(1),
+          .min(1)
+          .refine(
+            (entries) => new Set(entries.map((e) => e.key)).size === entries.length,
+            "Duplicate content keys",
+          ),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -31,16 +35,16 @@ export const contentRouter = createTRPCRouter({
       if (unknown) {
         throw new Error(`Unknown content key: ${unknown.key}`);
       }
-      await Promise.all(
-        input.entries.map((e) =>
-          ctx.db
+      await ctx.db.transaction(async (tx) => {
+        for (const e of input.entries) {
+          await tx
             .insert(siteContent)
             .values(e)
             .onConflictDoUpdate({
               target: siteContent.key,
               set: { value: e.value, updatedAt: sql`(unixepoch())` },
-            }),
-        ),
-      );
+            });
+        }
+      });
     }),
 });

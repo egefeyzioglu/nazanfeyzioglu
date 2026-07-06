@@ -65,8 +65,10 @@ export function RowControls({
   onDelete: () => void;
   disabled?: boolean;
 }) {
-  const btn =
-    "cursor-pointer border border-line px-2 py-1 font-mono text-[11px] text-stone hover:border-clay hover:text-clay disabled:opacity-30";
+  const base =
+    "cursor-pointer border border-line px-2 py-1 font-mono text-[11px] text-stone disabled:opacity-30";
+  const btn = `${base} hover:border-clay hover:text-clay`;
+  const btnDanger = `${base} hover:border-red-700 hover:text-red-700`;
   return (
     <div className="flex items-center gap-1">
       <button
@@ -89,7 +91,7 @@ export function RowControls({
       </button>
       <button
         type="button"
-        className="cursor-pointer border border-line px-2 py-1 font-mono text-[11px] text-stone hover:border-red-700 hover:text-red-700 disabled:opacity-30"
+        className={btnDanger}
         onClick={() => {
           if (window.confirm("Delete this item? This cannot be undone.")) {
             onDelete();

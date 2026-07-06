@@ -188,8 +188,12 @@ export default function SeriesEditor({ id }: { id: number }) {
           <WorkCard
             key={w.id}
             work={w}
-            pending={updateWork.isPending}
-            error={updateWork.error?.message}
+            pending={updateWork.isPending && updateWork.variables?.id === w.id}
+            error={
+              updateWork.variables?.id === w.id
+                ? updateWork.error?.message
+                : undefined
+            }
             onSave={(values) => updateWork.mutate({ id: w.id, ...values })}
             controls={
               <RowControls

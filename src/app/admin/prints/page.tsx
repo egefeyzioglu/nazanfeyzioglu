@@ -42,6 +42,13 @@ export default function AdminPrintsPage() {
   if (list.isLoading) {
     return <p className="font-mono text-[11px] text-ash">Loading…</p>;
   }
+  if (list.error) {
+    return (
+      <p className="font-mono text-[11px] text-red-700">
+        Failed to load: {list.error.message}
+      </p>
+    );
+  }
 
   return (
     <div>
@@ -90,8 +97,12 @@ export default function AdminPrintsPage() {
                   <PrintCard
                     key={p.id}
                     print={p}
-                    pending={update.isPending}
-                    error={update.error?.message}
+                    pending={update.isPending && update.variables?.id === p.id}
+                    error={
+                      update.variables?.id === p.id
+                        ? update.error?.message
+                        : undefined
+                    }
                     onSave={(values) => update.mutate({ id: p.id, ...values })}
                     controls={
                       <RowControls

@@ -1,7 +1,11 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { adminProcedure, createTRPCRouter } from "src/server/api/trpc";
+import {
+  adminProcedure,
+  createTRPCRouter,
+  uniqueIds,
+} from "src/server/api/trpc";
 import { prints, series, works } from "src/server/db/schema";
 
 const slugSchema = z
@@ -79,18 +83,20 @@ export const seriesRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       // Delete children explicitly rather than relying on SQLite enforcing
       // ON DELETE CASCADE, which requires the foreign_keys pragma.
-      await ctx.db.delete(works).where(eq(works.seriesId, input.id));
-      await ctx.db.delete(prints).where(eq(prints.seriesId, input.id));
-      await ctx.db.delete(series).where(eq(series.id, input.id));
+      await ctx.db.transaction(async (tx) => {
+        await tx.delete(works).where(eq(works.seriesId, input.id));
+        await tx.delete(prints).where(eq(prints.seriesId, input.id));
+        await tx.delete(series).where(eq(series.id, input.id));
+      });
     }),
 
   reorder: adminProcedure
-    .input(z.object({ ids: z.array(z.number().int()) }))
+    .input(z.object({ ids: uniqueIds }))
     .mutation(async ({ ctx, input }) => {
-      await Promise.all(
-        input.ids.map((id, position) =>
-          ctx.db.update(series).set({ position }).where(eq(series.id, id)),
-        ),
-      );
+      await ctx.db.transaction(async (tx) => {
+        for (const [position, id] of input.ids.entries()) {
+          await tx.update(series).set({ position }).where(eq(series.id, id));
+        }
+      });
     }),
 });

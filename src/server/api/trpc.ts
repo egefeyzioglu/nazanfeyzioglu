@@ -6,7 +6,7 @@
  */
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 
 import { getAdminStatus } from "src/server/auth";
 import { db } from "src/server/db";
@@ -33,6 +33,14 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
 });
 
 export const createCallerFactory = t.createCallerFactory;
+
+/**
+ * Ordered id list for the reorder mutations; duplicates would make the final
+ * positions depend on write order, so they're rejected up front.
+ */
+export const uniqueIds = z
+  .array(z.number().int())
+  .refine((ids) => new Set(ids).size === ids.length, "Duplicate ids");
 
 export const createTRPCRouter = t.router;
 

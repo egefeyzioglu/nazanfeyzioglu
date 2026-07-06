@@ -1,7 +1,11 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { adminProcedure, createTRPCRouter } from "src/server/api/trpc";
+import {
+  adminProcedure,
+  createTRPCRouter,
+  uniqueIds,
+} from "src/server/api/trpc";
 import { prints } from "src/server/db/schema";
 
 const printFields = {
@@ -57,19 +61,17 @@ export const printsRouter = createTRPCRouter({
     ),
 
   reorder: adminProcedure
-    .input(
-      z.object({ seriesId: z.number().int(), ids: z.array(z.number().int()) }),
-    )
+    .input(z.object({ seriesId: z.number().int(), ids: uniqueIds }))
     .mutation(async ({ ctx, input }) => {
-      await Promise.all(
-        input.ids.map((id, position) =>
-          ctx.db
+      await ctx.db.transaction(async (tx) => {
+        for (const [position, id] of input.ids.entries()) {
+          await tx
             .update(prints)
             .set({ position })
             .where(
               and(eq(prints.id, id), eq(prints.seriesId, input.seriesId)),
-            ),
-        ),
-      );
+            );
+        }
+      });
     }),
 });

@@ -145,7 +145,11 @@ export default function AdminSeriesPage() {
           >
             <div className="border border-line bg-panel">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={s.coverImage} alt="" className="block h-auto w-full" />
+              <img
+                src={s.coverImage}
+                alt={`${s.title} cover`}
+                className="block h-auto w-full"
+              />
             </div>
             <div className="min-w-0">
               <Link

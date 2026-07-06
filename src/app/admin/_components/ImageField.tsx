@@ -106,6 +106,14 @@ export default function ImageField({
               placeholder="/design-assets/….jpg"
               value={manualPath}
               onChange={(e) => setManualPath(e.target.value)}
+              onKeyDown={(e) => {
+                // Commit on Enter instead of letting it submit the parent
+                // form before the path has been applied.
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (manualPath.trim()) void applyImage(manualPath.trim());
+                }
+              }}
               onBlur={() => {
                 if (manualPath.trim()) void applyImage(manualPath.trim());
               }}
