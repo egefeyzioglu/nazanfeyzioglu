@@ -52,9 +52,20 @@ export function centsToDollarsString(cents: number | null | undefined): string {
 /**
  * Admin form input value (dollars) → integer cents, e.g. "1900" → 190000.
  * A blank input means no price, stored as null.
+ *
+ * Accepts only the strict `dollars[.cc]` format; anything malformed also maps
+ * to null (no price). The admin forms' `type="number" step="0.01"` inputs are
+ * the user-facing validation layer — this is defense in depth against non-form
+ * callers. Integer math avoids float rounding (e.g. "10.075" * 100 is
+ * 1007.4999…, not 1007.5).
  */
 export function dollarsStringToCents(value: string): number | null {
-  return value.trim() === "" ? null : Math.round(parseFloat(value) * 100);
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(trimmed);
+  if (!match) return null;
+  const [, dollars, cents = ""] = match;
+  return Number(dollars) * 100 + Number(cents.padEnd(2, "0"));
 }
 
 /** Formats integer cents in the site's display style, e.g. 190000 → "1,900 CAD". */
