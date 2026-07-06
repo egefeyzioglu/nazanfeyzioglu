@@ -48,7 +48,7 @@ importers:
         specifier: ^0.0.1
         version: 0.0.1
       stripe:
-        specifier: ^22.3.0
+        specifier: 22.3.0
         version: 22.3.0(@types/node@20.19.42)
       superjson:
         specifier: ^2.2.6

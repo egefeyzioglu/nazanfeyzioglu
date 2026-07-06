@@ -51,6 +51,7 @@ Prints and digital editions are sold through hosted [Stripe Checkout](https://do
 1. Put the secret key from [dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys) in `.env` as `STRIPE_SECRET_KEY`.
 2. Add a webhook endpoint (**Developers → Webhooks**) for `<site>/api/stripe/webhook` subscribed to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `charge.refunded`, and set its signing secret as `STRIPE_WEBHOOK_SECRET`. Orders are recorded by this webhook — without it, payments still succeed but never appear in `/admin/orders`. Locally: `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
 3. Optionally set `STRIPE_SHIPPING_RATE_ID` to a Dashboard-defined shipping rate (`shr_…`) to charge shipping on print checkouts.
+4. In production, set `SITE_URL` to the canonical origin (e.g. `https://example.com`) so checkout redirect URLs use the custom domain; without it the deployment URL (`VERCEL_URL`) is used, and local dev falls back to the request's own origin.
 
 Prices are set per print (and per digital edition on a work) in the admin panel; items without a price show no buy button. A print's optional **edition size** caps how many copies can be sold — if two buyers race past the check, the later order is flagged **oversold** in `/admin/orders` for a manual refund. Fulfillment (shipping a print, emailing a digital file) is tracked in `/admin/orders`; money — receipts, refunds, payouts — is managed in the Stripe Dashboard.
 

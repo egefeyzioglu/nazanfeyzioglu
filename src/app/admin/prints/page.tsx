@@ -15,7 +15,11 @@ import {
   PageHeader,
   RowControls,
 } from "src/app/admin/_components/ui";
-import { formatPrice } from "src/lib/orders";
+import {
+  centsToDollarsString,
+  dollarsStringToCents,
+  formatPrice,
+} from "src/lib/orders";
 import { api } from "src/trpc/react";
 
 type PrintRow = {
@@ -172,11 +176,7 @@ function PrintForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [spec, setSpec] = useState(initial?.spec ?? "");
   const [edition, setEdition] = useState(initial?.edition ?? "");
-  const [price, setPrice] = useState(
-    initial?.priceCents === null || initial?.priceCents === undefined
-      ? ""
-      : (initial.priceCents / 100).toString(),
-  );
+  const [price, setPrice] = useState(centsToDollarsString(initial?.priceCents));
   const [editionSize, setEditionSize] = useState(
     initial?.editionSize === null || initial?.editionSize === undefined
       ? ""
@@ -205,8 +205,7 @@ function PrintForm({
           imageHeight: image.height,
           spec,
           edition,
-          priceCents:
-            price.trim() === "" ? null : Math.round(parseFloat(price) * 100),
+          priceCents: dollarsStringToCents(price),
           editionSize:
             editionSize.trim() === "" ? null : parseInt(editionSize, 10),
         });

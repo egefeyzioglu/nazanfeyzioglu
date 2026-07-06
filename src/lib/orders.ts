@@ -41,6 +41,22 @@ export type ShippingDetails = {
 /** Everything on the site is priced in Canadian dollars. */
 export const CURRENCY = "cad";
 
+/**
+ * Integer cents → plain dollars string for an admin form input, e.g.
+ * 190000 → "1900". null/undefined (no price set) becomes "".
+ */
+export function centsToDollarsString(cents: number | null | undefined): string {
+  return cents === null || cents === undefined ? "" : (cents / 100).toString();
+}
+
+/**
+ * Admin form input value (dollars) → integer cents, e.g. "1900" → 190000.
+ * A blank input means no price, stored as null.
+ */
+export function dollarsStringToCents(value: string): number | null {
+  return value.trim() === "" ? null : Math.round(parseFloat(value) * 100);
+}
+
 /** Formats integer cents in the site's display style, e.g. 190000 → "1,900 CAD". */
 export function formatPrice(cents: number): string {
   const dollars = cents / 100;

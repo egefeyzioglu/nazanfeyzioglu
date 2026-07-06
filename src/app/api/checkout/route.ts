@@ -46,6 +46,15 @@ export async function POST(req: Request) {
   }
 
   const origin = siteOrigin(req);
+  if (origin === null) {
+    console.error(
+      "SITE_URL must be set for Stripe checkout in production (no VERCEL_URL either)",
+    );
+    return NextResponse.json(
+      { error: "Checkout is not configured" },
+      { status: 503 },
+    );
+  }
   const item =
     body.itemType === "print"
       ? await printLineItem(body.id, origin)
@@ -171,19 +180,19 @@ async function digitalLineItem(
 }
 
 /**
- * Origin for Stripe redirect URLs (which must be absolute): the configured
- * SITE_URL when set, otherwise the requesting origin via the proxy headers
- * Vercel sets.
+ * Origin for Stripe redirect URLs (which must be absolute), in trust order:
+ * the configured SITE_URL (the canonical origin), then the Vercel-injected
+ * deployment host (platform-set, so not attacker-controlled), then — in
+ * development only — the request's own origin. Request headers like
+ * x-forwarded-host are deliberately never consulted: they are
+ * attacker-influenced. Returns null when no trusted origin exists (production
+ * without SITE_URL or VERCEL_URL).
  */
-function siteOrigin(req: Request): string {
+function siteOrigin(req: Request): string | null {
   if (env.SITE_URL) return env.SITE_URL.replace(/\/$/, "");
-  const url = new URL(req.url);
-  const host =
-    req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? url.host;
-  const proto =
-    req.headers.get("x-forwarded-proto") ??
-    (url.protocol === "https:" ? "https" : "http");
-  return `${proto}://${host}`;
+  if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
+  if (env.NODE_ENV === "production") return null;
+  return new URL(req.url).origin;
 }
 
 /** Stripe requires absolute image URLs; CMS images may be site-relative. */

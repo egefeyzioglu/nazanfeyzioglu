@@ -131,6 +131,15 @@ async function recordPaidCheckout(sessionId: string) {
     // The availability check at session creation can be raced by a concurrent
     // buyer; detect it here and flag the order for a manual refund.
     if (itemType === "print" && item?.editionSize != null) {
+      // Serialize concurrent webhook transactions for the same print: under
+      // READ COMMITTED, two simultaneous deliveries would each miss the
+      // other's uncommitted insert and both pass the editionSize check. The
+      // transaction-scoped advisory lock makes the later committer see the
+      // earlier one's row and flag itself oversold. Namespaced with the table
+      // name because the database may host multiple projects.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext('nazanfeyzioglu_print'), ${item.id})`,
+      );
       const [row] = await tx
         .select({
           sold: sql<number>`coalesce(sum(${orders.quantity}), 0)::int`,

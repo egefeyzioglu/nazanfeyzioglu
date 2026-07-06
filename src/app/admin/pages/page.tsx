@@ -139,6 +139,7 @@ export default function AdminPagesEditor() {
       spec: p.spec,
       edition: p.edition,
       priceCents: p.priceCents,
+      remaining: p.remaining,
     })),
   }));
   const exhibitionGroups = groupExhibitions(exhibitions.data ?? []);

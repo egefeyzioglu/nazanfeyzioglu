@@ -58,7 +58,11 @@ export default function BuyButton({
       >
         {pending ? "Redirecting…" : children}
       </button>
-      {error && <p className="font-mono text-[10px] text-red-700">{error}</p>}
+      {error && (
+        <p role="alert" className="font-mono text-[10px] text-red-700">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

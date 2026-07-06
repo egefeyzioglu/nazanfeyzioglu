@@ -46,9 +46,16 @@ export const env = createEnv({
     STRIPE_SHIPPING_RATE_ID: z.string().optional(),
     /**
      * Canonical site origin (e.g. "https://nazanfeyzioglu.com") used for
-     * Stripe redirect URLs. When unset, the request's own origin is used.
+     * Stripe redirect URLs. Set it in production for correct custom-domain
+     * redirects; when unset, the Vercel deployment URL is used, and local
+     * dev falls back to the request's own origin.
      */
     SITE_URL: z.string().url().optional(),
+    /**
+     * Deployment host (e.g. "my-app-abc123.vercel.app") that Vercel injects
+     * on both production and preview deployments.
+     */
+    VERCEL_URL: z.string().optional(),
   },
 
   /**
@@ -75,6 +82,7 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     STRIPE_SHIPPING_RATE_ID: process.env.STRIPE_SHIPPING_RATE_ID,
     SITE_URL: process.env.SITE_URL,
+    VERCEL_URL: process.env.VERCEL_URL,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },

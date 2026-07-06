@@ -1,5 +1,5 @@
-import { relations } from "drizzle-orm";
-import { index, pgTableCreator } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
+import { check, index, pgTableCreator } from "drizzle-orm/pg-core";
 
 // Relative import so drizzle-kit and the tsx-run seed script resolve it
 // without tsconfig path aliases.
@@ -76,7 +76,10 @@ export const works = createTable(
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
-  (t) => [index("work_series_idx").on(t.seriesId)],
+  (t) => [
+    index("work_series_idx").on(t.seriesId),
+    check("work_digital_price_cents_positive", sql`"digitalPriceCents" > 0`),
+  ],
 );
 
 /** A giclée edition listed on the Prints page, grouped by series. */
@@ -111,7 +114,11 @@ export const prints = createTable(
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
-  (t) => [index("print_series_idx").on(t.seriesId)],
+  (t) => [
+    index("print_series_idx").on(t.seriesId),
+    check("print_price_cents_positive", sql`"priceCents" > 0`),
+    check("print_edition_size_positive", sql`"editionSize" > 0`),
+  ],
 );
 
 /** An entry on the Exhibitions page, grouped by category. */
@@ -196,6 +203,24 @@ export const orders = createTable(
     index("order_work_idx").on(t.workId),
     index("order_payment_intent_idx").on(t.stripePaymentIntentId),
     index("order_created_idx").on(t.createdAt),
+    check("order_quantity_positive", sql`quantity > 0`),
+    check("order_unit_amount_nonnegative", sql`"unitAmount" >= 0`),
+    check("order_amount_total_nonnegative", sql`"amountTotal" >= 0`),
+    check("order_item_type_valid", sql`"itemType" in ('print', 'digital')`),
+    check(
+      "order_payment_status_valid",
+      sql`"paymentStatus" in ('paid', 'refunded')`,
+    ),
+    check(
+      "order_fulfillment_status_valid",
+      sql`"fulfillmentStatus" in ('pending', 'fulfilled', 'oversold')`,
+    ),
+    // At most one of printId/workId — not exactly one, because both FKs are
+    // set null when the referenced item is deleted from the CMS.
+    check(
+      "order_single_item",
+      sql`not ("printId" is not null and "workId" is not null)`,
+    ),
   ],
 );
 

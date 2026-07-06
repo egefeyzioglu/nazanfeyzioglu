@@ -16,6 +16,11 @@ import {
   movedIds,
   RowControls,
 } from "src/app/admin/_components/ui";
+import {
+  centsToDollarsString,
+  dollarsStringToCents,
+  formatPrice,
+} from "src/lib/orders";
 import { api } from "src/trpc/react";
 
 type WorkRow = {
@@ -266,10 +271,7 @@ function WorkForm({
   const [price, setPrice] = useState(initial?.price ?? "");
   const [digital, setDigital] = useState(initial?.digital ?? false);
   const [digitalPrice, setDigitalPrice] = useState(
-    initial?.digitalPriceCents === null ||
-      initial?.digitalPriceCents === undefined
-      ? ""
-      : (initial.digitalPriceCents / 100).toString(),
+    centsToDollarsString(initial?.digitalPriceCents),
   );
   const [note, setNote] = useState(initial?.note ?? "");
   const [image, setImage] = useState<ImageValue | null>(
@@ -296,10 +298,7 @@ function WorkForm({
           medium,
           price: price.trim() || null,
           digital,
-          digitalPriceCents:
-            digitalPrice.trim() === ""
-              ? null
-              : Math.round(parseFloat(digitalPrice) * 100),
+          digitalPriceCents: dollarsStringToCents(digitalPrice),
           note: note.trim() || null,
         });
       }}
@@ -402,7 +401,15 @@ function WorkCard({
         </div>
       }
       title={work.title}
-      subtitle={`${work.medium} · ${work.digital ? "digital" : (work.price ?? "—")}`}
+      subtitle={`${work.medium} · ${
+        work.digital
+          ? `digital · ${
+              work.digitalPriceCents === null
+                ? "inquire"
+                : formatPrice(work.digitalPriceCents)
+            }`
+          : (work.price ?? "—")
+      }`}
       controls={controls}
     >
       <WorkForm
