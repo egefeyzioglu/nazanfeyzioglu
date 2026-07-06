@@ -19,7 +19,11 @@ export const appRouter = createTRPCRouter({
 export type AppRouter = typeof appRouter;
 
 /**
- * Create a server-side caller for the tRPC API, e.g.
- * const trpc = createCaller(await createTRPCContext({ headers: new Headers() }));
+ * Create a server-side caller for the tRPC API. Outside a Next.js request
+ * scope, pass adminStatus explicitly, e.g.
+ * const trpc = createCaller(await createTRPCContext({
+ *   headers: new Headers(),
+ *   adminStatus: { userId: "system", isAdmin: true },
+ * }));
  */
 export const createCaller = createCallerFactory(appRouter);

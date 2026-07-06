@@ -24,7 +24,7 @@ export function devBypassActive(): boolean {
   );
 }
 
-type AdminStatus = { userId: string | null; isAdmin: boolean };
+export type AdminStatus = { userId: string | null; isAdmin: boolean };
 
 /**
  * Resolves the current user and whether they hold the `admin` role, granted by

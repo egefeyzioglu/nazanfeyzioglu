@@ -8,10 +8,18 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { z, ZodError } from "zod";
 
-import { getAdminStatus } from "src/server/auth";
+import { getAdminStatus, type AdminStatus } from "src/server/auth";
 import { db } from "src/server/db";
 
-export const createTRPCContext = async (opts: { headers: Headers }) => {
+export const createTRPCContext = async (opts: {
+  headers: Headers;
+  /**
+   * Auth override for callers outside a Next.js request scope (createCaller,
+   * scripts, tests). When omitted, admin procedures resolve auth from the
+   * ambient Clerk request context — which only exists in route handlers.
+   */
+  adminStatus?: AdminStatus;
+}) => {
   return {
     db,
     ...opts,
@@ -51,7 +59,7 @@ export const publicProcedure = t.procedure;
  * their public metadata. All CMS reads and mutations use this.
  */
 export const adminProcedure = t.procedure.use(async ({ ctx, next }) => {
-  const { userId, isAdmin } = await getAdminStatus();
+  const { userId, isAdmin } = ctx.adminStatus ?? (await getAdminStatus());
   if (!userId) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
