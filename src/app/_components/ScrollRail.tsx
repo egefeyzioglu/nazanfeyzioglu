@@ -9,9 +9,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * listener maps scrollY 1:1 onto the rail's scrollLeft. Native scrolling
  * (wheel, trackpad, keyboard, scrollbar, touch) is never intercepted.
  *
- * When there is no horizontal overflow — mobile, few cards, or JS disabled —
- * the spacer collapses, sticky becomes inert, and the rail stays a plain
- * overflow-x-auto scroller.
+ * When there is no horizontal overflow — mobile, few cards, reduced motion,
+ * or JS disabled — the spacer collapses, sticky becomes inert, and the rail
+ * stays a plain overflow-x-auto scroller.
  */
 export default function ScrollRail({
   header,
@@ -30,16 +30,21 @@ export default function ScrollRail({
     // Tailwind's md breakpoint (48rem), where the rail becomes the full-height
     // desktop layout.
     const desktop = window.matchMedia("(min-width: 48rem)");
+    // Respect the user's reduced-motion preference by falling back to the
+    // plain native scroller instead of driving scrollLeft from scrollY.
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const shouldDrive = () => desktop.matches && !reducedMotion.matches;
 
     const update = () => {
       setOverflow(
-        desktop.matches ? Math.max(0, rail.scrollWidth - rail.clientWidth) : 0,
+        shouldDrive() ? Math.max(0, rail.scrollWidth - rail.clientWidth) : 0,
       );
-      if (desktop.matches) rail.scrollLeft = window.scrollY;
+      if (shouldDrive()) rail.scrollLeft = window.scrollY;
     };
 
     const sync = () => {
-      if (desktop.matches) rail.scrollLeft = window.scrollY;
+      if (shouldDrive()) rail.scrollLeft = window.scrollY;
     };
 
     update();
@@ -52,11 +57,13 @@ export default function ScrollRail({
 
     window.addEventListener("scroll", sync, { passive: true });
     desktop.addEventListener("change", update);
+    reducedMotion.addEventListener("change", update);
 
     return () => {
       observer.disconnect();
       window.removeEventListener("scroll", sync);
       desktop.removeEventListener("change", update);
+      reducedMotion.removeEventListener("change", update);
     };
   }, []);
 
