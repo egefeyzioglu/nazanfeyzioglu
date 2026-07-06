@@ -8,9 +8,11 @@ import ImageField, {
 } from "src/app/admin/_components/ImageField";
 import {
   Button,
+  cardCls,
   Field,
   inputCls,
   movedIds,
+  PageHeader,
   RowControls,
 } from "src/app/admin/_components/ui";
 import { api } from "src/trpc/react";
@@ -75,17 +77,21 @@ export default function AdminSeriesPage() {
 
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-[28px] font-light">Series</h1>
-        <Button variant="ghost" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "Cancel" : "+ New series"}
-        </Button>
-      </div>
+      <PageHeader
+        eyebrow="Content"
+        title="Series"
+        description="Each series groups its own works and prints. Drag order sets how they appear on the home rail."
+        actions={
+          <Button variant="ghost" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? "Cancel" : "+ New series"}
+          </Button>
+        }
+      />
 
       {showForm && (
         <form
           onSubmit={submit}
-          className="mt-6 flex flex-col gap-4 border border-line bg-white/40 p-5"
+          className={`mb-8 flex flex-col gap-4 p-6 ${cardCls}`}
         >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field label="Title">
@@ -104,7 +110,7 @@ export default function AdminSeriesPage() {
                 className={inputCls}
                 value={slug}
                 required
-                pattern="[a-z0-9-]+"
+                pattern="[a-z0-9\-]+"
                 onChange={(e) => {
                   setSlug(e.target.value);
                   setSlugEdited(true);
@@ -134,21 +140,21 @@ export default function AdminSeriesPage() {
       )}
 
       {list.isLoading && (
-        <p className="mt-8 font-mono text-[11px] text-ash">Loading…</p>
+        <p className="font-mono text-[11px] text-ash">Loading…</p>
       )}
 
-      <div className="mt-6 flex flex-col">
+      <div className="flex flex-col gap-3">
         {rows.map((s, i) => (
           <div
             key={s.id}
-            className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-5 border-b border-line-soft py-4"
+            className={`grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-5 p-3 transition hover:border-line-2 ${cardCls}`}
           >
-            <div className="border border-line bg-panel">
+            <div className="overflow-hidden rounded-lg border border-line bg-panel">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={s.coverImage}
                 alt={`${s.title} cover`}
-                className="block h-auto w-full"
+                className="block aspect-square h-auto w-full object-cover"
               />
             </div>
             <div className="min-w-0">
@@ -163,7 +169,7 @@ export default function AdminSeriesPage() {
                 {s.statusNote ? ` · ${s.statusNote}` : ""}
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pr-1">
               <Link
                 href={`/admin/series/${s.id}`}
                 className="hover-clay font-mono text-[11px] tracking-[0.1em] text-stone uppercase"

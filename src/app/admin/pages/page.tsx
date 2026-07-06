@@ -11,7 +11,11 @@ import PrintsBody from "src/app/_components/pages/PrintsBody";
 import SidebarBody, {
   type NavKey,
 } from "src/app/_components/pages/SidebarBody";
-import { Button } from "src/app/admin/_components/ui";
+import {
+  Button,
+  cardCls,
+  PageHeader,
+} from "src/app/admin/_components/ui";
 import { groupExhibitions } from "src/lib/exhibitions";
 import { api } from "src/trpc/react";
 
@@ -128,50 +132,54 @@ export default function AdminPagesEditor() {
 
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-[28px] font-light">Pages</h1>
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-[10px] text-ash">
-            {dirtyCount > 0
-              ? `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`
-              : save.isSuccess
-                ? "Saved."
-                : ""}
-          </span>
-          <Button variant="ghost" onClick={discard} disabled={dirtyCount === 0}>
-            Discard
-          </Button>
-          <Button
-            onClick={saveAll}
-            disabled={dirtyCount === 0 || save.isPending}
-          >
-            {save.isPending ? "Saving…" : "Save"}
-          </Button>
-        </div>
-      </div>
-      <p className="mt-2 font-mono text-[11px] leading-[1.8] text-stone">
-        Click any text with a dashed outline to edit it in place. In longer
-        passages, Enter starts a new paragraph. Artwork, prints and exhibition
-        entries are managed in their own sections.
-      </p>
+      <PageHeader
+        eyebrow="Content"
+        title="Pages"
+        description="Click any text with a dashed outline to edit it in place. In longer passages, Enter starts a new paragraph. Artwork, prints and exhibition entries are managed in their own sections."
+        actions={
+          <>
+            <span className="font-mono text-[10px] text-ash">
+              {dirtyCount > 0
+                ? `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`
+                : save.isSuccess
+                  ? "Saved."
+                  : ""}
+            </span>
+            <Button
+              variant="ghost"
+              onClick={discard}
+              disabled={dirtyCount === 0}
+            >
+              Discard
+            </Button>
+            <Button
+              onClick={saveAll}
+              disabled={dirtyCount === 0 || save.isPending}
+            >
+              {save.isPending ? "Saving…" : "Save"}
+            </Button>
+          </>
+        }
+      />
       {save.error && (
-        <p className="mt-2 font-mono text-[11px] text-red-700">
+        <p className="mb-4 font-mono text-[11px] text-red-700">
           {save.error.message}
         </p>
       )}
 
-      <div className="mt-6 flex gap-1 border-b border-line">
+      <div className="mb-6 flex flex-wrap gap-1.5" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
-            className={`cursor-pointer px-4 py-2 font-mono text-[11px] tracking-[0.12em] uppercase ${
+            className={`cursor-pointer rounded-full px-3.5 py-1.5 font-mono text-[11px] tracking-[0.12em] uppercase transition-colors ${
               tab === t.key
-                ? "border border-line border-b-paper bg-paper text-ink"
-                : "text-stone hover:text-clay"
+                ? "bg-clay/12 text-clay"
+                : "text-stone hover:text-ink"
             }`}
-            style={tab === t.key ? { marginBottom: -1 } : undefined}
           >
             {t.label}
           </button>
@@ -180,7 +188,7 @@ export default function AdminPagesEditor() {
 
       <EditProvider value={edit}>
         <div
-          className="cms-preview mt-6 overflow-auto border border-line"
+          className={`cms-preview overflow-auto ${cardCls}`}
           title="Not editable here — artwork, prints and exhibition entries are managed in their own admin sections."
           // The previews are the real page components; swallow link clicks so
           // editing text inside a link doesn't navigate away.

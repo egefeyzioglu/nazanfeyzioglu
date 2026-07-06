@@ -2,6 +2,7 @@ import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import AdminNav from "src/app/admin/_components/AdminNav";
 import {
   clerkConfigured,
   devBypassActive,
@@ -13,18 +14,13 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Admin — Nazan Feyzioğlu" };
 
-const NAV = [
-  { label: "Series", href: "/admin/series" },
-  { label: "Prints", href: "/admin/prints" },
-  { label: "Exhibitions", href: "/admin/exhibitions" },
-  { label: "Pages", href: "/admin/pages" },
-];
-
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <main className="grid min-h-screen place-items-center bg-paper px-9 text-ink">
-      <div className="max-w-[520px]">
-        <h1 className="text-[28px] font-light">{title}</h1>
+      <div className="w-full max-w-[520px] rounded-xl border border-line bg-white p-8 shadow-[0_1px_2px_rgba(28,26,23,0.04),0_18px_36px_-28px_rgba(28,26,23,0.32)]">
+        <h1 className="font-spectral text-[26px] font-light tracking-[-0.01em]">
+          {title}
+        </h1>
         <div className="mt-4 font-mono text-[12px] leading-[1.9] tracking-[0.04em] text-stone">
           {children}
         </div>
@@ -70,36 +66,40 @@ export default async function AdminLayout({
   return (
     <TRPCReactProvider>
       <div className="min-h-screen bg-paper text-ink">
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-paper px-6 py-4 md:px-10">
-          <div className="flex items-baseline gap-8">
-            <Link href="/admin" className="font-spectral text-[18px] italic">
-              Nazan Feyzioğlu — Admin
-            </Link>
-            <nav className="flex gap-5 font-mono text-[11px] tracking-[0.12em] uppercase">
-              {NAV.map((item) => (
-                <Link key={item.href} href={item.href} className="hover-clay text-stone">
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-          <div className="flex items-center gap-5">
-            <Link
-              href="/"
-              className="hover-clay font-mono text-[11px] tracking-[0.12em] text-stone uppercase"
-            >
-              View site →
-            </Link>
-            {bypass ? (
-              <span className="border border-clay-soft px-2 py-1 font-mono text-[9.5px] tracking-[0.14em] text-clay uppercase">
-                Dev mode — auth bypassed
-              </span>
-            ) : (
-              <UserButton />
-            )}
+        <header className="sticky top-0 z-20 border-b border-line bg-paper/85 backdrop-blur-md">
+          <div className="mx-auto flex max-w-[1040px] flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 py-3.5 md:px-10">
+            <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
+              <Link
+                href="/admin"
+                className="flex items-baseline gap-2 whitespace-nowrap"
+              >
+                <span className="font-spectral text-[18px] italic tracking-tight">
+                  Nazan Feyzioğlu
+                </span>
+                <span className="font-mono text-[9.5px] tracking-[0.22em] text-ash uppercase">
+                  Admin
+                </span>
+              </Link>
+              <AdminNav />
+            </div>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/"
+                className="hover-clay font-mono text-[11px] tracking-[0.12em] text-stone uppercase"
+              >
+                View site →
+              </Link>
+              {bypass ? (
+                <span className="rounded-full border border-clay-soft bg-clay/5 px-2.5 py-1 font-mono text-[9.5px] tracking-[0.14em] text-clay uppercase">
+                  Dev mode
+                </span>
+              ) : (
+                <UserButton />
+              )}
+            </div>
           </div>
         </header>
-        <main className="mx-auto max-w-[960px] px-6 py-10 md:px-10">
+        <main className="mx-auto max-w-[1040px] px-6 py-10 md:px-10">
           {children}
         </main>
       </div>

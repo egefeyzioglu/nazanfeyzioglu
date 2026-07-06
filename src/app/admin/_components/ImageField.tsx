@@ -64,7 +64,7 @@ export default function ImageField({
     <div>
       <span className={labelCls}>{label}</span>
       <div className="flex items-start gap-4">
-        <div className="w-[110px] flex-none border border-line bg-panel">
+        <div className="w-[110px] flex-none overflow-hidden rounded-lg border border-line bg-panel">
           {value?.image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -96,7 +96,7 @@ export default function ImageField({
               type="button"
               disabled={busy}
               onClick={() => fileRef.current?.click()}
-              className="border border-line px-3 py-2 font-mono text-[11px] tracking-[0.1em] text-stone uppercase hover:border-clay hover:text-clay disabled:opacity-40"
+              className="cursor-pointer rounded-md border border-line-2 bg-white px-3 py-2 font-mono text-[11px] tracking-[0.1em] text-mute uppercase transition hover:border-clay hover:text-clay disabled:cursor-default disabled:opacity-40"
             >
               {isUploading ? "Uploading…" : "Upload image"}
             </button>
