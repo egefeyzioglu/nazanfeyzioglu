@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import ArtImage from "src/app/_components/ArtImage";
 import { EditableText } from "src/app/_components/Editable";
+import ScrollRail from "src/app/_components/ScrollRail";
 
 export type HomeCard = {
   slug: string;
@@ -22,17 +23,19 @@ export default function HomeBody({
   content: Record<string, string>;
 }) {
   return (
-    <main className="flex min-h-[700px] flex-1 flex-col md:ml-[280px] md:h-screen md:min-w-0">
-      <div className="flex-none px-9 pt-12 md:px-[72px] md:pt-12">
-        <EditableText
-          k="home.eyebrow"
-          value={content["home.eyebrow"] ?? ""}
-          as="div"
-          className="font-mono text-[10.5px] tracking-[0.3em] text-ash uppercase"
-        />
-      </div>
-
-      <div className="nagon-rail flex-1 overflow-x-auto md:min-h-0 md:overflow-y-hidden">
+    <main className="flex min-h-[700px] flex-1 flex-col md:ml-[280px] md:min-w-0">
+      <ScrollRail
+        header={
+          <div className="flex-none px-9 pt-12 md:px-[72px] md:pt-12">
+            <EditableText
+              k="home.eyebrow"
+              value={content["home.eyebrow"] ?? ""}
+              as="div"
+              className="font-mono text-[10.5px] tracking-[0.3em] text-ash uppercase"
+            />
+          </div>
+        }
+      >
         <div className="relative flex min-h-[560px] w-max min-w-full items-start gap-16 px-9 pt-[84px] md:px-[72px]">
           <div className="absolute top-[84px] right-0 left-0 h-[2px] bg-ink" />
 
@@ -70,7 +73,7 @@ export default function HomeBody({
 
           <div className="w-6 flex-none" />
         </div>
-      </div>
+      </ScrollRail>
     </main>
   );
 }

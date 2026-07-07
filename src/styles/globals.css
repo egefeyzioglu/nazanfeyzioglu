@@ -77,6 +77,17 @@
 .nagon-rail::-webkit-scrollbar-track {
   background: transparent;
 }
+/* While ScrollRail drives the rail from the page scroll, the rail's own
+   scrollbar would fight the scrollY → scrollLeft mapping — lock direct
+   horizontal scrolling and let the page scrollbar indicate position instead.
+   (scrollLeft stays programmable under overflow-x: hidden.) */
+.nagon-rail[data-driven] {
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+.nagon-rail[data-driven]::-webkit-scrollbar {
+  display: none;
+}
 
 /* Hanging-artwork swing animation (home series rail) */
 @keyframes nagonSettle {
