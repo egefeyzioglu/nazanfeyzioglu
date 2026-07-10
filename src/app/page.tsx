@@ -23,14 +23,12 @@ export default function HomePage() {
         <div className="mt-12 h-px w-[48px] bg-line-2" />
 
         <p className="mt-12 max-w-[440px] text-[17px] leading-[1.7] font-light text-mute text-pretty">
-          A new home for selected series, originals and prints is being
-          prepared. Please check back soon.
+          A new home for my work is being prepared. Please check back soon.
         </p>
       </div>
 
       <footer className="mt-16 text-center font-mono text-[10px] leading-[2] tracking-[0.16em] text-ash uppercase">
         <div>Toronto</div>
-        <div>Est. 2026</div>
       </footer>
     </main>
   );
