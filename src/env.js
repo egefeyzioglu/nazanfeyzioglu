@@ -7,7 +7,16 @@ export const env = createEnv({
    * isn't built with invalid env vars.
    */
   server: {
-    DATABASE_URL: z.string().url(),
+    /**
+     * Postgres connection string. Defaulted so the app boots with no
+     * environment configured at all — the coming-soon landing page is fully
+     * static and never touches the database. A real deployment overrides this
+     * with the actual connection string.
+     */
+    DATABASE_URL: z
+      .string()
+      .url()
+      .default("postgres://user:pass@localhost:5432/postgres"),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
