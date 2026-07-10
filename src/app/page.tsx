@@ -23,7 +23,9 @@ export default function HomePage() {
         <div className="mt-12 h-px w-[48px] bg-line-2" />
 
         <p className="mt-12 max-w-[440px] text-[17px] leading-[1.7] font-light text-mute text-pretty">
-          A new home for my work is being prepared. Please check back soon.
+          A new home for my work is being prepared.
+          <br />
+          Please check back soon.
         </p>
       </div>
 
