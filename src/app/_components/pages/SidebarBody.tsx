@@ -24,7 +24,7 @@ export default function SidebarBody({
   const instagram = content["sidebar.instagram"];
 
   return (
-    <aside className="z-10 flex flex-col justify-between border-b border-line bg-paper px-9 py-10 md:fixed md:top-0 md:left-0 md:h-screen md:w-[280px] md:border-r md:border-b-0 md:px-[38px] md:py-[46px]">
+    <aside className="border-line bg-paper z-10 flex flex-col justify-between border-b px-9 py-10 md:fixed md:top-0 md:left-0 md:h-screen md:w-[280px] md:border-r md:border-b-0 md:px-[38px] md:py-[46px]">
       <div>
         <Link href="/" className="block">
           <div className="font-spectral text-[29px] leading-none font-light tracking-[-0.01em]">
@@ -32,7 +32,7 @@ export default function SidebarBody({
             <br />
             Feyzioğlu
           </div>
-          <div className="mt-[13px] font-mono text-[10px] tracking-[0.28em] text-stone-2 uppercase">
+          <div className="text-stone-2 mt-[13px] font-mono text-[10px] tracking-[0.28em] uppercase">
             Painter
           </div>
         </Link>
@@ -51,7 +51,7 @@ export default function SidebarBody({
                 }`}
               >
                 {isActive && (
-                  <span className="inline-block h-[6px] w-[6px] rounded-full bg-clay" />
+                  <span className="bg-clay inline-block h-[6px] w-[6px] rounded-full" />
                 )}
                 <EditableText
                   k={`nav.${item.key}`}
@@ -63,7 +63,7 @@ export default function SidebarBody({
         </nav>
       </div>
 
-      <div className="mt-10 font-mono text-[10px] leading-[2] tracking-[0.16em] text-ash uppercase md:mt-0">
+      <div className="text-ash mt-10 font-mono text-[10px] leading-[2] tracking-[0.16em] uppercase md:mt-0">
         <EditableText
           k="sidebar.location"
           value={content["sidebar.location"] ?? ""}

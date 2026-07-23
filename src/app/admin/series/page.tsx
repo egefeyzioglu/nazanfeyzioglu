@@ -140,16 +140,16 @@ export default function AdminSeriesPage() {
       )}
 
       {list.isLoading && (
-        <p className="font-mono text-[11px] text-ash">Loading…</p>
+        <p className="text-ash font-mono text-[11px]">Loading…</p>
       )}
 
       <div className="flex flex-col gap-3">
         {rows.map((s, i) => (
           <div
             key={s.id}
-            className={`grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-5 p-3 transition hover:border-line-2 ${cardCls}`}
+            className={`hover:border-line-2 grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-5 p-3 transition ${cardCls}`}
           >
-            <div className="overflow-hidden rounded-lg border border-line bg-panel">
+            <div className="border-line bg-panel overflow-hidden rounded-lg border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={s.coverImage}
@@ -164,7 +164,7 @@ export default function AdminSeriesPage() {
               >
                 {s.title}
               </Link>
-              <div className="mt-1 font-mono text-[10.5px] tracking-[0.06em] text-stone-2">
+              <div className="text-stone-2 mt-1 font-mono text-[10.5px] tracking-[0.06em]">
                 /series/{s.slug} · {s.workCount} works · {s.printCount} prints
                 {s.statusNote ? ` · ${s.statusNote}` : ""}
               </div>
@@ -172,7 +172,7 @@ export default function AdminSeriesPage() {
             <div className="flex items-center gap-3 pr-1">
               <Link
                 href={`/admin/series/${s.id}`}
-                className="hover-clay font-mono text-[11px] tracking-[0.1em] text-stone uppercase"
+                className="hover-clay text-stone font-mono text-[11px] tracking-[0.1em] uppercase"
               >
                 Edit
               </Link>

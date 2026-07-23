@@ -24,9 +24,7 @@ export default function AdminNav() {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={`rounded-full px-3 py-1.5 font-mono text-[11px] tracking-[0.12em] uppercase transition-colors ${
-              active
-                ? "bg-clay/12 text-clay"
-                : "text-stone hover:text-ink"
+              active ? "bg-clay/12 text-clay" : "text-stone hover:text-ink"
             }`}
           >
             {item.label}

@@ -11,11 +11,7 @@ import PrintsBody from "src/app/_components/pages/PrintsBody";
 import SidebarBody, {
   type NavKey,
 } from "src/app/_components/pages/SidebarBody";
-import {
-  Button,
-  cardCls,
-  PageHeader,
-} from "src/app/admin/_components/ui";
+import { Button, cardCls, PageHeader } from "src/app/admin/_components/ui";
 import { groupExhibitions } from "src/lib/exhibitions";
 import { api } from "src/trpc/react";
 
@@ -152,7 +148,7 @@ export default function AdminPagesEditor() {
         description="Click any text with a dashed outline to edit it in place. In longer passages, Enter starts a new paragraph. Artwork, prints and exhibition entries are managed in their own sections."
         actions={
           <>
-            <span className="font-mono text-[10px] text-ash">
+            <span className="text-ash font-mono text-[10px]">
               {dirtyCount > 0
                 ? `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`
                 : save.isSuccess

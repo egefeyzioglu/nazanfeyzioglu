@@ -72,7 +72,7 @@ export default function AdminPrintsPage() {
           const ids = group.prints.map((p) => p.id);
           return (
             <section key={group.id}>
-              <div className="flex items-baseline justify-between border-b border-line pb-3">
+              <div className="border-line flex items-baseline justify-between border-b pb-3">
                 <div className="font-spectral text-[21px] italic">
                   {group.title}
                 </div>
@@ -286,7 +286,7 @@ function PrintCard({
   return (
     <CollapsibleRowCard
       thumb={
-        <div className="overflow-hidden rounded-lg border border-line bg-panel">
+        <div className="border-line bg-panel overflow-hidden rounded-lg border">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={print.image}

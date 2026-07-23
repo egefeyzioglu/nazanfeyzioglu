@@ -1,5 +1,5 @@
 {
-  "id": "8a0a7dff-7ad3-4593-810a-ab645579f534",
+  "id": "e9efbed3-12a5-466b-b60a-0e3a318171db",
   "prevId": "81cb4020-8fab-4726-b1da-64fa62cf99e0",
   "version": "7",
   "dialect": "postgresql",
@@ -306,7 +306,36 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "order_quantity_positive": {
+          "name": "order_quantity_positive",
+          "value": "quantity > 0"
+        },
+        "order_unit_amount_nonnegative": {
+          "name": "order_unit_amount_nonnegative",
+          "value": "\"unitAmount\" >= 0"
+        },
+        "order_amount_total_nonnegative": {
+          "name": "order_amount_total_nonnegative",
+          "value": "\"amountTotal\" >= 0"
+        },
+        "order_item_type_valid": {
+          "name": "order_item_type_valid",
+          "value": "\"itemType\" in ('print', 'digital')"
+        },
+        "order_payment_status_valid": {
+          "name": "order_payment_status_valid",
+          "value": "\"paymentStatus\" in ('paid', 'refunded')"
+        },
+        "order_fulfillment_status_valid": {
+          "name": "order_fulfillment_status_valid",
+          "value": "\"fulfillmentStatus\" in ('pending', 'fulfilled', 'oversold')"
+        },
+        "order_single_item": {
+          "name": "order_single_item",
+          "value": "not (\"printId\" is not null and \"workId\" is not null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.nazanfeyzioglu_print": {
@@ -373,12 +402,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "price": {
-          "name": "price",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": false
         },
         "priceCents": {
           "name": "priceCents",
@@ -448,7 +471,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "print_price_cents_positive": {
+          "name": "print_price_cents_positive",
+          "value": "\"priceCents\" > 0"
+        },
+        "print_edition_size_positive": {
+          "name": "print_edition_size_positive",
+          "value": "\"editionSize\" > 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.nazanfeyzioglu_series": {
@@ -718,7 +750,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "work_digital_price_cents_positive": {
+          "name": "work_digital_price_cents_positive",
+          "value": "\"digitalPriceCents\" > 0"
+        }
+      },
       "isRLSEnabled": false
     }
   },

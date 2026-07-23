@@ -15,20 +15,6 @@
       "when": 1783322109678,
       "tag": "0001_stripe-orders",
       "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1783322125826,
-      "tag": "0002_drop-print-display-price",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1783351607482,
-      "tag": "0003_order-integrity-checks",
-      "breakpoints": true
     }
   ]
 }

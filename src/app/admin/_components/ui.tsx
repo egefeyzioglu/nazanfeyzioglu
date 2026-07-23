@@ -42,18 +42,18 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-line pb-5">
+    <div className="border-line mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b pb-5">
       <div className="min-w-0">
         {eyebrow && (
-          <div className="mb-2 font-mono text-[10px] tracking-[0.28em] text-clay uppercase">
+          <div className="text-clay mb-2 font-mono text-[10px] tracking-[0.28em] uppercase">
             {eyebrow}
           </div>
         )}
-        <h1 className="font-spectral text-[30px] leading-none font-light tracking-[-0.01em] text-ink">
+        <h1 className="font-spectral text-ink text-[30px] leading-none font-light tracking-[-0.01em]">
           {title}
         </h1>
         {description && (
-          <p className="mt-3 max-w-[580px] font-mono text-[11px] leading-[1.75] text-stone">
+          <p className="text-stone mt-3 max-w-[580px] font-mono text-[11px] leading-[1.75]">
             {description}
           </p>
         )}
@@ -184,7 +184,7 @@ export function CollapsibleRowCard({
         {thumb}
         <div className="min-w-0">
           <div className="font-spectral text-[17px] italic">{title}</div>
-          <div className="mt-[2px] truncate font-mono text-[10.5px] text-stone-2">
+          <div className="text-stone-2 mt-[2px] truncate font-mono text-[10.5px]">
             {subtitle}
           </div>
         </div>
@@ -194,7 +194,7 @@ export function CollapsibleRowCard({
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
             aria-controls={contentId}
-            className="hover-clay cursor-pointer font-mono text-[11px] tracking-[0.1em] text-stone uppercase"
+            className="hover-clay text-stone cursor-pointer font-mono text-[11px] tracking-[0.1em] uppercase"
           >
             {open ? "Close" : "Edit"}
           </button>
@@ -202,7 +202,7 @@ export function CollapsibleRowCard({
         </div>
       </div>
       {open && (
-        <div id={contentId} className="border-t border-line-soft p-6">
+        <div id={contentId} className="border-line-soft border-t p-6">
           {children}
         </div>
       )}

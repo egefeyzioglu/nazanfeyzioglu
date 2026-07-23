@@ -61,7 +61,12 @@ type SeedWork = {
   note?: string;
 };
 
-type SeedPrint = { title: string; image: string; spec: string; edition: string };
+type SeedPrint = {
+  title: string;
+  image: string;
+  spec: string;
+  edition: string;
+};
 
 type SeedSeries = {
   slug: string;
@@ -469,15 +474,15 @@ async function main() {
     for (const [i, s] of SERIES.entries()) {
       const [row] = await tx
         .insert(schema.series)
-      .values({
-        slug: s.slug,
-        title: s.title,
-        coverImage: s.cover,
-        coverWidth: dim(s.cover).imageWidth,
-        coverHeight: dim(s.cover).imageHeight,
-        statusNote: s.statusNote,
-        position: i,
-      })
+        .values({
+          slug: s.slug,
+          title: s.title,
+          coverImage: s.cover,
+          coverWidth: dim(s.cover).imageWidth,
+          coverHeight: dim(s.cover).imageHeight,
+          statusNote: s.statusNote,
+          position: i,
+        })
         .returning();
       if (!row) throw new Error(`Failed to insert series ${s.slug}`);
 
@@ -511,13 +516,13 @@ async function main() {
       }
     }
 
-    await tx.insert(schema.exhibitions).values(
-      EXHIBITIONS.map((e, i) => ({ ...e, position: i })),
-    );
+    await tx
+      .insert(schema.exhibitions)
+      .values(EXHIBITIONS.map((e, i) => ({ ...e, position: i })));
 
-    await tx.insert(schema.siteContent).values(
-      CONTENT_FIELDS.map((f) => ({ key: f.key, value: f.default })),
-    );
+    await tx
+      .insert(schema.siteContent)
+      .values(CONTENT_FIELDS.map((f) => ({ key: f.key, value: f.default })));
 
     console.log(
       `Seeded ${SERIES.length} series, ${SERIES.reduce((n, s) => n + s.works.length, 0)} works, ${SERIES.reduce((n, s) => n + s.prints.length, 0)} prints, ${EXHIBITIONS.length} exhibitions, ${CONTENT_FIELDS.length} content fields.`,

@@ -24,8 +24,8 @@ export default function ExhibitionsBody({
   content: Record<string, string>;
 }) {
   return (
-    <main className="flex-1 px-9 pt-12 pb-24 md:ml-[280px] md:min-w-0 md:max-w-[1080px] md:px-[72px] md:pt-16">
-      <div className="font-mono text-[10.5px] tracking-[0.3em] text-ash uppercase">
+    <main className="flex-1 px-9 pt-12 pb-24 md:ml-[280px] md:max-w-[1080px] md:min-w-0 md:px-[72px] md:pt-16">
+      <div className="text-ash font-mono text-[10.5px] tracking-[0.3em] uppercase">
         Exhibitions
       </div>
       <EditableText
@@ -38,24 +38,24 @@ export default function ExhibitionsBody({
       <div className="mt-[54px] flex max-w-[680px] flex-col gap-14">
         {groups.map((group) => (
           <section key={group.category}>
-            <div className="border-b border-line pb-[18px] font-mono text-[11px] tracking-[0.26em] text-clay uppercase">
+            <div className="border-line text-clay border-b pb-[18px] font-mono text-[11px] tracking-[0.26em] uppercase">
               {group.heading}
             </div>
             <div className="flex flex-col">
               {group.entries.map((entry) => (
                 <div
                   key={entry.id}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-6 border-b border-line-soft py-5"
+                  className="border-line-soft grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-6 border-b py-5"
                 >
                   <div>
                     <div className="font-spectral text-[22px] leading-[1.2] italic">
                       {entry.name}
                     </div>
-                    <div className="mt-[7px] font-mono text-[11px] tracking-[0.04em] text-stone-2">
+                    <div className="text-stone-2 mt-[7px] font-mono text-[11px] tracking-[0.04em]">
                       {entry.location}
                     </div>
                   </div>
-                  <div className="font-mono text-[11px] tracking-[0.1em] whitespace-nowrap text-ash uppercase">
+                  <div className="text-ash font-mono text-[11px] tracking-[0.1em] whitespace-nowrap uppercase">
                     {entry.date}
                   </div>
                 </div>

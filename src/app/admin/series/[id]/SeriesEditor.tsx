@@ -100,7 +100,7 @@ export default function SeriesEditor({ id }: { id: number }) {
       >
         ← All series
       </Link>
-      <h1 className="mt-4 mb-6 font-spectral text-[30px] leading-none font-light tracking-[-0.01em]">
+      <h1 className="font-spectral mt-4 mb-6 text-[30px] leading-none font-light tracking-[-0.01em]">
         {s.title}
       </h1>
 
@@ -170,10 +170,10 @@ export default function SeriesEditor({ id }: { id: number }) {
         </form>
       )}
 
-      <div className="mt-12 mb-4 flex items-baseline justify-between border-b border-line pb-3">
+      <div className="border-line mt-12 mb-4 flex items-baseline justify-between border-b pb-3">
         <h2 className="font-spectral text-[21px] font-light">
           Works{" "}
-          <span className="font-mono text-[12px] text-ash">
+          <span className="text-ash font-mono text-[12px]">
             ({s.works.length})
           </span>
         </h2>
@@ -334,7 +334,7 @@ function WorkForm({
         <label className="flex items-center gap-2 pb-2">
           <input
             type="checkbox"
-            className="h-4 w-4 accent-clay"
+            className="accent-clay h-4 w-4"
             checked={digital}
             onChange={(e) => setDigital(e.target.checked)}
           />
@@ -391,7 +391,7 @@ function WorkCard({
   return (
     <CollapsibleRowCard
       thumb={
-        <div className="overflow-hidden rounded-lg border border-line bg-panel">
+        <div className="border-line bg-panel overflow-hidden rounded-lg border">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={work.image}
