@@ -13,7 +13,7 @@ export default async function ExhibitionsPage() {
   ]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-paper text-ink md:flex-row">
+    <div className="bg-paper text-ink flex min-h-screen flex-col md:flex-row">
       <Sidebar active="exhibitions" />
       <ExhibitionsBody groups={groups} content={content} />
     </div>

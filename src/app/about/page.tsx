@@ -10,7 +10,7 @@ export default async function AboutPage() {
   const content = await getContent();
 
   return (
-    <div className="flex min-h-screen flex-col bg-paper text-ink md:flex-row">
+    <div className="bg-paper text-ink flex min-h-screen flex-col md:flex-row">
       <Sidebar active="about" />
       <AboutBody content={content} />
     </div>

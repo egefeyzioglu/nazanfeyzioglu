@@ -31,13 +31,13 @@ export default function HomeBody({
               k="home.eyebrow"
               value={content["home.eyebrow"] ?? ""}
               as="div"
-              className="font-mono text-[10.5px] tracking-[0.3em] text-ash uppercase"
+              className="text-ash font-mono text-[10.5px] tracking-[0.3em] uppercase"
             />
           </div>
         }
       >
         <div className="relative flex min-h-[560px] w-max min-w-full items-start gap-16 px-9 pt-[84px] md:px-[72px]">
-          <div className="absolute top-[84px] right-0 left-0 h-[2px] bg-ink" />
+          <div className="bg-ink absolute top-[84px] right-0 left-0 h-[2px]" />
 
           {cards.map((card) => (
             <Link
@@ -47,10 +47,10 @@ export default function HomeBody({
             >
               {/* Hanging cord + pin */}
               <div className="relative h-[34px] w-px bg-[#b9b3a6]">
-                <span className="absolute top-[-4px] left-[-3.5px] h-[8px] w-[8px] rounded-full bg-ink" />
+                <span className="bg-ink absolute top-[-4px] left-[-3.5px] h-[8px] w-[8px] rounded-full" />
               </div>
 
-              <div className="swing-img w-full overflow-hidden bg-panel shadow-[0_18px_30px_-22px_rgba(0,0,0,0.45)]">
+              <div className="swing-img bg-panel w-full overflow-hidden shadow-[0_18px_30px_-22px_rgba(0,0,0,0.45)]">
                 <ArtImage
                   src={card.coverImage}
                   alt={card.title}
@@ -64,7 +64,7 @@ export default function HomeBody({
                 <div className="font-spectral text-[20px] leading-[1.2] italic">
                   {card.title}
                 </div>
-                <div className="openpip mt-[7px] font-mono text-[10px] tracking-[0.14em] text-ash uppercase transition-colors duration-200">
+                <div className="openpip text-ash mt-[7px] font-mono text-[10px] tracking-[0.14em] uppercase transition-colors duration-200">
                   {card.workCount} work{card.workCount === 1 ? "" : "s"} →
                 </div>
               </div>

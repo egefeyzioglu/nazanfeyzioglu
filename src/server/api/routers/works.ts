@@ -16,6 +16,7 @@ const workFields = {
   medium: z.string().min(1),
   price: z.string().max(128).nullish(),
   digital: z.boolean(),
+  digitalPriceCents: z.number().int().positive().nullish(),
   note: z.string().nullish(),
 };
 

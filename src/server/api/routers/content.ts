@@ -24,7 +24,8 @@ export const contentRouter = createTRPCRouter({
           .array(z.object({ key: z.string(), value: z.string() }))
           .min(1)
           .refine(
-            (entries) => new Set(entries.map((e) => e.key)).size === entries.length,
+            (entries) =>
+              new Set(entries.map((e) => e.key)).size === entries.length,
             "Duplicate content keys",
           ),
       }),

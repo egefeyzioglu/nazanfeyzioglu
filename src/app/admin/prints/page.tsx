@@ -15,6 +15,11 @@ import {
   PageHeader,
   RowControls,
 } from "src/app/admin/_components/ui";
+import {
+  centsToDollarsString,
+  dollarsStringToCents,
+  formatPrice,
+} from "src/lib/orders";
 import { api } from "src/trpc/react";
 
 type PrintRow = {
@@ -25,7 +30,8 @@ type PrintRow = {
   imageHeight: number;
   spec: string;
   edition: string;
-  price: string | null;
+  priceCents: number | null;
+  editionSize: number | null;
 };
 
 type PrintFormValues = Omit<PrintRow, "id">;
@@ -43,7 +49,7 @@ export default function AdminPrintsPage() {
   const [addingFor, setAddingFor] = useState<number | null>(null);
 
   if (list.isLoading) {
-    return <p className="font-mono text-[11px] text-ash">Loading…</p>;
+    return <p className="text-ash font-mono text-[11px]">Loading…</p>;
   }
   if (list.error) {
     return (
@@ -66,7 +72,7 @@ export default function AdminPrintsPage() {
           const ids = group.prints.map((p) => p.id);
           return (
             <section key={group.id}>
-              <div className="flex items-baseline justify-between border-b border-line pb-3">
+              <div className="border-line flex items-baseline justify-between border-b pb-3">
                 <div className="font-spectral text-[21px] italic">
                   {group.title}
                 </div>
@@ -141,7 +147,7 @@ export default function AdminPrintsPage() {
                   />
                 ))}
                 {group.prints.length === 0 && (
-                  <p className="font-mono text-[10.5px] text-ash">
+                  <p className="text-ash font-mono text-[10.5px]">
                     No prints in this series yet.
                   </p>
                 )}
@@ -170,7 +176,12 @@ function PrintForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [spec, setSpec] = useState(initial?.spec ?? "");
   const [edition, setEdition] = useState(initial?.edition ?? "");
-  const [price, setPrice] = useState(initial?.price ?? "");
+  const [price, setPrice] = useState(centsToDollarsString(initial?.priceCents));
+  const [editionSize, setEditionSize] = useState(
+    initial?.editionSize === null || initial?.editionSize === undefined
+      ? ""
+      : initial.editionSize.toString(),
+  );
   const [image, setImage] = useState<ImageValue | null>(
     initial
       ? {
@@ -194,7 +205,9 @@ function PrintForm({
           imageHeight: image.height,
           spec,
           edition,
-          price: price.trim() || null,
+          priceCents: dollarsStringToCents(price),
+          editionSize:
+            editionSize.trim() === "" ? null : parseInt(editionSize, 10),
         });
       }}
     >
@@ -225,12 +238,24 @@ function PrintForm({
             onChange={(e) => setEdition(e.target.value)}
           />
         </Field>
-        <Field label="Price (blank shows “$ —”)">
+        <Field label="Price (CAD, blank = not for sale)">
           <input
+            type="number"
+            min="0"
+            step="0.01"
             className={inputCls}
             value={price}
-            placeholder="180 CAD"
             onChange={(e) => setPrice(e.target.value)}
+          />
+        </Field>
+        <Field label="Edition size (blank = unlimited)">
+          <input
+            type="number"
+            min="1"
+            step="1"
+            className={inputCls}
+            value={editionSize}
+            onChange={(e) => setEditionSize(e.target.value)}
           />
         </Field>
       </div>
@@ -261,7 +286,7 @@ function PrintCard({
   return (
     <CollapsibleRowCard
       thumb={
-        <div className="overflow-hidden rounded-lg border border-line bg-panel">
+        <div className="border-line bg-panel overflow-hidden rounded-lg border">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={print.image}
@@ -271,7 +296,9 @@ function PrintCard({
         </div>
       }
       title={print.title}
-      subtitle={`${print.spec} · ${print.edition} · ${print.price ?? "$ —"}`}
+      subtitle={`${print.spec} · ${print.edition} · ${
+        print.priceCents === null ? "$ —" : formatPrice(print.priceCents)
+      }${print.editionSize !== null ? ` · limit ${print.editionSize}` : ""}`}
       controls={controls}
     >
       <PrintForm

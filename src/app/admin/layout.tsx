@@ -14,14 +14,20 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Admin — Nazan Feyzioğlu" };
 
-function Notice({ title, children }: { title: string; children: React.ReactNode }) {
+function Notice({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <main className="grid min-h-screen place-items-center bg-paper px-9 text-ink">
-      <div className="w-full max-w-[520px] rounded-xl border border-line bg-white p-8 shadow-[0_1px_2px_rgba(28,26,23,0.04),0_18px_36px_-28px_rgba(28,26,23,0.32)]">
+    <main className="bg-paper text-ink grid min-h-screen place-items-center px-9">
+      <div className="border-line w-full max-w-[520px] rounded-xl border bg-white p-8 shadow-[0_1px_2px_rgba(28,26,23,0.04),0_18px_36px_-28px_rgba(28,26,23,0.32)]">
         <h1 className="font-spectral text-[26px] font-light tracking-[-0.01em]">
           {title}
         </h1>
-        <div className="mt-4 font-mono text-[12px] leading-[1.9] tracking-[0.04em] text-stone">
+        <div className="text-stone mt-4 font-mono text-[12px] leading-[1.9] tracking-[0.04em]">
           {children}
         </div>
       </div>
@@ -39,11 +45,11 @@ export default async function AdminLayout({
   if (!clerkConfigured() && !bypass) {
     return (
       <Notice title="Admin panel not configured yet">
-        Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY in .env
-        (from a Clerk application at dashboard.clerk.com), restart the dev
-        server, then sign in and set {`{ "role": "admin" }`} in your user&apos;s
-        Public metadata in the Clerk dashboard. For local development before
-        Clerk is set up, you can instead set ADMIN_DEV_BYPASS=1 in .env.
+        Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY in .env (from
+        a Clerk application at dashboard.clerk.com), restart the dev server,
+        then sign in and set {`{ "role": "admin" }`} in your user&apos;s Public
+        metadata in the Clerk dashboard. For local development before Clerk is
+        set up, you can instead set ADMIN_DEV_BYPASS=1 in .env.
       </Notice>
     );
   }
@@ -56,8 +62,7 @@ export default async function AdminLayout({
         <Notice title="No admin access">
           You&apos;re signed in, but this account doesn&apos;t have the admin
           role. In the Clerk dashboard, open Users → your user → Metadata and
-          set Public metadata to {`{ "role": "admin" }`}, then reload this
-          page.
+          set Public metadata to {`{ "role": "admin" }`}, then reload this page.
         </Notice>
       );
     }
@@ -65,18 +70,18 @@ export default async function AdminLayout({
 
   return (
     <TRPCReactProvider>
-      <div className="min-h-screen bg-paper text-ink">
-        <header className="sticky top-0 z-20 border-b border-line bg-paper/85 backdrop-blur-md">
+      <div className="bg-paper text-ink min-h-screen">
+        <header className="border-line bg-paper/85 sticky top-0 z-20 border-b backdrop-blur-md">
           <div className="mx-auto flex max-w-[1040px] flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 py-3.5 md:px-10">
             <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
               <Link
                 href="/admin"
                 className="flex items-baseline gap-2 whitespace-nowrap"
               >
-                <span className="font-spectral text-[18px] italic tracking-tight">
+                <span className="font-spectral text-[18px] tracking-tight italic">
                   Nazan Feyzioğlu
                 </span>
-                <span className="font-mono text-[9.5px] tracking-[0.22em] text-ash uppercase">
+                <span className="text-ash font-mono text-[9.5px] tracking-[0.22em] uppercase">
                   Admin
                 </span>
               </Link>
@@ -85,12 +90,12 @@ export default async function AdminLayout({
             <div className="flex items-center gap-4">
               <Link
                 href="/"
-                className="hover-clay font-mono text-[11px] tracking-[0.12em] text-stone uppercase"
+                className="hover-clay text-stone font-mono text-[11px] tracking-[0.12em] uppercase"
               >
                 View site →
               </Link>
               {bypass ? (
-                <span className="rounded-full border border-clay-soft bg-clay/5 px-2.5 py-1 font-mono text-[9.5px] tracking-[0.14em] text-clay uppercase">
+                <span className="border-clay-soft bg-clay/5 text-clay rounded-full border px-2.5 py-1 font-mono text-[9.5px] tracking-[0.14em] uppercase">
                   Dev mode
                 </span>
               ) : (

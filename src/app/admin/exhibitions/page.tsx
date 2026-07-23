@@ -37,12 +37,14 @@ export default function AdminExhibitionsPage() {
   const create = api.exhibitions.create.useMutation({ onSuccess: invalidate });
   const update = api.exhibitions.update.useMutation({ onSuccess: invalidate });
   const del = api.exhibitions.delete.useMutation({ onSuccess: invalidate });
-  const reorder = api.exhibitions.reorder.useMutation({ onSuccess: invalidate });
+  const reorder = api.exhibitions.reorder.useMutation({
+    onSuccess: invalidate,
+  });
 
   const [adding, setAdding] = useState(false);
 
   if (list.isLoading) {
-    return <p className="font-mono text-[11px] text-ash">Loading…</p>;
+    return <p className="text-ash font-mono text-[11px]">Loading…</p>;
   }
 
   const rows = list.data ?? [];
@@ -94,7 +96,7 @@ export default function AdminExhibitionsPage() {
       <div className="flex flex-col gap-10">
         {groups.map((group) => (
           <section key={group.category}>
-            <div className="border-b border-line pb-3 font-mono text-[11px] tracking-[0.26em] text-clay uppercase">
+            <div className="border-line text-clay border-b pb-3 font-mono text-[11px] tracking-[0.26em] uppercase">
               {CATEGORY_LABELS[group.category]}
             </div>
             <div className="mt-3 flex flex-col gap-3">
@@ -102,7 +104,9 @@ export default function AdminExhibitionsPage() {
                 <ExhibitionCard
                   key={entry.id}
                   entry={entry}
-                  pending={update.isPending && update.variables?.id === entry.id}
+                  pending={
+                    update.isPending && update.variables?.id === entry.id
+                  }
                   error={
                     update.variables?.id === entry.id
                       ? update.error?.message
@@ -128,7 +132,7 @@ export default function AdminExhibitionsPage() {
                 />
               ))}
               {group.entries.length === 0 && (
-                <p className="font-mono text-[10.5px] text-ash">
+                <p className="text-ash font-mono text-[10.5px]">
                   No entries yet.
                 </p>
               )}
@@ -173,9 +177,7 @@ function ExhibitionForm({
           <select
             className={inputCls}
             value={category}
-            onChange={(e) =>
-              setCategory(e.target.value as ExhibitionCategory)
-            }
+            onChange={(e) => setCategory(e.target.value as ExhibitionCategory)}
           >
             {EXHIBITION_CATEGORIES.map((c) => (
               <option key={c} value={c}>

@@ -7,6 +7,7 @@ import {
   uniqueIds,
 } from "src/server/api/trpc";
 import { prints } from "src/server/db/schema";
+import { getSoldPrintQuantities, remainingCopies } from "src/server/orders";
 
 const printFields = {
   title: z.string().min(1).max(256),
@@ -15,18 +16,33 @@ const printFields = {
   imageHeight: z.number().int().positive(),
   spec: z.string().min(1),
   edition: z.string().min(1),
-  price: z.string().max(128).nullish(),
+  priceCents: z.number().int().positive().nullish(),
+  editionSize: z.number().int().positive().nullish(),
 };
 
 export const printsRouter = createTRPCRouter({
-  /** All series (in rail order) with their prints, for the grouped admin view. */
-  list: adminProcedure.query(({ ctx }) =>
-    ctx.db.query.series.findMany({
+  /**
+   * All series (in rail order) with their prints, for the grouped admin view.
+   * Each print carries `remaining` — purchasable copies left, or null when the
+   * edition size is not enforced — so previews match the public prints page.
+   */
+  list: adminProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db.query.series.findMany({
       orderBy: (s, { asc }) => [asc(s.position)],
       columns: { id: true, title: true, slug: true },
       with: { prints: { orderBy: (p, { asc }) => [asc(p.position)] } },
-    }),
-  ),
+    });
+    const sold = await getSoldPrintQuantities(
+      rows.flatMap((s) => s.prints.map((p) => p.id)),
+    );
+    return rows.map((s) => ({
+      ...s,
+      prints: s.prints.map((p) => ({
+        ...p,
+        remaining: remainingCopies(p.editionSize, sold.get(p.id) ?? 0),
+      })),
+    }));
+  }),
 
   create: adminProcedure
     .input(z.object({ seriesId: z.number().int(), ...printFields }))
@@ -68,9 +84,7 @@ export const printsRouter = createTRPCRouter({
           await tx
             .update(prints)
             .set({ position })
-            .where(
-              and(eq(prints.id, id), eq(prints.seriesId, input.seriesId)),
-            );
+            .where(and(eq(prints.id, id), eq(prints.seriesId, input.seriesId)));
         }
       });
     }),

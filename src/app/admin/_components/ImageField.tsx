@@ -11,8 +11,7 @@ export type ImageValue = { image: string; width: number; height: number };
 function readDimensions(src: string): Promise<{ w: number; h: number }> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
-    img.onload = () =>
-      resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
     img.onerror = () => reject(new Error(`Could not load image: ${src}`));
     img.src = src;
   });
@@ -64,16 +63,12 @@ export default function ImageField({
     <div>
       <span className={labelCls}>{label}</span>
       <div className="flex items-start gap-4">
-        <div className="w-[110px] flex-none overflow-hidden rounded-lg border border-line bg-panel">
+        <div className="border-line bg-panel w-[110px] flex-none overflow-hidden rounded-lg border">
           {value?.image ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={value.image}
-              alt=""
-              className="block h-auto w-full"
-            />
+            <img src={value.image} alt="" className="block h-auto w-full" />
           ) : (
-            <div className="grid h-[80px] place-items-center font-mono text-[10px] text-ash">
+            <div className="text-ash grid h-[80px] place-items-center font-mono text-[10px]">
               No image
             </div>
           )}
@@ -96,11 +91,11 @@ export default function ImageField({
               type="button"
               disabled={busy}
               onClick={() => fileRef.current?.click()}
-              className="cursor-pointer rounded-md border border-line-2 bg-white px-3 py-2 font-mono text-[11px] tracking-[0.1em] text-mute uppercase transition hover:border-clay hover:text-clay disabled:cursor-default disabled:opacity-40"
+              className="border-line-2 text-mute hover:border-clay hover:text-clay cursor-pointer rounded-md border bg-white px-3 py-2 font-mono text-[11px] tracking-[0.1em] uppercase transition disabled:cursor-default disabled:opacity-40"
             >
               {isUploading ? "Uploading…" : "Upload image"}
             </button>
-            <span className="font-mono text-[10px] text-ash">or path:</span>
+            <span className="text-ash font-mono text-[10px]">or path:</span>
             <input
               className={`${inputCls} max-w-[240px] flex-1`}
               placeholder="/design-assets/….jpg"
@@ -120,12 +115,12 @@ export default function ImageField({
             />
           </div>
           {value?.image && (
-            <div className="mt-2 truncate font-mono text-[10px] text-ash">
+            <div className="text-ash mt-2 truncate font-mono text-[10px]">
               {value.image} · {value.width} × {value.height}px
             </div>
           )}
           {detecting && (
-            <div className="mt-2 font-mono text-[10px] text-ash">
+            <div className="text-ash mt-2 font-mono text-[10px]">
               Reading image size…
             </div>
           )}

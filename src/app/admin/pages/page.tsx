@@ -11,11 +11,7 @@ import PrintsBody from "src/app/_components/pages/PrintsBody";
 import SidebarBody, {
   type NavKey,
 } from "src/app/_components/pages/SidebarBody";
-import {
-  Button,
-  cardCls,
-  PageHeader,
-} from "src/app/admin/_components/ui";
+import { Button, cardCls, PageHeader } from "src/app/admin/_components/ui";
 import { groupExhibitions } from "src/lib/exhibitions";
 import { api } from "src/trpc/react";
 
@@ -43,8 +39,7 @@ export default function AdminPagesEditor() {
   const drafts = useRef(new Map<string, string>());
 
   const baseline = useMemo(
-    () =>
-      Object.fromEntries((content.data ?? []).map((f) => [f.key, f.value])),
+    () => Object.fromEntries((content.data ?? []).map((f) => [f.key, f.value])),
     [content.data],
   );
   const labels = useMemo(
@@ -106,7 +101,7 @@ export default function AdminPagesEditor() {
     exhibitions.isLoading;
 
   if (loading) {
-    return <p className="font-mono text-[11px] text-ash">Loading…</p>;
+    return <p className="text-ash font-mono text-[11px]">Loading…</p>;
   }
 
   const loadError =
@@ -128,6 +123,21 @@ export default function AdminPagesEditor() {
     workCount: s.workCount,
   }));
   const printGroups = (prints.data ?? []).filter((g) => g.prints.length > 0);
+  const previewPrintGroups = printGroups.map((g) => ({
+    id: g.id,
+    title: g.title,
+    prints: g.prints.map((p) => ({
+      id: p.id,
+      title: p.title,
+      image: p.image,
+      imageWidth: p.imageWidth,
+      imageHeight: p.imageHeight,
+      spec: p.spec,
+      edition: p.edition,
+      priceCents: p.priceCents,
+      remaining: p.remaining,
+    })),
+  }));
   const exhibitionGroups = groupExhibitions(exhibitions.data ?? []);
 
   return (
@@ -138,7 +148,7 @@ export default function AdminPagesEditor() {
         description="Click any text with a dashed outline to edit it in place. In longer passages, Enter starts a new paragraph. Artwork, prints and exhibition entries are managed in their own sections."
         actions={
           <>
-            <span className="font-mono text-[10px] text-ash">
+            <span className="text-ash font-mono text-[10px]">
               {dirtyCount > 0
                 ? `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`
                 : save.isSuccess
@@ -196,7 +206,7 @@ export default function AdminPagesEditor() {
             if ((e.target as HTMLElement).closest("a")) e.preventDefault();
           }}
         >
-          <div className="flex min-w-[860px] flex-col bg-paper text-ink md:flex-row">
+          <div className="bg-paper text-ink flex min-w-[860px] flex-col md:flex-row">
             <SidebarBody active={tab} content={baseline} />
             {tab === "series" && (
               <HomeBody cards={homeCards} content={baseline} />
@@ -204,7 +214,11 @@ export default function AdminPagesEditor() {
             {tab === "about" && <AboutBody content={baseline} />}
             {tab === "contact" && <ContactBody content={baseline} />}
             {tab === "prints" && (
-              <PrintsBody groups={printGroups} content={baseline} />
+              <PrintsBody
+                groups={previewPrintGroups}
+                content={baseline}
+                checkoutEnabled={false}
+              />
             )}
             {tab === "exhibitions" && (
               <ExhibitionsBody groups={exhibitionGroups} content={baseline} />

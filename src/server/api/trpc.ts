@@ -67,7 +67,7 @@ export const adminProcedure = t.procedure.use(async ({ ctx, next }) => {
     throw new TRPCError({
       code: "FORBIDDEN",
       message:
-        "Admin role required — set { \"role\": \"admin\" } in the user's public metadata in the Clerk dashboard.",
+        'Admin role required — set { "role": "admin" } in the user\'s public metadata in the Clerk dashboard.',
     });
   }
   return next({ ctx: { ...ctx, userId } });

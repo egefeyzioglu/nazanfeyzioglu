@@ -1,5 +1,6 @@
 import { contentRouter } from "src/server/api/routers/content";
 import { exhibitionsRouter } from "src/server/api/routers/exhibitions";
+import { ordersRouter } from "src/server/api/routers/orders";
 import { printsRouter } from "src/server/api/routers/prints";
 import { seriesRouter } from "src/server/api/routers/series";
 import { worksRouter } from "src/server/api/routers/works";
@@ -14,6 +15,7 @@ export const appRouter = createTRPCRouter({
   prints: printsRouter,
   exhibitions: exhibitionsRouter,
   content: contentRouter,
+  orders: ordersRouter,
 });
 
 export type AppRouter = typeof appRouter;

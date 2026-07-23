@@ -16,6 +16,11 @@ import {
   movedIds,
   RowControls,
 } from "src/app/admin/_components/ui";
+import {
+  centsToDollarsString,
+  dollarsStringToCents,
+  formatPrice,
+} from "src/lib/orders";
 import { api } from "src/trpc/react";
 
 type WorkRow = {
@@ -27,6 +32,7 @@ type WorkRow = {
   medium: string;
   price: string | null;
   digital: boolean;
+  digitalPriceCents: number | null;
   note: string | null;
 };
 
@@ -71,11 +77,11 @@ export default function SeriesEditor({ id }: { id: number }) {
   const [addingWork, setAddingWork] = useState(false);
 
   if (query.isLoading) {
-    return <p className="font-mono text-[11px] text-ash">Loading…</p>;
+    return <p className="text-ash font-mono text-[11px]">Loading…</p>;
   }
   if (!s) {
     return (
-      <p className="font-mono text-[11px] text-ash">
+      <p className="text-ash font-mono text-[11px]">
         Series not found.{" "}
         <Link href="/admin/series" className="text-clay">
           Back to series
@@ -90,11 +96,11 @@ export default function SeriesEditor({ id }: { id: number }) {
     <div>
       <Link
         href="/admin/series"
-        className="hover-clay font-mono text-[11px] tracking-[0.14em] text-stone uppercase"
+        className="hover-clay text-stone font-mono text-[11px] tracking-[0.14em] uppercase"
       >
         ← All series
       </Link>
-      <h1 className="mt-4 mb-6 font-spectral text-[30px] leading-none font-light tracking-[-0.01em]">
+      <h1 className="font-spectral mt-4 mb-6 text-[30px] leading-none font-light tracking-[-0.01em]">
         {s.title}
       </h1>
 
@@ -158,16 +164,16 @@ export default function SeriesEditor({ id }: { id: number }) {
               {updateSeries.isPending ? "Saving…" : "Save series"}
             </Button>
             {updateSeries.isSuccess && !updateSeries.isPending && (
-              <span className="font-mono text-[10px] text-ash">Saved.</span>
+              <span className="text-ash font-mono text-[10px]">Saved.</span>
             )}
           </div>
         </form>
       )}
 
-      <div className="mt-12 mb-4 flex items-baseline justify-between border-b border-line pb-3">
+      <div className="border-line mt-12 mb-4 flex items-baseline justify-between border-b pb-3">
         <h2 className="font-spectral text-[21px] font-light">
           Works{" "}
-          <span className="font-mono text-[12px] text-ash">
+          <span className="text-ash font-mono text-[12px]">
             ({s.works.length})
           </span>
         </h2>
@@ -243,6 +249,7 @@ type WorkFormValues = {
   medium: string;
   price: string | null;
   digital: boolean;
+  digitalPriceCents: number | null;
   note: string | null;
 };
 
@@ -263,6 +270,9 @@ function WorkForm({
   const [medium, setMedium] = useState(initial?.medium ?? "");
   const [price, setPrice] = useState(initial?.price ?? "");
   const [digital, setDigital] = useState(initial?.digital ?? false);
+  const [digitalPrice, setDigitalPrice] = useState(
+    centsToDollarsString(initial?.digitalPriceCents),
+  );
   const [note, setNote] = useState(initial?.note ?? "");
   const [image, setImage] = useState<ImageValue | null>(
     initial
@@ -288,6 +298,7 @@ function WorkForm({
           medium,
           price: price.trim() || null,
           digital,
+          digitalPriceCents: dollarsStringToCents(digitalPrice),
           note: note.trim() || null,
         });
       }}
@@ -323,7 +334,7 @@ function WorkForm({
         <label className="flex items-center gap-2 pb-2">
           <input
             type="checkbox"
-            className="h-4 w-4 accent-clay"
+            className="accent-clay h-4 w-4"
             checked={digital}
             onChange={(e) => setDigital(e.target.checked)}
           />
@@ -333,13 +344,25 @@ function WorkForm({
         </label>
       </div>
       {digital && (
-        <Field label="Digital edition note">
-          <textarea
-            className={`${inputCls} min-h-[60px]`}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </Field>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field label="Digital edition price (CAD, blank = inquire only)">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className={inputCls}
+              value={digitalPrice}
+              onChange={(e) => setDigitalPrice(e.target.value)}
+            />
+          </Field>
+          <Field label="Digital edition note">
+            <textarea
+              className={`${inputCls} min-h-[60px]`}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </Field>
+        </div>
       )}
       <ImageField label="Artwork image" value={image} onChange={setImage} />
       {error && <p className="font-mono text-[11px] text-red-700">{error}</p>}
@@ -368,7 +391,7 @@ function WorkCard({
   return (
     <CollapsibleRowCard
       thumb={
-        <div className="overflow-hidden rounded-lg border border-line bg-panel">
+        <div className="border-line bg-panel overflow-hidden rounded-lg border">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={work.image}
@@ -378,7 +401,15 @@ function WorkCard({
         </div>
       }
       title={work.title}
-      subtitle={`${work.medium} · ${work.digital ? "digital" : (work.price ?? "—")}`}
+      subtitle={`${work.medium} · ${
+        work.digital
+          ? `digital · ${
+              work.digitalPriceCents === null
+                ? "inquire"
+                : formatPrice(work.digitalPriceCents)
+            }`
+          : (work.price ?? "—")
+      }`}
       controls={controls}
     >
       <WorkForm

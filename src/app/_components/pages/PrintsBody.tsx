@@ -3,7 +3,9 @@
 import Link from "next/link";
 
 import ArtImage from "src/app/_components/ArtImage";
+import BuyButton from "src/app/_components/BuyButton";
 import { EditableText } from "src/app/_components/Editable";
+import { formatPrice } from "src/lib/orders";
 
 export type PrintItem = {
   id: number;
@@ -13,7 +15,8 @@ export type PrintItem = {
   imageHeight: number;
   spec: string;
   edition: string;
-  price: string | null;
+  priceCents: number | null;
+  remaining?: number | null;
 };
 
 export type PrintGroup = {
@@ -25,13 +28,15 @@ export type PrintGroup = {
 export default function PrintsBody({
   groups,
   content,
+  checkoutEnabled,
 }: {
   groups: PrintGroup[];
   content: Record<string, string>;
+  checkoutEnabled: boolean;
 }) {
   return (
-    <main className="flex-1 px-9 pt-12 pb-24 md:ml-[280px] md:min-w-0 md:max-w-[1040px] md:px-[72px] md:pt-16">
-      <div className="font-mono text-[10.5px] tracking-[0.3em] text-ash uppercase">
+    <main className="flex-1 px-9 pt-12 pb-24 md:ml-[280px] md:max-w-[1040px] md:min-w-0 md:px-[72px] md:pt-16">
+      <div className="text-ash font-mono text-[10.5px] tracking-[0.3em] uppercase">
         Prints
       </div>
       <EditableText
@@ -44,16 +49,16 @@ export default function PrintsBody({
         k="prints.intro"
         value={content["prints.intro"] ?? ""}
         as="p"
-        className="mt-5 mb-[6px] max-w-[560px] text-[17px] leading-[1.6] font-light text-mute text-pretty"
+        className="text-mute mt-5 mb-[6px] max-w-[560px] text-[17px] leading-[1.6] font-light text-pretty"
       />
 
       {groups.map((group) => (
         <section key={group.id}>
-          <div className="mt-12 flex items-baseline gap-[14px] border-b-2 border-ink pb-[10px]">
+          <div className="border-ink mt-12 flex items-baseline gap-[14px] border-b-2 pb-[10px]">
             <div className="font-spectral text-[26px] italic">
               {group.title}
             </div>
-            <div className="font-mono text-[10px] tracking-[0.2em] text-ash-2 uppercase">
+            <div className="text-ash-2 font-mono text-[10px] tracking-[0.2em] uppercase">
               {group.prints.length} print{group.prints.length === 1 ? "" : "s"}
             </div>
           </div>
@@ -62,7 +67,7 @@ export default function PrintsBody({
             {group.prints.map((print) => (
               <div
                 key={print.id}
-                className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-5 border-b border-line-soft py-[22px] md:grid-cols-[150px_minmax(0,1fr)_auto] md:gap-[30px]"
+                className="border-line-soft grid grid-cols-[80px_minmax(0,1fr)] items-center gap-5 border-b py-[22px] md:grid-cols-[150px_minmax(0,1fr)_auto] md:gap-[30px]"
               >
                 <div className="leading-[0]">
                   <ArtImage
@@ -77,22 +82,48 @@ export default function PrintsBody({
                   <div className="font-spectral text-[24px] italic">
                     {print.title}
                   </div>
-                  <div className="mt-[9px] font-mono text-[11px] leading-[1.8] tracking-[0.04em] text-stone-2">
+                  <div className="text-stone-2 mt-[9px] font-mono text-[11px] leading-[1.8] tracking-[0.04em]">
                     {print.spec}
                     <br />
                     {print.edition}
                   </div>
                 </div>
                 <div className="col-span-2 flex items-center justify-between gap-3 md:col-span-1 md:flex-col md:items-end md:gap-3">
-                  <span className="font-spectral text-[23px]">
-                    {print.price ?? "$ —"}
-                  </span>
-                  <a
-                    href="#"
-                    className="cart-btn bg-ink px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap text-paper uppercase"
-                  >
-                    Add to cart
-                  </a>
+                  <div className="text-right">
+                    <span className="font-spectral text-[23px]">
+                      {print.priceCents === null
+                        ? "$ —"
+                        : formatPrice(print.priceCents)}
+                    </span>
+                    {typeof print.remaining === "number" &&
+                      print.remaining > 0 &&
+                      print.remaining <= 3 && (
+                        <div className="text-clay font-mono text-[10px]">
+                          Only {print.remaining} left
+                        </div>
+                      )}
+                  </div>
+                  {print.remaining === 0 ? (
+                    <span className="border-line text-ash border px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase">
+                      Sold out
+                    </span>
+                  ) : checkoutEnabled && print.priceCents !== null ? (
+                    <BuyButton
+                      itemType="print"
+                      id={print.id}
+                      cancelPath="/prints"
+                      className="cart-btn bg-ink text-paper cursor-pointer px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase disabled:cursor-default disabled:opacity-60"
+                    >
+                      Buy print
+                    </BuyButton>
+                  ) : (
+                    <Link
+                      href="/contact"
+                      className="cart-btn bg-ink text-paper px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase"
+                    >
+                      Inquire
+                    </Link>
+                  )}
                 </div>
               </div>
             ))}
@@ -100,15 +131,15 @@ export default function PrintsBody({
         </section>
       ))}
 
-      <p className="mt-10 font-mono text-[11px] leading-[1.9] tracking-[0.04em] text-ash">
+      <p className="text-ash mt-10 font-mono text-[11px] leading-[1.9] tracking-[0.04em]">
         Paper stock, print sizes, edition counts and pricing to be confirmed.
         <br />
         For originals, see the{" "}
-        <Link href="/" className="border-b border-clay-soft text-clay">
+        <Link href="/" className="border-clay-soft text-clay border-b">
           Series
         </Link>{" "}
         — or{" "}
-        <Link href="/contact" className="border-b border-clay-soft text-clay">
+        <Link href="/contact" className="border-clay-soft text-clay border-b">
           get in touch
         </Link>
         .
