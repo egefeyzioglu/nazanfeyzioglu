@@ -1,7 +1,12 @@
 "use client";
 
 import { Button } from "src/app/admin/_components/ui";
-import { formatPrice, type ShippingDetails } from "src/lib/orders";
+import {
+  formatPrice,
+  type FulfillmentStatus,
+  type PaymentStatus,
+  type ShippingDetails,
+} from "src/lib/orders";
 import { api } from "src/trpc/react";
 
 export default function AdminOrdersPage() {
@@ -161,7 +166,7 @@ function Chip({ children }: { children: React.ReactNode }) {
   );
 }
 
-function PaymentChip({ status }: { status: "paid" | "refunded" }) {
+function PaymentChip({ status }: { status: PaymentStatus }) {
   const cls =
     status === "paid"
       ? "border-line text-stone"
@@ -175,11 +180,7 @@ function PaymentChip({ status }: { status: "paid" | "refunded" }) {
   );
 }
 
-function FulfillmentChip({
-  status,
-}: {
-  status: "pending" | "fulfilled" | "oversold";
-}) {
+function FulfillmentChip({ status }: { status: FulfillmentStatus }) {
   const cls = {
     pending: "border-clay-soft text-clay",
     fulfilled: "border-line text-stone",
