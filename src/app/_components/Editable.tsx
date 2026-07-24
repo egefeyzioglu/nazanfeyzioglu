@@ -33,12 +33,177 @@ function serializeSingleLine(el: HTMLElement): string {
   return (el.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
+function isSafeLink(href: string): boolean {
+  return /^(https?:\/\/|mailto:)[^)\s]+$/i.test(href);
+}
+
+function escapeLiteralLinks(text: string): string {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("[", "&#91;")
+    .replaceAll("]", "&#93;");
+}
+
+function unescapeLiteralLinks(text: string): string {
+  return text
+    .replaceAll("&#93;", "]")
+    .replaceAll("&#91;", "[")
+    .replaceAll("&amp;", "&");
+}
+
+function serializeInline(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return escapeLiteralLinks(node.textContent ?? "");
+  }
+  if (!(node instanceof HTMLElement)) return "";
+  if (node.tagName === "BR") return "\n";
+  const text = [...node.childNodes].map(serializeInline).join("");
+  if (node.tagName === "A") {
+    const href = node.getAttribute("href") ?? "";
+    return isSafeLink(href) ? `[${text}](${href})` : text;
+  }
+  return text;
+}
+
+function serializeRichSingleLine(el: HTMLElement): string {
+  return serializeInline(el).replace(/\s+/g, " ").trim();
+}
+
 function serializeParagraphs(el: HTMLElement): string {
-  return el.innerText
-    .split(/\n+/)
-    .map((p) => p.trim())
+  return [...el.childNodes]
+    .map((child) => serializeInline(child).trim())
     .filter(Boolean)
     .join("\n\n");
+}
+
+function renderLinks(value: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const pattern = /\[([^\]\n]+)\]\(([^)\s]+)\)/g;
+  let lastIndex = 0;
+
+  for (const match of value.matchAll(pattern)) {
+    const index = match.index;
+    const label = match[1] ?? "";
+    const href = match[2] ?? "";
+    if (!isSafeLink(href)) continue;
+    parts.push(unescapeLiteralLinks(value.slice(lastIndex, index)));
+    parts.push(
+      <a
+        key={`${index}-${href}`}
+        href={href}
+        target={/^mailto:/i.test(href) ? undefined : "_blank"}
+        rel={/^mailto:/i.test(href) ? undefined : "noopener noreferrer"}
+        className="hover-clay border-line border-b"
+      >
+        {unescapeLiteralLinks(label)}
+      </a>,
+    );
+    lastIndex = index + match[0].length;
+  }
+  parts.push(unescapeLiteralLinks(value.slice(lastIndex)));
+  return parts;
+}
+
+/** Applies a URL to the selection in a link-enabled editable region. */
+export function addLinkToSelection(): boolean {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+    window.alert("Select some editable text first, then choose Add link.");
+    return false;
+  }
+  const range = selection.getRangeAt(0);
+  const startElement =
+    range.startContainer instanceof HTMLElement
+      ? range.startContainer
+      : range.startContainer.parentElement;
+  const endElement =
+    range.endContainer instanceof HTMLElement
+      ? range.endContainer
+      : range.endContainer.parentElement;
+  const region = startElement?.closest<HTMLElement>("[data-cms-links='true']");
+  if (
+    !startElement ||
+    !region ||
+    !endElement ||
+    !region.contains(range.endContainer)
+  ) {
+    window.alert("Links can be added to selected body copy.");
+    return false;
+  }
+  const topLevelBlock = (
+    node: Node,
+    offset: number,
+    endBoundary = false,
+  ): Node | null => {
+    if (region.tagName !== "DIV") return region;
+    if (node === region) {
+      const index = endBoundary ? offset - 1 : offset;
+      return index >= 0 ? (region.childNodes[index] ?? null) : null;
+    }
+    let current: Node | null = node;
+    while (current?.parentNode && current.parentNode !== region) {
+      current = current.parentNode;
+    }
+    return current?.parentNode === region ? current : null;
+  };
+  const startBlock = topLevelBlock(range.startContainer, range.startOffset);
+  const endBlock = topLevelBlock(range.endContainer, range.endOffset, true);
+  if (!startBlock || !endBlock || startBlock !== endBlock) {
+    window.alert("A link cannot span more than one paragraph.");
+    return false;
+  }
+  if (/[\[\]]/.test(selection.toString())) {
+    window.alert("Link text cannot contain square brackets.");
+    return false;
+  }
+  const enteredHref = window.prompt(
+    "Link URL (include https://, http://, or mailto:)",
+    "https://",
+  );
+  if (enteredHref === null) return false;
+  const href = enteredHref.trim();
+  if (!isSafeLink(href)) {
+    window.alert("Enter a URL beginning with https://, http://, or mailto:.");
+    return false;
+  }
+
+  const existingAnchor = startElement.closest<HTMLAnchorElement>("a");
+  const endAnchor = endElement.closest<HTMLAnchorElement>("a");
+  const intersectingAnchors = [...region.querySelectorAll("a")].filter(
+    (anchor) => range.intersectsNode(anchor),
+  );
+  if (
+    intersectingAnchors.length > 0 &&
+    !(
+      intersectingAnchors.length === 1 &&
+      existingAnchor === intersectingAnchors[0] &&
+      endAnchor === existingAnchor
+    )
+  ) {
+    window.alert(
+      "Select text within one existing link, or text that does not overlap a link.",
+    );
+    return false;
+  }
+  if (existingAnchor?.closest("[data-cms-links='true']") === region) {
+    existingAnchor.href = href;
+    existingAnchor.target = /^mailto:/i.test(href) ? "" : "_blank";
+    existingAnchor.rel = /^mailto:/i.test(href) ? "" : "noopener noreferrer";
+    selection.removeAllRanges();
+    region.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    return true;
+  }
+
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.target = /^mailto:/i.test(href) ? "" : "_blank";
+  anchor.rel = /^mailto:/i.test(href) ? "" : "noopener noreferrer";
+  anchor.className = "hover-clay border-line border-b";
+  anchor.append(range.extractContents());
+  range.insertNode(anchor);
+  selection.removeAllRanges();
+  region.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  return true;
 }
 
 /** A single-line editable text region (headings, labels, addresses…). */
@@ -47,14 +212,17 @@ export function EditableText({
   value,
   as: Tag = "span",
   className,
+  allowLinks = false,
 }: {
   k: string;
   value: string;
   as?: React.ElementType;
   className?: string;
+  allowLinks?: boolean;
 }) {
   const edit = useContext(EditContext);
-  if (!edit) return <Tag className={className}>{value}</Tag>;
+  const content = allowLinks ? renderLinks(value) : value;
+  if (!edit) return <Tag className={className}>{content}</Tag>;
   return (
     <EditableRegion
       key={edit.resetKey}
@@ -63,7 +231,9 @@ export function EditableText({
       value={value}
       Tag={Tag}
       className={className}
-      serialize={serializeSingleLine}
+      serialize={allowLinks ? serializeRichSingleLine : serializeSingleLine}
+      renderContent={allowLinks ? renderLinks : undefined}
+      allowLinks={allowLinks}
     />
   );
 }
@@ -82,10 +252,18 @@ export function EditableParagraphs({
   k: string;
   value: string;
   className?: string;
-  renderParagraph: (text: string, index: number) => React.ReactNode;
+  renderParagraph: (text: React.ReactNode, index: number) => React.ReactNode;
 }) {
   const edit = useContext(EditContext);
-  if (!edit) return <>{paragraphs(value).map(renderParagraph)}</>;
+  if (!edit) {
+    return (
+      <>
+        {paragraphs(value).map((paragraph, index) =>
+          renderParagraph(renderLinks(paragraph), index),
+        )}
+      </>
+    );
+  }
   return (
     <EditableRegion
       key={edit.resetKey}
@@ -95,7 +273,12 @@ export function EditableParagraphs({
       Tag="div"
       className={className}
       serialize={serializeParagraphs}
-      renderContent={(text) => paragraphs(text).map(renderParagraph)}
+      renderContent={(text) =>
+        paragraphs(text).map((paragraph, index) =>
+          renderParagraph(renderLinks(paragraph), index),
+        )
+      }
+      allowLinks
     />
   );
 }
@@ -108,6 +291,7 @@ function EditableRegion({
   className,
   serialize,
   renderContent,
+  allowLinks = false,
 }: {
   edit: EditContextValue;
   k: string;
@@ -116,6 +300,7 @@ function EditableRegion({
   className?: string;
   serialize: (el: HTMLElement) => string;
   renderContent?: (text: string) => React.ReactNode;
+  allowLinks?: boolean;
 }) {
   // Freeze the rendered text at mount: React then never rewrites the DOM text
   // while the user types (which would move the caret). Edits live in the DOM
@@ -130,6 +315,7 @@ function EditableRegion({
       spellCheck={false}
       title={`Editing: ${edit.getLabel(k)}`}
       data-cms-key={k}
+      data-cms-links={allowLinks}
       onInput={(e: React.FormEvent<HTMLElement>) =>
         edit.setDraft(k, serialize(e.currentTarget))
       }

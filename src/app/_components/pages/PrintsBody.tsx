@@ -49,6 +49,7 @@ export default function PrintsBody({
         k="prints.intro"
         value={content["prints.intro"] ?? ""}
         as="p"
+        allowLinks
         className="text-mute mt-5 mb-[6px] max-w-[560px] text-[17px] leading-[1.6] font-light text-pretty"
       />
 
