@@ -33,7 +33,7 @@ export default function SidebarBody({
             Feyzioğlu
           </div>
           <div className="text-stone-2 mt-[13px] font-mono text-[10px] tracking-[0.28em] uppercase">
-            Painter
+            Artist
           </div>
         </Link>
 

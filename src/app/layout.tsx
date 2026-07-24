@@ -7,7 +7,7 @@ import { Spectral, Space_Mono } from "next/font/google";
 import { env } from "src/env";
 
 export const metadata: Metadata = {
-  title: "Nazan Feyzioğlu — Painter",
+  title: "Nazan Feyzioğlu — Artist",
   description:
     "Selected series, originals and prints by Nazan Feyzioğlu, a self-taught visual artist based in Toronto.",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
