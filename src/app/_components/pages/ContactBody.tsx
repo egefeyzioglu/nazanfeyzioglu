@@ -65,11 +65,19 @@ export default function ContactBody({
             Enquiries
           </div>
           <div className="text-ink-soft text-[16px] leading-[1.6]">
-            Commissions &amp; enquiries
+            <EditableText
+              k="contact.enquiries"
+              value={content["contact.enquiries"] ?? ""}
+              allowLinks
+            />
             <br />
-            <span className="text-stone-2 text-[14px]">
-              Replies within a few days
-            </span>
+            <EditableText
+              k="contact.responseTime"
+              value={content["contact.responseTime"] ?? ""}
+              as="span"
+              allowLinks
+              className="text-stone-2 text-[14px]"
+            />
           </div>
         </div>
       </div>
@@ -78,6 +86,7 @@ export default function ContactBody({
         k="contact.outro"
         value={content["contact.outro"] ?? ""}
         as="p"
+        allowLinks
         className="text-mute mt-[66px] max-w-[560px] text-[19px] leading-[1.6] font-light text-pretty"
       />
     </main>

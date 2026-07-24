@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { EditProvider } from "src/app/_components/Editable";
+import { addLinkToSelection, EditProvider } from "src/app/_components/Editable";
 import AboutBody from "src/app/_components/pages/AboutBody";
 import ContactBody from "src/app/_components/pages/ContactBody";
 import ExhibitionsBody from "src/app/_components/pages/ExhibitionsBody";
@@ -145,7 +145,7 @@ export default function AdminPagesEditor() {
       <PageHeader
         eyebrow="Content"
         title="Pages"
-        description="Click any text with a dashed outline to edit it in place. In longer passages, Enter starts a new paragraph. Artwork, prints and exhibition entries are managed in their own sections."
+        description="Click any text with a dashed outline to edit it in place. In longer passages, Enter starts a new paragraph. Select body copy and choose Add link to attach a web or email URL. Artwork, prints and exhibition entries are managed in their own sections."
         actions={
           <>
             <span className="text-ash font-mono text-[10px]">
@@ -155,6 +155,14 @@ export default function AdminPagesEditor() {
                   ? "Saved."
                   : ""}
             </span>
+            <Button
+              variant="ghost"
+              // Keep the preview selection active while the toolbar is used.
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={addLinkToSelection}
+            >
+              Add link
+            </Button>
             <Button
               variant="ghost"
               onClick={discard}

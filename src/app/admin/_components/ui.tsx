@@ -68,12 +68,14 @@ export function PageHeader({
 export function Button({
   children,
   onClick,
+  onMouseDown,
   type = "button",
   variant = "primary",
   disabled,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
+  onMouseDown?: React.MouseEventHandler<HTMLButtonElement>;
   type?: "button" | "submit";
   variant?: "primary" | "ghost" | "danger";
   disabled?: boolean;
@@ -90,6 +92,7 @@ export function Button({
     <button
       type={type}
       onClick={onClick}
+      onMouseDown={onMouseDown}
       disabled={disabled}
       className={`cursor-pointer rounded-md px-4 py-2.5 font-mono text-[11px] tracking-[0.12em] uppercase transition disabled:cursor-default disabled:opacity-40 ${styles}`}
     >

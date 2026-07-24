@@ -81,6 +81,18 @@ export const CONTENT_FIELDS: ContentField[] = [
     default: "Toronto, Canada",
   },
   {
+    key: "contact.enquiries",
+    label: "Enquiries line",
+    group: "Contact",
+    default: "Commissions & enquiries",
+  },
+  {
+    key: "contact.responseTime",
+    label: "Enquiries response time",
+    group: "Contact",
+    default: "Replies within a few days",
+  },
+  {
     key: "contact.outro",
     label: "Closing paragraph",
     group: "Contact",

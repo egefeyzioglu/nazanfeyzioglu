@@ -26,6 +26,7 @@ export default function AboutBody({
           k="about.lead"
           value={content["about.lead"] ?? ""}
           as="p"
+          allowLinks
           className="m-0 text-[22px] leading-[1.55] font-light text-pretty"
         />
 
