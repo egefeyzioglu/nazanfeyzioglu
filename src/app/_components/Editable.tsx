@@ -69,9 +69,24 @@ function serializeRichSingleLine(el: HTMLElement): string {
   return serializeInline(el).replace(/\s+/g, " ").trim();
 }
 
+const BLOCK_TAGS = /^(DIV|P|H[1-6]|LI|UL|OL|BLOCKQUOTE|PRE|SECTION|ARTICLE)$/;
+
+function serializeBlocks(node: Node): string[] {
+  if (
+    node instanceof HTMLElement &&
+    BLOCK_TAGS.test(node.tagName) &&
+    [...node.childNodes].some(
+      (child) => child instanceof HTMLElement && BLOCK_TAGS.test(child.tagName),
+    )
+  ) {
+    return [...node.childNodes].flatMap(serializeBlocks);
+  }
+  return [serializeInline(node).trim()];
+}
+
 function serializeParagraphs(el: HTMLElement): string {
   return [...el.childNodes]
-    .map((child) => serializeInline(child).trim())
+    .flatMap(serializeBlocks)
     .filter(Boolean)
     .join("\n\n");
 }
@@ -161,9 +176,11 @@ export function addLinkToSelection(): boolean {
     "https://",
   );
   if (enteredHref === null) return false;
-  const href = enteredHref.trim();
+  const href = enteredHref.trim().replaceAll("(", "%28").replaceAll(")", "%29");
   if (!isSafeLink(href)) {
-    window.alert("Enter a URL beginning with https://, http://, or mailto:.");
+    window.alert(
+      "Enter a URL beginning with https://, http://, or mailto:, with no spaces.",
+    );
     return false;
   }
 
