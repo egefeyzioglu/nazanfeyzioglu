@@ -11,12 +11,155 @@ export type ContentField = {
   key: string;
   label: string;
   /** Which admin section the field is edited under. */
-  group: "Home" | "About" | "Contact" | "Prints" | "Exhibitions" | "Sidebar";
+  group:
+    | "Home"
+    | "About"
+    | "Contact"
+    | "Prints"
+    | "Exhibitions"
+    | "Sidebar"
+    | "Shipping, Returns & Exchanges";
   multiline?: boolean;
   default: string;
 };
 
 export const CONTENT_FIELDS: ContentField[] = [
+  {
+    key: "shipping.heading",
+    label: "Page heading",
+    group: "Shipping, Returns & Exchanges",
+    default: "Shipping, Returns & Exchanges",
+  },
+  {
+    key: "shipping.shipping.heading",
+    label: "Shipping heading",
+    group: "Shipping, Returns & Exchanges",
+    default: "Shipping",
+  },
+  {
+    key: "shipping.shipping.intro",
+    label: "Shipping introduction",
+    group: "Shipping, Returns & Exchanges",
+    default: "We currently ship within Canada only.",
+  },
+  {
+    key: "shipping.originals.heading",
+    label: "Original artworks heading",
+    group: "Shipping, Returns & Exchanges",
+    default: "Original Artworks",
+  },
+  {
+    key: "shipping.originals.body",
+    label: "Original artworks shipping",
+    group: "Shipping, Returns & Exchanges",
+    multiline: true,
+    default: "Complimentary shipping is included within Canada.",
+  },
+  {
+    key: "shipping.prints.heading",
+    label: "Fine art prints heading",
+    group: "Shipping, Returns & Exchanges",
+    default: "Fine Art Prints",
+  },
+  {
+    key: "shipping.prints.body",
+    label: "Fine art prints shipping",
+    group: "Shipping, Returns & Exchanges",
+    multiline: true,
+    default:
+      "A flat shipping rate of CAD $30 applies to all fine art print orders within Canada.\n\nFine art prints are carefully packaged and shipped rolled for protection.\n\nPlease note that the preparation time shown on individual product pages is separate from the carrier's delivery time.\n\nInternational shipping is not available at this time.",
+  },
+  {
+    key: "shipping.returns.heading",
+    label: "Returns heading",
+    group: "Shipping, Returns & Exchanges",
+    default: "Returns & Exchanges",
+  },
+  {
+    key: "shipping.returns.body",
+    label: "Returns and exchanges",
+    group: "Shipping, Returns & Exchanges",
+    multiline: true,
+    default:
+      "All sales of original artworks and fine art prints are final.\n\nDue to the nature of original artwork and signed, limited-edition fine art prints, we do not accept returns or exchanges.\n\nPlease review all artwork details, dimensions and product information carefully before placing your order.",
+  },
+  {
+    key: "shipping.damage.heading",
+    label: "Damaged orders heading",
+    group: "Shipping, Returns & Exchanges",
+    default: "Damaged or Incorrect Orders",
+  },
+  {
+    key: "shipping.damage.intro",
+    label: "Damaged orders introduction",
+    group: "Shipping, Returns & Exchanges",
+    default:
+      "If your order arrives damaged, or if you receive an incorrect item, please contact us within",
+  },
+  {
+    key: "shipping.damage.deadline",
+    label: "Reporting deadline",
+    group: "Shipping, Returns & Exchanges",
+    default: "3 days of delivery",
+  },
+  {
+    key: "shipping.damage.instructions",
+    label: "Photograph instructions",
+    group: "Shipping, Returns & Exchanges",
+    default: "Please include your order number and clear photographs of:",
+  },
+  {
+    key: "shipping.damage.artwork",
+    label: "Artwork photograph",
+    group: "Shipping, Returns & Exchanges",
+    default: "the artwork or print,",
+  },
+  {
+    key: "shipping.damage.damage",
+    label: "Damage photograph",
+    group: "Shipping, Returns & Exchanges",
+    default: "the damage,",
+  },
+  {
+    key: "shipping.damage.packaging",
+    label: "Packaging photograph",
+    group: "Shipping, Returns & Exchanges",
+    default: "the shipping packaging, and",
+  },
+  {
+    key: "shipping.damage.label",
+    label: "Shipping label photograph",
+    group: "Shipping, Returns & Exchanges",
+    default: "the shipping label.",
+  },
+  {
+    key: "shipping.damage.body",
+    label: "Resolution details",
+    group: "Shipping, Returns & Exchanges",
+    multiline: true,
+    default:
+      "Please keep the artwork and all original packaging until the issue has been resolved.\n\nOnce the information has been reviewed, we will work with you to determine the most appropriate solution. Depending on the circumstances, this may include a replacement, refund, or another suitable resolution.\n\nFor limited-edition prints, replacement is subject to availability within the edition. Original artworks are unique and cannot be replaced with an identical work.",
+  },
+  {
+    key: "shipping.important.heading",
+    label: "Important heading",
+    group: "Shipping, Returns & Exchanges",
+    default: "Important",
+  },
+  {
+    key: "shipping.important.body",
+    label: "Important information",
+    group: "Shipping, Returns & Exchanges",
+    multiline: true,
+    default:
+      "We are unable to offer refunds or exchanges for change of mind, incorrect size selection, or differences in colour appearance resulting from individual screen or display settings.",
+  },
+  {
+    key: "nav.shipping",
+    label: "Shipping policy link",
+    group: "Sidebar",
+    default: "Shipping, Returns & Exchanges",
+  },
   {
     key: "home.eyebrow",
     label: "Home rail eyebrow",
