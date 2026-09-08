@@ -10,9 +10,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * trackpad gestures advance the same page position; vertical scrolling,
  * keyboard, scrollbar, and touch retain their native behavior.
  *
- * When there is no horizontal overflow — mobile, few cards, reduced motion,
- * or JS disabled — the spacer collapses, sticky becomes inert, and the rail
- * stays a plain overflow-x-auto scroller.
+ * On mobile, with no horizontal overflow, or with JS disabled, the spacer
+ * collapses, sticky becomes inert, and the rail stays a plain overflow-x-auto
+ * scroller.
  */
 export default function ScrollRail({
   header,
@@ -33,11 +33,9 @@ export default function ScrollRail({
     // Tailwind's md breakpoint (48rem), where the rail becomes the full-height
     // desktop layout.
     const desktop = window.matchMedia("(min-width: 48rem)");
-    // Respect the user's reduced-motion preference by falling back to the
-    // plain native scroller instead of driving scrollLeft from scrollY.
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-
-    const shouldDrive = () => desktop.matches && !reducedMotion.matches;
+    // Reduced motion disables decorative swinging in CSS; user-driven
+    // scrolling must remain available regardless of that preference.
+    const shouldDrive = () => desktop.matches;
 
     const update = () => {
       setOverflow(
@@ -89,14 +87,12 @@ export default function ScrollRail({
     window.addEventListener("scroll", sync, { passive: true });
     container.addEventListener("wheel", onWheel, { passive: false });
     desktop.addEventListener("change", update);
-    reducedMotion.addEventListener("change", update);
 
     return () => {
       observer.disconnect();
       window.removeEventListener("scroll", sync);
       container.removeEventListener("wheel", onWheel);
       desktop.removeEventListener("change", update);
-      reducedMotion.removeEventListener("change", update);
     };
   }, []);
 
