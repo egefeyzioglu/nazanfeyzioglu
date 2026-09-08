@@ -51,13 +51,17 @@ export default function ScrollRail({
     };
 
     const onWheel = (event: WheelEvent) => {
+      // Read units first: some browsers adjust deltas when deltaMode is read.
+      const deltaMode = event.deltaMode;
+      const deltaX = event.deltaX;
+      const deltaY = event.deltaY;
       if (
         !shouldDrive() ||
         rail.scrollWidth <= rail.clientWidth ||
         event.ctrlKey ||
         event.defaultPrevented ||
         !event.cancelable ||
-        Math.abs(event.deltaX) <= Math.abs(event.deltaY)
+        Math.abs(deltaX) <= Math.abs(deltaY)
       ) {
         return;
       }
@@ -65,13 +69,13 @@ export default function ScrollRail({
       // Use the dominant axis so diagonal gestures aren't counted twice.
       // Wheel deltas may be expressed in pixels, lines, or pages.
       const unit =
-        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        deltaMode === WheelEvent.DOM_DELTA_LINE
           ? 16
-          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          : deltaMode === WheelEvent.DOM_DELTA_PAGE
             ? window.innerHeight
             : 1;
       event.preventDefault();
-      window.scrollBy({ top: event.deltaX * unit, behavior: "instant" });
+      window.scrollBy({ top: deltaX * unit, behavior: "instant" });
     };
 
     update();
