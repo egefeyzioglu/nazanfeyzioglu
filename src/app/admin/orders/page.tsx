@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
+
 import { Button } from "src/app/admin/_components/ui";
 import {
   formatPrice,
+  type OrderItemType,
   type FulfillmentStatus,
   type PaymentStatus,
   type ShippingDetails,
@@ -10,6 +13,7 @@ import {
 import { api } from "src/trpc/react";
 
 export default function AdminOrdersPage() {
+  const [filter, setFilter] = useState<OrderItemType | "all">("all");
   const utils = api.useUtils();
   const list = api.orders.list.useQuery();
   const setFulfillment = api.orders.setFulfillment.useMutation({
@@ -27,7 +31,10 @@ export default function AdminOrdersPage() {
     );
   }
 
-  const orders = list.data ?? [];
+  const allOrders = list.data ?? [];
+  const orders = allOrders.filter(
+    (order) => filter === "all" || order.itemType === filter,
+  );
 
   return (
     <div>
@@ -37,6 +44,32 @@ export default function AdminOrdersPage() {
         Stripe Dashboard.
       </p>
 
+      <div className="mt-6 flex flex-wrap gap-2" aria-label="Filter orders">
+        {(
+          [
+            ["all", "All"],
+            ["original", "Originals"],
+            ["print", "Prints"],
+            ["digital", "Digital editions"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+            className={`border-line rounded-full border px-3 py-2 font-mono text-[11px] ${filter === value ? "bg-ink text-paper" : "text-stone"}`}
+          >
+            {label} (
+            {
+              allOrders.filter(
+                (order) => value === "all" || order.itemType === value,
+              ).length
+            }
+            )
+          </button>
+        ))}
+      </div>
       <div className="mt-6 flex flex-col gap-3">
         {orders.map((order) => {
           const createdDate = order.createdAt.toLocaleDateString("en-CA", {
@@ -151,7 +184,9 @@ export default function AdminOrdersPage() {
           );
         })}
         {orders.length === 0 && (
-          <p className="text-ash font-mono text-[11px]">No orders yet.</p>
+          <p className="text-ash font-mono text-[11px]">
+            No orders in this category yet.
+          </p>
         )}
       </div>
     </div>

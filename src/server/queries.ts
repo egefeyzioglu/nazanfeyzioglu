@@ -13,7 +13,11 @@ import { cache } from "react";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 import { groupExhibitions } from "src/lib/exhibitions";
 import { db } from "src/server/db";
-import { getSoldPrintQuantities, remainingCopies } from "src/server/orders";
+import {
+  getSoldOriginalIds,
+  getSoldPrintQuantities,
+  remainingCopies,
+} from "src/server/orders";
 import { siteContent } from "src/server/db/schema";
 
 export const getAllSeries = cache(() =>
@@ -23,12 +27,18 @@ export const getAllSeries = cache(() =>
   }),
 );
 
-export const getSeriesBySlug = cache((slug: string) =>
-  db.query.series.findFirst({
+export const getSeriesBySlug = cache(async (slug: string) => {
+  const row = await db.query.series.findFirst({
     where: (s, { eq }) => eq(s.slug, slug),
     with: { works: { orderBy: (w, { asc }) => [asc(w.position)] } },
-  }),
-);
+  });
+  if (!row) return row;
+  const sold = await getSoldOriginalIds(row.works.map((w) => w.id));
+  return {
+    ...row,
+    works: row.works.map((w) => ({ ...w, originalSold: sold.has(w.id) })),
+  };
+});
 
 /**
  * Series (in rail order) with their prints; series without prints are

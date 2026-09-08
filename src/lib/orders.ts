@@ -4,15 +4,15 @@
  * drizzle-kit and the seed script can import it without tsconfig aliases.
  */
 
-export const ORDER_ITEM_TYPES = ["print", "digital"] as const;
+export const ORDER_ITEM_TYPES = ["print", "digital", "original"] as const;
 export type OrderItemType = (typeof ORDER_ITEM_TYPES)[number];
 
 export const PAYMENT_STATUSES = ["paid", "refunded"] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 /**
- * `oversold` is set by the webhook when a paid checkout exceeds a print's
- * edition size (two buyers can race past the availability check) — the order
+ * `oversold` is set by the webhook when a paid checkout exceeds physical
+ * inventory (a print edition or one original) (two buyers can race past the availability check) — the order
  * needs a manual refund in the Stripe Dashboard.
  */
 export const FULFILLMENT_STATUSES = [
@@ -40,6 +40,9 @@ export type ShippingDetails = {
 
 /** Everything on the site is priced in Canadian dollars. */
 export const CURRENCY = "cad";
+
+/** Flat shipping charge per print checkout, regardless of quantity. */
+export const PRINT_SHIPPING_CENTS = 3000;
 
 /**
  * Integer cents → plain dollars string for an admin form input, e.g.

@@ -323,7 +323,7 @@ function WorkForm({
         </Field>
       </div>
       <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-2">
-        <Field label="Price (blank for digital-only)">
+        <Field label="Display price (used until checkout price is set)">
           <input
             className={inputCls}
             value={price}
@@ -343,6 +343,15 @@ function WorkForm({
           </span>
         </label>
       </div>
+      {!digital && (
+        <p className="text-stone font-mono text-[11px]">
+          Set the checkout price and availability in{" "}
+          <Link href="/admin/originals" className="text-clay underline">
+            Originals
+          </Link>
+          .
+        </p>
+      )}
       {digital && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Digital edition price (CAD, blank = inquire only)">

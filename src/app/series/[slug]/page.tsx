@@ -11,7 +11,7 @@ import { stripeConfigured } from "src/server/stripe";
 
 export const dynamic = "force-dynamic";
 
-type Work = typeof works.$inferSelect;
+type Work = typeof works.$inferSelect & { originalSold: boolean };
 
 export async function generateMetadata({
   params,
@@ -172,15 +172,39 @@ function WorkRow({
             </>
           ) : (
             <div className="mt-[18px] flex items-baseline gap-[13px] font-mono text-[11px] tracking-[0.14em] uppercase">
-              <span className="text-stone">{work.price}</span>
+              <span className="text-stone">
+                {work.originalPriceCents === null
+                  ? work.price
+                  : formatPrice(work.originalPriceCents)}
+              </span>
               <span className="text-line-2">·</span>
-              <Link
-                href="/contact"
-                className="hover-clay border-clay-soft text-clay border-b pb-[3px]"
-              >
-                Inquire
-              </Link>
+              {work.originalSold ? (
+                <span className="text-ash">Sold</span>
+              ) : work.originalUnavailable ? (
+                <span className="text-ash">Unavailable</span>
+              ) : checkoutEnabled && work.originalPriceCents !== null ? (
+                <BuyButton
+                  itemType="original"
+                  id={work.id}
+                  cancelPath={`/series/${slug}`}
+                  className="hover-clay border-clay-soft text-clay cursor-pointer border-0 border-b bg-transparent p-0 pb-[3px] font-mono text-[11px] tracking-[0.14em] uppercase disabled:cursor-default disabled:opacity-60"
+                >
+                  Buy original
+                </BuyButton>
+              ) : (
+                <Link
+                  href="/contact"
+                  className="hover-clay border-clay-soft text-clay border-b pb-[3px]"
+                >
+                  Inquire
+                </Link>
+              )}
             </div>
+          )}
+          {!work.digital && (
+            <p className="text-mute mt-3 text-[13px] leading-[1.6]">
+              Free shipping on originals.
+            </p>
           )}
         </figcaption>
       </figure>

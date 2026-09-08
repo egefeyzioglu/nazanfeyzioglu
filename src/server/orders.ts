@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { db } from "src/server/db";
 import { orders } from "src/server/db/schema";
@@ -41,4 +41,24 @@ export function remainingCopies(
 ): number | null {
   if (editionSize === null) return null;
   return Math.max(0, editionSize - sold);
+}
+
+/** Paid originals only: digital sales of the same work do not affect stock. */
+export async function getSoldOriginalIds(
+  workIds: number[],
+): Promise<Set<number>> {
+  if (workIds.length === 0) return new Set();
+  const rows = await db
+    .select({ workId: orders.workId })
+    .from(orders)
+    .where(
+      and(
+        inArray(orders.workId, workIds),
+        eq(orders.itemType, "original"),
+        ne(orders.paymentStatus, "refunded"),
+      ),
+    );
+  return new Set(
+    rows.flatMap((row) => (row.workId === null ? [] : [row.workId])),
+  );
 }

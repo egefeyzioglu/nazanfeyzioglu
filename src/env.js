@@ -40,11 +40,6 @@ export const env = createEnv({
      */
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     /**
-     * Optional Dashboard-defined shipping rate (shr_…) applied to print
-     * checkouts. When unset, print checkouts charge no shipping.
-     */
-    STRIPE_SHIPPING_RATE_ID: z.string().optional(),
-    /**
      * Canonical site origin (e.g. "https://nazanfeyzioglu.com") used for
      * Stripe redirect URLs. Set it in production for correct custom-domain
      * redirects; when unset, the Vercel deployment URL is used, and local
@@ -80,7 +75,6 @@ export const env = createEnv({
     ADMIN_DEV_BYPASS: process.env.ADMIN_DEV_BYPASS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
-    STRIPE_SHIPPING_RATE_ID: process.env.STRIPE_SHIPPING_RATE_ID,
     SITE_URL: process.env.SITE_URL,
     VERCEL_URL: process.env.VERCEL_URL,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:

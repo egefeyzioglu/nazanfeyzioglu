@@ -84,7 +84,9 @@ async function recordPaidCheckout(sessionId: string) {
   const itemType = session.metadata?.itemType;
   const itemId = Number(session.metadata?.itemId);
   if (
-    (itemType !== "print" && itemType !== "digital") ||
+    (itemType !== "print" &&
+      itemType !== "digital" &&
+      itemType !== "original") ||
     !Number.isInteger(itemId)
   ) {
     // Not a session this integration created (or malformed metadata); ack it
@@ -110,7 +112,7 @@ async function recordPaidCheckout(sessionId: string) {
             : (session.payment_intent?.id ?? null),
         itemType,
         printId: itemType === "print" ? item?.id : null,
-        workId: itemType === "digital" ? item?.id : null,
+        workId: itemType !== "print" ? item?.id : null,
         itemTitle: item?.title ?? lineItem?.description ?? "Unknown item",
         quantity,
         unitAmount:
@@ -130,15 +132,15 @@ async function recordPaidCheckout(sessionId: string) {
 
     // The availability check at session creation can be raced by a concurrent
     // buyer; detect it here and flag the order for a manual refund.
-    if (itemType === "print" && item?.editionSize != null) {
-      // Serialize concurrent webhook transactions for the same print: under
+    if (itemType !== "digital" && item?.editionSize != null) {
+      // Serialize concurrent webhook transactions for the same physical item: under
       // READ COMMITTED, two simultaneous deliveries would each miss the
       // other's uncommitted insert and both pass the editionSize check. The
       // transaction-scoped advisory lock makes the later committer see the
       // earlier one's row and flag itself oversold. Namespaced with the table
       // name because the database may host multiple projects.
       await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext('nazanfeyzioglu_print'), ${item.id})`,
+        sql`select pg_advisory_xact_lock(hashtext(${`nazanfeyzioglu_${itemType}`}), ${item.id})`,
       );
       const [row] = await tx
         .select({
@@ -147,7 +149,10 @@ async function recordPaidCheckout(sessionId: string) {
         .from(orders)
         .where(
           and(
-            eq(orders.printId, item.id),
+            itemType === "print"
+              ? eq(orders.printId, item.id)
+              : eq(orders.workId, item.id),
+            eq(orders.itemType, itemType),
             ne(orders.paymentStatus, "refunded"),
           ),
         );
@@ -177,5 +182,7 @@ async function loadItem(itemType: OrderItemType, id: number) {
     .select({ id: works.id, title: works.title })
     .from(works)
     .where(eq(works.id, id));
-  return rows[0] ? { ...rows[0], editionSize: null } : null;
+  return rows[0]
+    ? { ...rows[0], editionSize: itemType === "original" ? 1 : null }
+    : null;
 }
