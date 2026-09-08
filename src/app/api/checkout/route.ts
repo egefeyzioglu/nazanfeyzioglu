@@ -140,7 +140,7 @@ async function printLineItem(id: number, origin: string): Promise<ItemResult> {
       },
     },
     extraParams: {
-      shipping_address_collection: { allowed_countries: ["CA", "US"] },
+      shipping_address_collection: { allowed_countries: ["CA"] },
       ...(env.STRIPE_SHIPPING_RATE_ID && {
         shipping_options: [{ shipping_rate: env.STRIPE_SHIPPING_RATE_ID }],
       }),
