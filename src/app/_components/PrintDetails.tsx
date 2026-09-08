@@ -1,43 +1,50 @@
 import { getPrintSizes } from "src/lib/prints";
+import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 
-export default function PrintDetails({ spec }: { spec: string }) {
+export default function PrintDetails({
+  spec,
+  content,
+}: {
+  spec: string;
+  content: Record<string, string>;
+}) {
   const sizes = getPrintSizes(spec);
+  const copy = (key: string) =>
+    content[`prints.details.${key}`] ??
+    CONTENT_DEFAULTS[`prints.details.${key}`];
 
   return (
-    <div className="text-stone-2 mt-[9px] text-[15px] leading-[1.8]">
-      <p className="text-ink">Fine Art Giclée Print</p>
+    <div className="text-stone-2 mt-[9px] text-[15px] leading-[1.8] whitespace-pre-line">
+      <p className="text-ink">{copy("heading")}</p>
       <dl className="mt-2">
         <div>
-          <dt className="inline">Paper: </dt>
-          <dd className="inline">Epson Hot Press Bright White</dd>
+          <dt className="inline">{copy("paperLabel")} </dt>
+          <dd className="inline">{copy("paper")}</dd>
         </div>
         <div>
-          <dt className="inline">Edition: </dt>
-          <dd className="inline">Limited Edition of 20</dd>
+          <dt className="inline">{copy("editionLabel")} </dt>
+          <dd className="inline">{copy("edition")}</dd>
         </div>
         <div>
-          <dt className="inline">Image Size: </dt>
-          <dd className="inline">{sizes?.image ?? "To be confirmed"}</dd>
+          <dt className="inline">{copy("imageSizeLabel")} </dt>
+          <dd className="inline">{sizes?.image ?? copy("unknownSize")}</dd>
         </div>
         <div>
-          <dt className="inline">Overall Paper Size: </dt>
-          <dd className="inline">{sizes?.paper ?? "To be confirmed"}</dd>
+          <dt className="inline">{copy("paperSizeLabel")} </dt>
+          <dd className="inline">{sizes?.paper ?? copy("unknownSize")}</dd>
         </div>
         <div>
-          <dt className="inline">White Border: </dt>
-          <dd className="inline">2 in on all sides</dd>
+          <dt className="inline">{copy("borderLabel")} </dt>
+          <dd className="inline">{copy("border")}</dd>
         </div>
       </dl>
       <ul className="mt-2">
-        <li>Hand-signed by the artist</li>
-        <li>Individually numbered</li>
-        <li>Certificate of Authenticity included</li>
-        <li>Unframed</li>
+        <li>{copy("signed")}</li>
+        <li>{copy("numbered")}</li>
+        <li>{copy("certificate")}</li>
+        <li>{copy("framing")}</li>
       </ul>
-      <p className="mt-2">
-        Image Size is the size of the printed artwork. Overall Paper Size
-        includes the 2-inch white border on all sides.
-      </p>
+      <p className="mt-2">{copy("sizeExplanation")}</p>
     </div>
   );
 }

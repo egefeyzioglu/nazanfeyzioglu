@@ -7,6 +7,7 @@ import ArtImage from "src/app/_components/ArtImage";
 import PrintDetailModal from "src/app/_components/PrintDetailModal";
 import { EditableText } from "src/app/_components/Editable";
 import { formatPrice } from "src/lib/orders";
+import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 
 export type PrintItem = {
   id: number;
@@ -36,6 +37,9 @@ export default function PrintsBody({
   checkoutEnabled: boolean;
 }) {
   const [selectedPrint, setSelectedPrint] = useState<PrintItem | null>(null);
+  const detailsLabel =
+    content["prints.modal.viewDetails"] ??
+    CONTENT_DEFAULTS["prints.modal.viewDetails"];
 
   return (
     <main className="flex-1 px-9 pt-12 pb-24 md:ml-[280px] md:max-w-[1040px] md:min-w-0 md:px-[72px] md:pt-16">
@@ -50,10 +54,7 @@ export default function PrintsBody({
       />
       <EditableText
         k="prints.intro"
-        value={(content["prints.intro"] ?? "").replace(
-          "Paper, sizes and pricing are being finalised.",
-          "Each print includes a Certificate of Authenticity and is supplied unframed.",
-        )}
+        value={content["prints.intro"] ?? ""}
         as="p"
         allowLinks
         className="text-mute mt-5 mb-[6px] max-w-[560px] text-[17px] leading-[1.6] font-light text-pretty"
@@ -79,7 +80,7 @@ export default function PrintsBody({
                 <button
                   type="button"
                   onClick={() => setSelectedPrint(print)}
-                  aria-label={`View details for ${print.title}`}
+                  aria-label={`${detailsLabel}: ${print.title}`}
                   aria-haspopup="dialog"
                   className="cursor-pointer leading-[0]"
                 >
@@ -125,7 +126,8 @@ export default function PrintsBody({
                   </div>
                   {print.remaining === 0 ? (
                     <span className="border-line text-ash border px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase">
-                      Sold out
+                      {content["prints.modal.soldOut"] ??
+                        CONTENT_DEFAULTS["prints.modal.soldOut"]}
                     </span>
                   ) : null}
                   <button
@@ -134,7 +136,7 @@ export default function PrintsBody({
                     aria-haspopup="dialog"
                     className="cart-btn bg-ink text-paper cursor-pointer px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase"
                   >
-                    View details
+                    {detailsLabel}
                   </button>
                 </div>
               </div>
@@ -157,6 +159,7 @@ export default function PrintsBody({
       {selectedPrint && (
         <PrintDetailModal
           key={selectedPrint.id}
+          content={content}
           print={selectedPrint}
           checkoutEnabled={checkoutEnabled}
           onClose={() => setSelectedPrint(null)}

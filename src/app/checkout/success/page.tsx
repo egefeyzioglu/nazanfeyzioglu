@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Sidebar from "src/app/_components/Sidebar";
 import { formatPrice } from "src/lib/orders";
 import { getStripe, stripeConfigured } from "src/server/stripe";
+import { getContent } from "src/server/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export default async function CheckoutSuccessPage({
     .checkout.sessions.retrieve(sessionId, { expand: ["line_items"] })
     .catch(() => null);
   if (!session) notFound();
+  const content = await getContent();
 
   const paid = session.payment_status !== "unpaid";
   const itemName = session.line_items?.data[0]?.description;
@@ -44,12 +46,11 @@ export default async function CheckoutSuccessPage({
         <div className="text-mute mt-5 max-w-[560px] text-[17px] leading-[1.6] font-light">
           {paid && session.metadata?.itemType === "print" && (
             <>
-              <p>
-                Your order has been received. Please allow 3–7 business days for
-                your print to be prepared for shipping.
+              <p className="whitespace-pre-line">
+                {content["prints.confirmation.received"]}
               </p>
-              <p className="mt-4">
-                This preparation time does not include shipping transit time.
+              <p className="mt-4 whitespace-pre-line">
+                {content["prints.confirmation.shipping"]}
               </p>
             </>
           )}
