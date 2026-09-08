@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import ArtImage from "src/app/_components/ArtImage";
-import BuyButton from "src/app/_components/BuyButton";
-import PrintDetails from "src/app/_components/PrintDetails";
+import PrintDetailModal from "src/app/_components/PrintDetailModal";
 import { EditableText } from "src/app/_components/Editable";
 import { formatPrice } from "src/lib/orders";
 
@@ -35,6 +35,8 @@ export default function PrintsBody({
   content: Record<string, string>;
   checkoutEnabled: boolean;
 }) {
+  const [selectedPrint, setSelectedPrint] = useState<PrintItem | null>(null);
+
   return (
     <main className="flex-1 px-9 pt-12 pb-24 md:ml-[280px] md:max-w-[1040px] md:min-w-0 md:px-[72px] md:pt-16">
       <div className="text-ash font-mono text-[10.5px] tracking-[0.3em] uppercase">
@@ -74,7 +76,13 @@ export default function PrintsBody({
                 key={print.id}
                 className="border-line-soft grid grid-cols-[80px_minmax(0,1fr)] items-center gap-5 border-b py-[22px] md:grid-cols-[150px_minmax(0,1fr)_auto] md:gap-[30px]"
               >
-                <div className="leading-[0]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPrint(print)}
+                  aria-label={`View details for ${print.title}`}
+                  aria-haspopup="dialog"
+                  className="cursor-pointer leading-[0]"
+                >
                   <ArtImage
                     src={print.image}
                     alt={print.title}
@@ -82,12 +90,23 @@ export default function PrintsBody({
                     width={print.imageWidth}
                     height={print.imageHeight}
                   />
-                </div>
+                </button>
                 <div>
                   <div className="font-spectral text-[24px] italic">
-                    {print.title}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPrint(print)}
+                      aria-haspopup="dialog"
+                      className="hover-clay cursor-pointer text-left"
+                    >
+                      {print.title}
+                    </button>
                   </div>
-                  <PrintDetails spec={print.spec} />
+                  <div className="text-stone-2 mt-[9px] font-mono text-[11px] leading-[1.8] tracking-[0.04em]">
+                    {print.spec}
+                    <br />
+                    {print.edition}
+                  </div>
                 </div>
                 <div className="col-span-2 flex items-center justify-between gap-3 md:col-span-1 md:flex-col md:items-end md:gap-3">
                   <div className="text-right">
@@ -108,23 +127,15 @@ export default function PrintsBody({
                     <span className="border-line text-ash border px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase">
                       Sold out
                     </span>
-                  ) : checkoutEnabled && print.priceCents !== null ? (
-                    <BuyButton
-                      itemType="print"
-                      id={print.id}
-                      cancelPath="/prints"
-                      className="cart-btn bg-ink text-paper cursor-pointer px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase disabled:cursor-default disabled:opacity-60"
-                    >
-                      Buy print
-                    </BuyButton>
-                  ) : (
-                    <Link
-                      href="/contact"
-                      className="cart-btn bg-ink text-paper px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase"
-                    >
-                      Inquire
-                    </Link>
-                  )}
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPrint(print)}
+                    aria-haspopup="dialog"
+                    className="cart-btn bg-ink text-paper cursor-pointer px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase"
+                  >
+                    View details
+                  </button>
                 </div>
               </div>
             ))}
@@ -143,6 +154,14 @@ export default function PrintsBody({
         </Link>
         .
       </p>
+      {selectedPrint && (
+        <PrintDetailModal
+          key={selectedPrint.id}
+          print={selectedPrint}
+          checkoutEnabled={checkoutEnabled}
+          onClose={() => setSelectedPrint(null)}
+        />
+      )}
     </main>
   );
 }

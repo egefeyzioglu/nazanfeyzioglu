@@ -4,7 +4,7 @@ export default function PrintDetails({ spec }: { spec: string }) {
   const sizes = getPrintSizes(spec);
 
   return (
-    <div className="text-stone-2 mt-[9px] font-mono text-[11px] leading-[1.8] tracking-[0.04em]">
+    <div className="text-stone-2 mt-[9px] text-[15px] leading-[1.8]">
       <p className="text-ink">Fine Art Giclée Print</p>
       <dl className="mt-2">
         <div>
