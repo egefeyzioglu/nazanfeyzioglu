@@ -132,7 +132,7 @@ export default function PrintsBody({
         </section>
       ))}
 
-      <!-- <p className="text-ash mt-10 font-mono text-[11px] leading-[1.9] tracking-[0.04em]">
+      {/* <p className="hidden text-ash mt-10 font-mono text-[11px] leading-[1.9] tracking-[0.04em]">
         Paper stock, print sizes, edition counts and pricing to be confirmed.
         <br />
         For originals, see the{" "}
@@ -144,7 +144,7 @@ export default function PrintsBody({
           get in touch
         </Link>
         .
-      </p> -->
+      </p> */}
     </main>
   );
 }
