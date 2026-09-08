@@ -112,7 +112,7 @@ export const CONTENT_FIELDS: ContentField[] = [
     group: "Prints",
     multiline: true,
     default:
-      "Archival giclée prints of selected paintings, grouped by series. Each is signed and numbered. Paper, sizes and pricing are being finalised.",
+      "Archival giclée prints of selected paintings, grouped by series. Each is signed and numbered. Each print includes a Certificate of Authenticity and is supplied unframed.",
   },
   {
     key: "exhibitions.heading",

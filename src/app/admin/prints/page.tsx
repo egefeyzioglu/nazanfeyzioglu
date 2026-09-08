@@ -220,7 +220,7 @@ function PrintForm({
             onChange={(e) => setTitle(e.target.value)}
           />
         </Field>
-        <Field label="Spec">
+        <Field label="Spec (image size in inches, excluding the white border)">
           <input
             className={inputCls}
             value={spec}

@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import ArtImage from "src/app/_components/ArtImage";
 import BuyButton from "src/app/_components/BuyButton";
+import PrintDetails from "src/app/_components/PrintDetails";
 import { EditableText } from "src/app/_components/Editable";
 import { formatPrice } from "src/lib/orders";
 
@@ -47,7 +48,10 @@ export default function PrintsBody({
       />
       <EditableText
         k="prints.intro"
-        value={content["prints.intro"] ?? ""}
+        value={(content["prints.intro"] ?? "").replace(
+          "Paper, sizes and pricing are being finalised.",
+          "Each print includes a Certificate of Authenticity and is supplied unframed.",
+        )}
         as="p"
         allowLinks
         className="text-mute mt-5 mb-[6px] max-w-[560px] text-[17px] leading-[1.6] font-light text-pretty"
@@ -83,11 +87,7 @@ export default function PrintsBody({
                   <div className="font-spectral text-[24px] italic">
                     {print.title}
                   </div>
-                  <div className="text-stone-2 mt-[9px] font-mono text-[11px] leading-[1.8] tracking-[0.04em]">
-                    {print.spec}
-                    <br />
-                    {print.edition}
-                  </div>
+                  <PrintDetails spec={print.spec} />
                 </div>
                 <div className="col-span-2 flex items-center justify-between gap-3 md:col-span-1 md:flex-col md:items-end md:gap-3">
                   <div className="text-right">
@@ -133,8 +133,6 @@ export default function PrintsBody({
       ))}
 
       <p className="text-ash mt-10 font-mono text-[11px] leading-[1.9] tracking-[0.04em]">
-        Paper stock, print sizes, edition counts and pricing to be confirmed.
-        <br />
         For originals, see the{" "}
         <Link href="/" className="border-clay-soft text-clay border-b">
           Series

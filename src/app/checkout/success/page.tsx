@@ -42,8 +42,19 @@ export default async function CheckoutSuccessPage({
           {paid ? "Thank you" : "Payment processing"}
         </h1>
         <div className="text-mute mt-5 max-w-[560px] text-[17px] leading-[1.6] font-light">
+          {paid && session.metadata?.itemType === "print" && (
+            <>
+              <p>
+                Your order has been received. Please allow 3–7 business days for
+                your print to be prepared for shipping.
+              </p>
+              <p className="mt-4">
+                This preparation time does not include shipping transit time.
+              </p>
+            </>
+          )}
           {itemName && (
-            <p>
+            <p className="mt-4">
               {paid ? "Your purchase of " : "Your payment for "}
               <span className="font-spectral italic">{itemName}</span>
               {session.amount_total !== null &&
