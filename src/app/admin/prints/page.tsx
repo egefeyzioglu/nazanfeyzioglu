@@ -41,6 +41,7 @@ type PrintRow = PrintDimensions & {
 
 type PrintFormValues = Omit<PrintRow, "id" | "spec">;
 
+/** Manages print records and their order within each series. */
 export default function AdminPrintsPage() {
   const utils = api.useUtils();
   const invalidate = () => utils.prints.list.invalidate();
@@ -312,6 +313,7 @@ function PrintForm({
   );
 }
 
+/** Displays a print summary with an expandable editor for its physical dimensions and sale data. */
 function PrintCard({
   print,
   onSave,

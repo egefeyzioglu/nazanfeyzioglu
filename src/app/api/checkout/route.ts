@@ -99,6 +99,7 @@ type ItemResult =
     }
   | { error: string; status: number };
 
+/** Builds a purchasable print line item with generated size text and remaining-copy limits. */
 async function printLineItem(id: number, origin: string): Promise<ItemResult> {
   const print = await db.query.prints.findFirst({
     where: (p, { eq }) => eq(p.id, id),

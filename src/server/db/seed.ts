@@ -472,6 +472,7 @@ const EXHIBITIONS: {
   },
 ];
 
+/** Seeds launch content transactionally, requiring --force before replacing existing series. */
 async function main() {
   const force = process.argv.includes("--force");
   // One transaction around the check, the --force wipe, and every insert, so
