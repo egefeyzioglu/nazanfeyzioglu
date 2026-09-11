@@ -43,12 +43,6 @@ export const PRINT_COPY_FIELDS: ContentField[] = [
     default: "Edition:",
   },
   {
-    key: "prints.details.edition",
-    label: "Edition description",
-    group: "Prints",
-    default: "Limited Edition of 20",
-  },
-  {
     key: "prints.details.imageSizeLabel",
     label: "Image size label",
     group: "Prints",

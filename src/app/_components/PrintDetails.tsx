@@ -3,9 +3,11 @@ import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 
 export default function PrintDetails({
   spec,
+  edition,
   content,
 }: {
   spec: string;
+  edition: string;
   content: Record<string, string>;
 }) {
   const sizes = getPrintSizes(spec);
@@ -23,7 +25,7 @@ export default function PrintDetails({
         </div>
         <div>
           <dt className="inline">{copy("editionLabel")} </dt>
-          <dd className="inline">{copy("edition")}</dd>
+          <dd className="inline">{edition}</dd>
         </div>
         <div>
           <dt className="inline">{copy("imageSizeLabel")} </dt>

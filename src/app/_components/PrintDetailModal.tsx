@@ -105,7 +105,11 @@ export default function PrintDetailModal({
               )}
           </div>
           <div className="py-4">
-            <PrintDetails spec={print.spec} content={content} />
+            <PrintDetails
+              spec={print.spec}
+              edition={print.edition}
+              content={content}
+            />
           </div>
           <div className="mt-5 [&>div]:items-stretch">
             {print.remaining === 0 ? (
