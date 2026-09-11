@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import ArtImage from "src/app/_components/ArtImage";
@@ -145,17 +144,6 @@ export default function PrintsBody({
         </section>
       ))}
 
-      <p className="text-ash mt-10 font-mono text-[11px] leading-[1.9] tracking-[0.04em]">
-        For originals, see the{" "}
-        <Link href="/" className="border-clay-soft text-clay border-b">
-          Series
-        </Link>{" "}
-        — or{" "}
-        <Link href="/contact" className="border-clay-soft text-clay border-b">
-          get in touch
-        </Link>
-        .
-      </p>
       {selectedPrint && (
         <PrintDetailModal
           key={selectedPrint.id}
