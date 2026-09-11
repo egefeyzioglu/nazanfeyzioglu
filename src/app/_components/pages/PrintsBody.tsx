@@ -7,14 +7,14 @@ import PrintDetailModal from "src/app/_components/PrintDetailModal";
 import { EditableText } from "src/app/_components/Editable";
 import { formatPrice } from "src/lib/orders";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
+import { formatPrintSpec, type PrintDimensions } from "src/lib/prints";
 
-export type PrintItem = {
+export type PrintItem = PrintDimensions & {
   id: number;
   title: string;
   image: string;
   imageWidth: number;
   imageHeight: number;
-  spec: string;
   edition: string;
   priceCents: number | null;
   remaining?: number | null;
@@ -104,7 +104,7 @@ export default function PrintsBody({
                     </button>
                   </div>
                   <div className="text-stone-2 mt-[9px] font-mono text-[11px] leading-[1.8] tracking-[0.04em]">
-                    {print.spec}
+                    {formatPrintSpec(print)}
                     <br />
                     {print.edition}
                   </div>

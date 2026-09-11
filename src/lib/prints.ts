@@ -1,14 +1,17 @@
-/** Read image dimensions in inches from the CMS print specification. */
-export function getPrintSizes(spec: string) {
-  const match =
-    /(?:^|·)\s*(?:Giclée print\s*·\s*)?(\d+(?:\.\d+)?)\s*[×x]\s*(\d+(?:\.\d+)?)\s*in\s*$/i.exec(
-      spec,
-    );
-  if (!match) return null;
+/** Physical artwork dimensions in inches, excluding the white border. */
+export type PrintDimensions = {
+  imageWidthInches: number | null;
+  imageHeightInches: number | null;
+};
 
-  const width = Number(match[1]);
-  const height = Number(match[2]);
+/** Formats image and paper sizes from physical dimensions, with a 2-inch border. */
+export function getPrintSizes({
+  imageWidthInches: width,
+  imageHeightInches: height,
+}: PrintDimensions) {
   if (
+    width === null ||
+    height === null ||
     !Number.isFinite(width) ||
     !Number.isFinite(height) ||
     width <= 0 ||
@@ -19,6 +22,11 @@ export function getPrintSizes(spec: string) {
 
   return {
     image: `${width} × ${height} in`,
-    paper: `${width + 4} × ${height + 4} in`,
+    paper: `${Number((width + 4).toFixed(6))} × ${Number((height + 4).toFixed(6))} in`,
   };
+}
+
+/** Generates the compact catalogue and checkout description from dimensions. */
+export function formatPrintSpec(dimensions: PrintDimensions) {
+  return `Giclée print · ${getPrintSizes(dimensions)?.image ?? "size TBD"}`;
 }

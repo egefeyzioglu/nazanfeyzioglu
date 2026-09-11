@@ -57,6 +57,17 @@ Prices are set per print (and per digital edition on a work) in the admin panel;
 
 ### Layout
 
+Print sizes are stored as physical image width and height in inches, separately
+from the image file's pixel dimensions. The catalogue, product details, and
+checkout description are generated from those values. Overall paper dimensions
+add four inches per axis for the two-inch border on all sides.
+
+Run `pnpm db:migrate` before deploying the structured print-size change.
+Migration `0002_print-dimensions.sql` imports recognized legacy inch sizes once,
+leaving unknown formats blank and preserving the original `spec` text. Review
+blank sizes in Admin → Prints; the previous specification is shown for reference.
+Enter both dimensions or leave both blank when the size is not yet confirmed.
+
 - `src/server/db/schema.ts` — `series`, `work`, `print`, `exhibition`, `site_content`, and `order` tables
 - `src/server/api/` — tRPC routers (admin-gated CRUD + reordering, orders)
 - `src/server/queries.ts` — read-side queries used by the public pages

@@ -110,7 +110,8 @@ export default function PrintDetailModal({
           </div>
           <div className="py-4">
             <PrintDetails
-              spec={print.spec}
+              imageWidthInches={print.imageWidthInches}
+              imageHeightInches={print.imageHeightInches}
               edition={print.edition}
               content={content}
             />

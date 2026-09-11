@@ -1,17 +1,17 @@
-import { getPrintSizes } from "src/lib/prints";
+import { getPrintSizes, type PrintDimensions } from "src/lib/prints";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 
 /** Combines editable shared specifications with this print's edition and sizes. */
 export default function PrintDetails({
-  spec,
+  imageWidthInches,
+  imageHeightInches,
   edition,
   content,
 }: {
-  spec: string;
   edition: string;
   content: Record<string, string>;
-}) {
-  const sizes = getPrintSizes(spec);
+} & PrintDimensions) {
+  const sizes = getPrintSizes({ imageWidthInches, imageHeightInches });
   const copy = (key: string) =>
     content[`prints.details.${key}`] ??
     CONTENT_DEFAULTS[`prints.details.${key}`];
