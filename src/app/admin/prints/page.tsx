@@ -160,6 +160,7 @@ export default function AdminPrintsPage() {
   );
 }
 
+/** Creates or updates a print's artwork, image dimensions, pricing and edition data. */
 function PrintForm({
   initial,
   onSubmit,

@@ -10,6 +10,7 @@ import type { PrintItem } from "src/app/_components/pages/PrintsBody";
 import { formatPrice } from "src/lib/orders";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 
+/** Shows a selected print and purchase actions in a modal that restores focus on close. */
 export default function PrintDetailModal({
   print,
   content,
@@ -100,7 +101,10 @@ export default function PrintDetailModal({
               print.remaining > 0 &&
               print.remaining <= 3 && (
                 <p className="text-clay mt-1 font-mono text-[11px]">
-                  Only {print.remaining} left
+                  {copy("lowStock")?.replaceAll(
+                    "{remaining}",
+                    String(print.remaining),
+                  )}
                 </p>
               )}
           </div>

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import Sidebar from "src/app/_components/Sidebar";
+import SidebarBody from "src/app/_components/pages/SidebarBody";
+import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 import { formatPrice } from "src/lib/orders";
 import { getStripe, stripeConfigured } from "src/server/stripe";
 import { getContent } from "src/server/queries";
@@ -27,7 +28,7 @@ export default async function CheckoutSuccessPage({
     .checkout.sessions.retrieve(sessionId, { expand: ["line_items"] })
     .catch(() => null);
   if (!session) notFound();
-  const content = await getContent();
+  const content = await getContent().catch(() => CONTENT_DEFAULTS);
 
   const paid = session.payment_status !== "unpaid";
   const itemName = session.line_items?.data[0]?.description;
@@ -35,7 +36,7 @@ export default async function CheckoutSuccessPage({
 
   return (
     <div className="bg-paper text-ink flex min-h-screen flex-col md:flex-row">
-      <Sidebar active="prints" />
+      <SidebarBody active="prints" content={content} />
       <main className="flex-1 px-9 pt-12 pb-24 md:ml-[280px] md:max-w-[1040px] md:min-w-0 md:px-[72px] md:pt-16">
         <div className="text-ash font-mono text-[10.5px] tracking-[0.3em] uppercase">
           Order

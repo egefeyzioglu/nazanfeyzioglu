@@ -30,6 +30,7 @@ const TABS: { key: NavKey; label: string }[] = [
   { key: "exhibitions", label: "Exhibitions" },
 ];
 
+/** Edits shared page copy with drafts preserved across tabs until saved or discarded. */
 export default function AdminPagesEditor() {
   const utils = api.useUtils();
   const content = api.content.list.useQuery();

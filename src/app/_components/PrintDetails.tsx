@@ -1,6 +1,7 @@
 import { getPrintSizes } from "src/lib/prints";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 
+/** Combines editable shared specifications with this print's edition and sizes. */
 export default function PrintDetails({
   spec,
   edition,

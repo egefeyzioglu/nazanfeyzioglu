@@ -26,6 +26,7 @@ export type PrintGroup = {
   prints: PrintItem[];
 };
 
+/** Renders the compact print catalogue and opens details for the selected print. */
 export default function PrintsBody({
   groups,
   content,
@@ -119,7 +120,11 @@ export default function PrintsBody({
                       print.remaining > 0 &&
                       print.remaining <= 3 && (
                         <div className="text-clay font-mono text-[10px]">
-                          Only {print.remaining} left
+                          {(
+                            content["prints.modal.lowStock"] ??
+                            CONTENT_DEFAULTS["prints.modal.lowStock"] ??
+                            ""
+                          ).replaceAll("{remaining}", String(print.remaining))}
                         </div>
                       )}
                   </div>
@@ -133,6 +138,7 @@ export default function PrintsBody({
                     type="button"
                     onClick={() => setSelectedPrint(print)}
                     aria-haspopup="dialog"
+                    aria-label={`${detailsLabel}: ${print.title}`}
                     className="cart-btn bg-ink text-paper cursor-pointer px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase"
                   >
                     {detailsLabel}

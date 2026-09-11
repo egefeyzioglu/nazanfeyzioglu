@@ -19,6 +19,12 @@ export type ContentField = {
 /** Shared print copy, editable from Admin → Pages → Prints. */
 export const PRINT_COPY_FIELDS: ContentField[] = [
   {
+    key: "prints.modal.lowStock",
+    label: "Low-stock message (use {remaining} for the number of copies)",
+    group: "Prints",
+    default: "Only {remaining} left",
+  },
+  {
     key: "prints.details.heading",
     label: "Print type",
     group: "Prints",
