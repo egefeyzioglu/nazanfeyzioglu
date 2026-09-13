@@ -36,7 +36,10 @@ export default async function CheckoutSuccessPage({
 
   return (
     <div className="bg-paper text-ink flex min-h-screen flex-col md:flex-row">
-      <SidebarBody active="prints" content={content} />
+      <SidebarBody
+        active={session.metadata?.itemType === "print" ? "prints" : "series"}
+        content={content}
+      />
       <main className="flex-1 px-9 pt-12 pb-24 md:ml-[280px] md:max-w-[1040px] md:min-w-0 md:px-[72px] md:pt-16">
         <div className="text-ash font-mono text-[10.5px] tracking-[0.3em] uppercase">
           Order

@@ -4,25 +4,28 @@ import type Stripe from "stripe";
 import { z } from "zod";
 
 import { env } from "src/env";
-import { CURRENCY } from "src/lib/orders";
+import { CURRENCY, PRINT_SHIPPING_CENTS } from "src/lib/orders";
 import { db } from "src/server/db";
-import { getSoldPrintQuantities, remainingCopies } from "src/server/orders";
+import {
+  getSoldOriginalIds,
+  getSoldPrintQuantities,
+  remainingCopies,
+} from "src/server/orders";
 import { getStripe, stripeConfigured } from "src/server/stripe";
 
 /**
- * Creates a Stripe Checkout Session for a print or a digital edition and
+ * Creates a Stripe Checkout Session for a print, original or digital edition and
  * returns its URL for the client to redirect to. Prices always come from the
  * database — the client only ever names an item.
  *
- * Originals are deliberately not sold here (inquiry + Stripe Invoicing), and
- * the admin CMS stays on tRPC; this public mutation is a plain route handler.
+ * The admin CMS stays on tRPC; this public mutation is a plain route handler.
  */
 
 /** Per-checkout cap for open (unlimited) print editions. */
 const MAX_PRINT_QUANTITY = 10;
 
 const bodySchema = z.object({
-  itemType: z.enum(["print", "digital"]),
+  itemType: z.enum(["print", "digital", "original"]),
   id: z.number().int().positive(),
   /** Same-site path to return to when checkout is cancelled. */
   cancelPath: z
@@ -59,7 +62,9 @@ export async function POST(req: Request) {
   const item =
     body.itemType === "print"
       ? await printLineItem(body.id, origin)
-      : await digitalLineItem(body.id, origin);
+      : body.itemType === "original"
+        ? await originalLineItem(body.id, origin)
+        : await digitalLineItem(body.id, origin);
   if ("error" in item) {
     return NextResponse.json({ error: item.error }, { status: item.status });
   }
@@ -143,9 +148,67 @@ async function printLineItem(id: number, origin: string): Promise<ItemResult> {
     },
     extraParams: {
       shipping_address_collection: { allowed_countries: ["CA"] },
-      ...(env.STRIPE_SHIPPING_RATE_ID && {
-        shipping_options: [{ shipping_rate: env.STRIPE_SHIPPING_RATE_ID }],
-      }),
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: {
+              amount: PRINT_SHIPPING_CENTS,
+              currency: CURRENCY,
+            },
+            display_name: "Flat rate shipping within Canada",
+          },
+        },
+      ],
+    },
+  };
+}
+
+async function originalLineItem(
+  id: number,
+  origin: string,
+): Promise<ItemResult> {
+  const work = await db.query.works.findFirst({
+    where: (w, { eq }) => eq(w.id, id),
+  });
+  if (!work) return { error: "Original not found", status: 404 };
+  if (
+    work.digital ||
+    work.originalUnavailable ||
+    work.originalPriceCents === null
+  ) {
+    return {
+      error: "This original is not available for purchase",
+      status: 409,
+    };
+  }
+  if ((await getSoldOriginalIds([id])).has(id)) {
+    return { error: "This original is sold out", status: 409 };
+  }
+  return {
+    lineItem: {
+      quantity: 1,
+      price_data: {
+        currency: CURRENCY,
+        unit_amount: work.originalPriceCents,
+        product_data: {
+          name: `${work.title} \u2014 original`,
+          description: work.medium,
+          images: [absoluteImageUrl(work.image, origin)],
+        },
+      },
+    },
+    extraParams: {
+      shipping_address_collection: { allowed_countries: ["CA"] },
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: { amount: 0, currency: CURRENCY },
+            display_name: "Free shipping",
+          },
+        },
+      ],
     },
   };
 }

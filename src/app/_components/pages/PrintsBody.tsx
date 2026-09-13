@@ -5,7 +5,7 @@ import { useState } from "react";
 import ArtImage from "src/app/_components/ArtImage";
 import PrintDetailModal from "src/app/_components/PrintDetailModal";
 import { EditableText } from "src/app/_components/Editable";
-import { formatPrice } from "src/lib/orders";
+import { formatPrice, PRINT_SHIPPING_CENTS } from "src/lib/orders";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 import { formatPrintSpec, type PrintDimensions } from "src/lib/prints";
 
@@ -59,6 +59,11 @@ export default function PrintsBody({
         allowLinks
         className="text-mute mt-5 mb-[6px] max-w-[560px] text-[17px] leading-[1.6] font-light text-pretty"
       />
+
+      <p className="text-mute mt-4 text-[14px] leading-[1.6]">
+        Flat rate shipping within Canada: {formatPrice(PRINT_SHIPPING_CENTS)}{" "}
+        per print order. Free shipping on originals within Canada.
+      </p>
 
       {groups.map((group) => (
         <section key={group.id}>

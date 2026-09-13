@@ -9,7 +9,7 @@ export default function BuyButton({
   className,
   children,
 }: {
-  itemType: "print" | "digital";
+  itemType: "print" | "digital" | "original";
   id: number;
   cancelPath: string;
   className?: string;

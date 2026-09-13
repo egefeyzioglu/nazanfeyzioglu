@@ -57,11 +57,13 @@ export const works = createTable(
     /** Full medium / dimensions / year line, e.g. "Acrylic on cradled panel · 24 × 36 in · 2026". */
     medium: d.text().notNull(),
     /**
-     * Display price for an available original, e.g. "1,900 CAD". Originals are
-     * inquiry-based (no self-serve checkout), so this stays free text.
-     * Null for digital-only works.
+     * Legacy display price, used until a numeric original checkout price is set.
      */
     price: d.varchar({ length: 128 }),
+    /** CAD cents; null keeps the original inquiry-only. */
+    originalPriceCents: d.integer(),
+    /** Manually withhold an original, including pieces sold outside the site. */
+    originalUnavailable: d.boolean().notNull().default(false),
     /** When true, the original is in preparation and the work is sold as a digital edition. */
     digital: d.boolean().notNull().default(false),
     /**
@@ -78,6 +80,7 @@ export const works = createTable(
   }),
   (t) => [
     index("work_series_idx").on(t.seriesId),
+    check("work_original_price_cents_positive", sql`"originalPriceCents" > 0`),
     check("work_digital_price_cents_positive", sql`"digitalPriceCents" > 0`),
   ],
 );
@@ -164,7 +167,7 @@ export const printsRelations = relations(prints, ({ one }) => ({
 }));
 
 /**
- * A completed Stripe Checkout purchase (print or digital edition). Rows are
+ * A completed Stripe Checkout purchase (print, original or digital edition). Rows are
  * inserted by the Stripe webhook only once payment succeeds — abandoned
  * sessions never appear. Stripe stays the source of truth for money (refunds
  * happen in the Stripe Dashboard); this table owns fulfillment state.
@@ -213,7 +216,10 @@ export const orders = createTable(
     check("order_quantity_positive", sql`quantity > 0`),
     check("order_unit_amount_nonnegative", sql`"unitAmount" >= 0`),
     check("order_amount_total_nonnegative", sql`"amountTotal" >= 0`),
-    check("order_item_type_valid", sql`"itemType" in ('print', 'digital')`),
+    check(
+      "order_item_type_valid",
+      sql`"itemType" in ('print', 'digital', 'original')`,
+    ),
     check(
       "order_payment_status_valid",
       sql`"paymentStatus" in ('paid', 'refunded')`,
