@@ -30,11 +30,13 @@ export const ordersRouter = createTRPCRouter({
         .set({ fulfillmentStatus: input.fulfillmentStatus })
         .where(eq(orders.id, input.id))
         .returning();
-      await captureServerEvent(ctx.userId, "order_fulfillment_updated", {
-        order_id: input.id,
-        fulfillment_status: input.fulfillmentStatus,
-        item_type: row?.itemType,
-      });
+      if (row) {
+        captureServerEvent(ctx.userId, "order_fulfillment_updated", {
+          order_id: row.id,
+          fulfillment_status: row.fulfillmentStatus,
+          item_type: row.itemType,
+        });
+      }
       return row;
     }),
 });

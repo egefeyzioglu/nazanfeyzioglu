@@ -30,10 +30,13 @@ export default function BuyButton({
           setError(null);
 
           try {
-            posthog.capture("checkout_started", {
-              item_type: itemType,
-              item_id: id,
-            });
+            posthog.capture(
+              "checkout_started",
+              { item_type: itemType, item_id: id },
+              // The page navigates to Stripe right after; don't leave this in
+              // the batch queue.
+              { send_instantly: true },
+            );
 
             const res = await fetch("/api/checkout", {
               method: "POST",

@@ -47,7 +47,7 @@ export const contentRouter = createTRPCRouter({
             });
         }
       });
-      await captureServerEvent(ctx.userId, "content_saved", {
+      captureServerEvent(ctx.userId, "content_saved", {
         entry_count: input.entries.length,
       });
     }),

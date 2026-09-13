@@ -2,30 +2,38 @@
 
 import { useUser } from "@clerk/nextjs";
 import posthog from "posthog-js";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
+/**
+ * Ties PostHog's person to the signed-in Clerk user and clears it on sign-out.
+ * The identified state is read from PostHog itself rather than a ref, so a
+ * session that expired or a browser that was closed without signing out is
+ * reset on the next visit instead of attributing anonymous events to the
+ * previous user.
+ */
 export default function PostHogIdentify() {
   const { isLoaded, isSignedIn, user } = useUser();
-  const identifiedUserId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isLoaded) return;
 
+    const currentUserId = posthog.get_property("$user_id") as
+      | string
+      | undefined;
+
     if (isSignedIn && user) {
-      if (identifiedUserId.current !== user.id) {
+      if (currentUserId !== user.id) {
         posthog.identify(user.id, {
           email: user.primaryEmailAddress?.emailAddress,
           name: user.fullName ?? undefined,
           role: user.publicMetadata.role,
         });
-        identifiedUserId.current = user.id;
       }
       return;
     }
 
-    if (identifiedUserId.current) {
+    if (currentUserId) {
       posthog.reset();
-      identifiedUserId.current = null;
     }
   }, [isLoaded, isSignedIn, user]);
 

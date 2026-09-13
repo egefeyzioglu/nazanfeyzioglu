@@ -73,7 +73,7 @@ export const adminProcedure = t.procedure.use(async ({ ctx, next }) => {
   }
   const result = await next({ ctx: { ...ctx, userId } });
   if (!result.ok) {
-    await captureServerException(result.error, userId);
+    captureServerException(result.error, userId);
   }
   return result;
 });

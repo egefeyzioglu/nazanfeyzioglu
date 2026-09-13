@@ -98,7 +98,7 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("Stripe checkout session creation failed", err);
-    await captureServerException(err, distinctId);
+    captureServerException(err, distinctId);
     return NextResponse.json(
       { error: "Could not start checkout — please try again" },
       { status: 502 },
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
     );
   }
 
-  await captureServerEvent(distinctId, "checkout_session_created", {
+  captureServerEvent(distinctId, "checkout_session_created", {
     item_type: body.itemType,
     item_id: body.id,
     ...(posthogSessionId && { $session_id: posthogSessionId }),

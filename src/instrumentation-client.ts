@@ -4,14 +4,18 @@ const posthogToken = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
 const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 
 if (!posthogToken || !posthogHost) {
+  const variable = !posthogToken
+    ? "NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN"
+    : "NEXT_PUBLIC_POSTHOG_HOST";
+  const message = `${variable} is not set, so PostHog analytics are disabled`;
   if (process.env.NODE_ENV === "development") {
-    const variable = !posthogToken
-      ? "NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN"
-      : "NEXT_PUBLIC_POSTHOG_HOST";
     throw new Error(
-      `${variable} variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once ${variable} is configured`,
+      `${message}. Add it to .env.local (see .env.example) to enable analytics.`,
     );
   }
+  // NEXT_PUBLIC_* values are inlined at build time, so on Vercel the variable
+  // must be set for the environment being built (preview and production).
+  console.warn(`[posthog] ${message}`);
 } else {
   posthog.init(posthogToken, {
     api_host: posthogHost,

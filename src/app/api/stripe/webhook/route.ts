@@ -67,17 +67,14 @@ export async function POST(req: Request) {
             .set({ paymentStatus: "refunded" })
             .where(eq(orders.stripePaymentIntentId, charge.payment_intent))
             .returning({ id: orders.id, itemType: orders.itemType });
-          if (refunded.length > 0) {
-            await captureServerEvent(
-              `order:${refunded[0]!.id}`,
-              "order_refunded",
-              {
-                item_type: refunded[0]!.itemType,
-                amount: charge.amount,
-                currency: charge.currency,
-                $insert_id: event.id,
-              },
-            );
+          const refundedOrder = refunded[0];
+          if (refundedOrder) {
+            captureServerEvent(`order:${refundedOrder.id}`, "order_refunded", {
+              item_type: refundedOrder.itemType,
+              amount: charge.amount,
+              currency: charge.currency,
+              $insert_id: event.id,
+            });
           }
         }
         break;
@@ -86,7 +83,7 @@ export async function POST(req: Request) {
         break;
     }
   } catch (err) {
-    await captureServerException(err, `stripe_webhook:${event.id}`);
+    captureServerException(err, `stripe_webhook:${event.id}`);
     throw err;
   }
 
@@ -189,7 +186,7 @@ async function recordPaidCheckout(sessionId: string) {
 
   const distinctId =
     session.metadata?.posthogDistinctId ?? `checkout:${session.id}`;
-  await captureServerEvent(distinctId, "checkout_completed", {
+  captureServerEvent(distinctId, "checkout_completed", {
     item_type: itemType,
     item_id: itemId,
     quantity,
