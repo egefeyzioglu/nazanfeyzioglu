@@ -95,7 +95,10 @@ export const prints = createTable(
     image: d.text().notNull(),
     imageWidth: d.integer().notNull().default(1000),
     imageHeight: d.integer().notNull().default(1000),
-    /** e.g. "Giclée print · 37 × 49 in" or "Giclée print · size TBD". */
+    /** Physical artwork size in inches; separate from the image's pixel dimensions. */
+    imageWidthInches: d.doublePrecision(),
+    imageHeightInches: d.doublePrecision(),
+    /** Legacy description retained for migration; generated from physical dimensions on save. */
     spec: d.text().notNull(),
     /** e.g. "Edition of 20 · 1:1 scale" or "Edition of 20". */
     edition: d.text().notNull(),
@@ -118,6 +121,10 @@ export const prints = createTable(
     index("print_series_idx").on(t.seriesId),
     check("print_price_cents_positive", sql`"priceCents" > 0`),
     check("print_edition_size_positive", sql`"editionSize" > 0`),
+    check(
+      "print_image_dimensions_valid",
+      sql`("imageWidthInches" IS NULL AND "imageHeightInches" IS NULL) OR ("imageWidthInches" IS NOT NULL AND "imageHeightInches" IS NOT NULL AND "imageWidthInches" > 0 AND "imageHeightInches" > 0 AND "imageWidthInches" < 'Infinity'::double precision AND "imageHeightInches" < 'Infinity'::double precision)`,
+    ),
   ],
 );
 

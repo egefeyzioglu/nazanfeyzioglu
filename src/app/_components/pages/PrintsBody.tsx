@@ -1,19 +1,20 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
 
 import ArtImage from "src/app/_components/ArtImage";
-import BuyButton from "src/app/_components/BuyButton";
+import PrintDetailModal from "src/app/_components/PrintDetailModal";
 import { EditableText } from "src/app/_components/Editable";
 import { formatPrice } from "src/lib/orders";
+import { CONTENT_DEFAULTS } from "src/lib/content-keys";
+import { formatPrintSpec, type PrintDimensions } from "src/lib/prints";
 
-export type PrintItem = {
+export type PrintItem = PrintDimensions & {
   id: number;
   title: string;
   image: string;
   imageWidth: number;
   imageHeight: number;
-  spec: string;
   edition: string;
   priceCents: number | null;
   remaining?: number | null;
@@ -25,6 +26,7 @@ export type PrintGroup = {
   prints: PrintItem[];
 };
 
+/** Renders the compact print catalogue and opens details for the selected print. */
 export default function PrintsBody({
   groups,
   content,
@@ -34,6 +36,11 @@ export default function PrintsBody({
   content: Record<string, string>;
   checkoutEnabled: boolean;
 }) {
+  const [selectedPrint, setSelectedPrint] = useState<PrintItem | null>(null);
+  const detailsLabel =
+    content["prints.modal.viewDetails"] ??
+    CONTENT_DEFAULTS["prints.modal.viewDetails"];
+
   return (
     <main className="flex-1 px-9 pt-12 pb-24 md:ml-[280px] md:max-w-[1040px] md:min-w-0 md:px-[72px] md:pt-16">
       <div className="text-ash font-mono text-[10.5px] tracking-[0.3em] uppercase">
@@ -70,7 +77,13 @@ export default function PrintsBody({
                 key={print.id}
                 className="border-line-soft grid grid-cols-[80px_minmax(0,1fr)] items-center gap-5 border-b py-[22px] md:grid-cols-[150px_minmax(0,1fr)_auto] md:gap-[30px]"
               >
-                <div className="leading-[0]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPrint(print)}
+                  aria-label={`${detailsLabel}: ${print.title}`}
+                  aria-haspopup="dialog"
+                  className="cursor-pointer leading-[0]"
+                >
                   <ArtImage
                     src={print.image}
                     alt={print.title}
@@ -78,13 +91,20 @@ export default function PrintsBody({
                     width={print.imageWidth}
                     height={print.imageHeight}
                   />
-                </div>
+                </button>
                 <div>
                   <div className="font-spectral text-[24px] italic">
-                    {print.title}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPrint(print)}
+                      aria-haspopup="dialog"
+                      className="hover-clay cursor-pointer text-left"
+                    >
+                      {print.title}
+                    </button>
                   </div>
                   <div className="text-stone-2 mt-[9px] font-mono text-[11px] leading-[1.8] tracking-[0.04em]">
-                    {print.spec}
+                    {formatPrintSpec(print)}
                     <br />
                     {print.edition}
                   </div>
@@ -100,31 +120,29 @@ export default function PrintsBody({
                       print.remaining > 0 &&
                       print.remaining <= 3 && (
                         <div className="text-clay font-mono text-[10px]">
-                          Only {print.remaining} left
+                          {(
+                            content["prints.modal.lowStock"] ??
+                            CONTENT_DEFAULTS["prints.modal.lowStock"] ??
+                            ""
+                          ).replaceAll("{remaining}", String(print.remaining))}
                         </div>
                       )}
                   </div>
                   {print.remaining === 0 ? (
                     <span className="border-line text-ash border px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase">
-                      Sold out
+                      {content["prints.modal.soldOut"] ??
+                        CONTENT_DEFAULTS["prints.modal.soldOut"]}
                     </span>
-                  ) : checkoutEnabled && print.priceCents !== null ? (
-                    <BuyButton
-                      itemType="print"
-                      id={print.id}
-                      cancelPath="/prints"
-                      className="cart-btn bg-ink text-paper cursor-pointer px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase disabled:cursor-default disabled:opacity-60"
-                    >
-                      Buy print
-                    </BuyButton>
-                  ) : (
-                    <Link
-                      href="/contact"
-                      className="cart-btn bg-ink text-paper px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase"
-                    >
-                      Inquire
-                    </Link>
-                  )}
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPrint(print)}
+                    aria-haspopup="dialog"
+                    aria-label={`${detailsLabel}: ${print.title}`}
+                    className="cart-btn bg-ink text-paper cursor-pointer px-5 py-[11px] font-mono text-[11px] tracking-[0.14em] whitespace-nowrap uppercase"
+                  >
+                    {detailsLabel}
+                  </button>
                 </div>
               </div>
             ))}
@@ -132,19 +150,15 @@ export default function PrintsBody({
         </section>
       ))}
 
-      {/* <p className="hidden text-ash mt-10 font-mono text-[11px] leading-[1.9] tracking-[0.04em]">
-        Paper stock, print sizes, edition counts and pricing to be confirmed.
-        <br />
-        For originals, see the{" "}
-        <Link href="/" className="border-clay-soft text-clay border-b">
-          Series
-        </Link>{" "}
-        — or{" "}
-        <Link href="/contact" className="border-clay-soft text-clay border-b">
-          get in touch
-        </Link>
-        .
-      </p> */}
+      {selectedPrint && (
+        <PrintDetailModal
+          key={selectedPrint.id}
+          content={content}
+          print={selectedPrint}
+          checkoutEnabled={checkoutEnabled}
+          onClose={() => setSelectedPrint(null)}
+        />
+      )}
     </main>
   );
 }

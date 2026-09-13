@@ -1,5 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { formatPrintSpec } from "src/lib/prints";
 
 import {
   adminProcedure,
@@ -14,7 +15,8 @@ const printFields = {
   image: z.string().min(1),
   imageWidth: z.number().int().positive(),
   imageHeight: z.number().int().positive(),
-  spec: z.string().min(1),
+  imageWidthInches: z.number().finite().positive().nullable(),
+  imageHeightInches: z.number().finite().positive().nullable(),
   edition: z.string().min(1),
   priceCents: z.number().int().positive().nullish(),
   editionSize: z.number().int().positive().nullish(),
@@ -45,7 +47,15 @@ export const printsRouter = createTRPCRouter({
   }),
 
   create: adminProcedure
-    .input(z.object({ seriesId: z.number().int(), ...printFields }))
+    .input(
+      z
+        .object({ seriesId: z.number().int(), ...printFields })
+        .refine(
+          (p) =>
+            (p.imageWidthInches === null) === (p.imageHeightInches === null),
+          "Enter both image dimensions or leave both blank",
+        ),
+    )
     .mutation(async ({ ctx, input }) => {
       const [{ max }] = (await ctx.db
         .select({ max: sql<number>`coalesce(max(${prints.position}), -1)` })
@@ -53,18 +63,26 @@ export const printsRouter = createTRPCRouter({
         .where(eq(prints.seriesId, input.seriesId))) as [{ max: number }];
       const [row] = await ctx.db
         .insert(prints)
-        .values({ ...input, position: max + 1 })
+        .values({ ...input, spec: formatPrintSpec(input), position: max + 1 })
         .returning();
       return row;
     }),
 
   update: adminProcedure
-    .input(z.object({ id: z.number().int(), ...printFields }))
+    .input(
+      z
+        .object({ id: z.number().int(), ...printFields })
+        .refine(
+          (p) =>
+            (p.imageWidthInches === null) === (p.imageHeightInches === null),
+          "Enter both image dimensions or leave both blank",
+        ),
+    )
     .mutation(async ({ ctx, input }) => {
       const { id, ...values } = input;
       const [row] = await ctx.db
         .update(prints)
-        .set(values)
+        .set({ ...values, spec: formatPrintSpec(values) })
         .where(eq(prints.id, id))
         .returning();
       return row;

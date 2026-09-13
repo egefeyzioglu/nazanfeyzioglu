@@ -9,6 +9,7 @@ import { Pool } from "pg";
 
 import { CONTENT_FIELDS } from "../../lib/content-keys";
 import * as schema from "./schema";
+import { formatPrintSpec, type PrintDimensions } from "../../lib/prints";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -61,10 +62,9 @@ type SeedWork = {
   note?: string;
 };
 
-type SeedPrint = {
+type SeedPrint = PrintDimensions & {
   title: string;
   image: string;
-  spec: string;
   edition: string;
 };
 
@@ -111,19 +111,22 @@ const SERIES: SeedSeries[] = [
       {
         title: "Inside My Mind",
         image: "/design-assets/inside-my-mind.jpg",
-        spec: "Giclée print · 37 × 49 in",
+        imageWidthInches: 37,
+        imageHeightInches: 49,
         edition: E20_11,
       },
       {
         title: "Thoughts 1",
         image: "/design-assets/thoughts.jpg",
-        spec: "Giclée print · 24 × 36 in",
+        imageWidthInches: 24,
+        imageHeightInches: 36,
         edition: E20_11,
       },
       {
         title: "Thoughts 2",
         image: "/design-assets/thoughts-2.jpg",
-        spec: "Giclée print · size TBD",
+        imageWidthInches: null,
+        imageHeightInches: null,
         edition: E20,
       },
     ],
@@ -162,25 +165,29 @@ const SERIES: SeedSeries[] = [
       {
         title: "Family 1",
         image: "/design-assets/family-1.jpg",
-        spec: "Giclée print · 24 × 18 in",
+        imageWidthInches: 24,
+        imageHeightInches: 18,
         edition: E20_11,
       },
       {
         title: "Family 2",
         image: "/design-assets/family-2.jpg",
-        spec: "Giclée print · 20 × 16 in",
+        imageWidthInches: 20,
+        imageHeightInches: 16,
         edition: E20_11,
       },
       {
         title: "Family 3",
         image: "/design-assets/family.jpg",
-        spec: "Giclée print · 24 × 18 in",
+        imageWidthInches: 24,
+        imageHeightInches: 18,
         edition: E20_11,
       },
       {
         title: "Family 4",
         image: "/design-assets/family-4.jpg",
-        spec: "Giclée print · 24 × 18 in",
+        imageWidthInches: 24,
+        imageHeightInches: 18,
         edition: E20_11,
       },
     ],
@@ -207,13 +214,15 @@ const SERIES: SeedSeries[] = [
       {
         title: "The Dreamer",
         image: "/design-assets/the-dreamer.jpg",
-        spec: "Giclée print · 24 × 36 in",
+        imageWidthInches: 24,
+        imageHeightInches: 36,
         edition: E20_11,
       },
       {
         title: "The Watchers",
         image: "/design-assets/the-watcher.jpg",
-        spec: "Giclée print · 24 × 36 in",
+        imageWidthInches: 24,
+        imageHeightInches: 36,
         edition: E20_11,
       },
     ],
@@ -248,19 +257,22 @@ const SERIES: SeedSeries[] = [
       {
         title: "Carnival 1",
         image: "/design-assets/carnival-1.jpg",
-        spec: "Giclée print · size TBD",
+        imageWidthInches: null,
+        imageHeightInches: null,
         edition: E20,
       },
       {
         title: "Carnival 2",
         image: "/design-assets/carnival-2.jpg",
-        spec: "Giclée print · size TBD",
+        imageWidthInches: null,
+        imageHeightInches: null,
         edition: E20,
       },
       {
         title: "Fun World",
         image: "/design-assets/fun-world.jpg",
-        spec: "Giclée print · 36 × 24 in",
+        imageWidthInches: 36,
+        imageHeightInches: 24,
         edition: E20_11,
       },
     ],
@@ -289,13 +301,15 @@ const SERIES: SeedSeries[] = [
       {
         title: "Party 1",
         image: "/design-assets/party-1.jpg",
-        spec: "Giclée print · size TBD",
+        imageWidthInches: null,
+        imageHeightInches: null,
         edition: E20,
       },
       {
         title: "Party 2",
         image: "/design-assets/party-2.jpg",
-        spec: "Giclée print · size TBD",
+        imageWidthInches: null,
+        imageHeightInches: null,
         edition: E20,
       },
     ],
@@ -336,25 +350,29 @@ const SERIES: SeedSeries[] = [
       {
         title: "Observer / One",
         image: "/design-assets/observer-one-v2.jpg",
-        spec: "Giclée print · 9 × 12 in",
+        imageWidthInches: 9,
+        imageHeightInches: 12,
         edition: E20_11,
       },
       {
         title: "Creature 1",
         image: "/design-assets/creature-1.jpg",
-        spec: "Giclée print · 12 × 16 in",
+        imageWidthInches: 12,
+        imageHeightInches: 16,
         edition: E20_11,
       },
       {
         title: "Creature 2",
         image: "/design-assets/creature-2.jpg",
-        spec: "Giclée print · 12 × 16 in",
+        imageWidthInches: 12,
+        imageHeightInches: 16,
         edition: E20_11,
       },
       {
         title: "Creature 3",
         image: "/design-assets/creature-3.jpg",
-        spec: "Giclée print · 9 × 12 in",
+        imageWidthInches: 9,
+        imageHeightInches: 12,
         edition: E20_11,
       },
     ],
@@ -388,19 +406,22 @@ const SERIES: SeedSeries[] = [
       {
         title: "Blue Peace",
         image: "/design-assets/blue-peace.jpg",
-        spec: "Giclée print · 49 × 30 in",
+        imageWidthInches: 49,
+        imageHeightInches: 30,
         edition: E20_11,
       },
       {
         title: "Summer Joy",
         image: "/design-assets/summer-joy.jpg",
-        spec: "Giclée print · 36 × 24 in",
+        imageWidthInches: 36,
+        imageHeightInches: 24,
         edition: E20_11,
       },
       {
         title: "Wavy Dream",
         image: "/design-assets/wavy-dream.jpg",
-        spec: "Giclée print · 24 × 18 in",
+        imageWidthInches: 24,
+        imageHeightInches: 18,
         edition: E20_11,
       },
     ],
@@ -451,6 +472,7 @@ const EXHIBITIONS: {
   },
 ];
 
+/** Seeds launch content transactionally, requiring --force before replacing existing series. */
 async function main() {
   const force = process.argv.includes("--force");
   // One transaction around the check, the --force wipe, and every insert, so
@@ -508,7 +530,9 @@ async function main() {
             title: p.title,
             image: p.image,
             ...dim(p.image),
-            spec: p.spec,
+            imageWidthInches: p.imageWidthInches,
+            imageHeightInches: p.imageHeightInches,
+            spec: formatPrintSpec(p),
             edition: p.edition,
             position: j,
           })),

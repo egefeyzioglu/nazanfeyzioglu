@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { formatPrintSpec } from "src/lib/prints";
 import type Stripe from "stripe";
 import { z } from "zod";
 
@@ -98,6 +99,7 @@ type ItemResult =
     }
   | { error: string; status: number };
 
+/** Builds a purchasable print line item with generated size text and remaining-copy limits. */
 async function printLineItem(id: number, origin: string): Promise<ItemResult> {
   const print = await db.query.prints.findFirst({
     where: (p, { eq }) => eq(p.id, id),
@@ -134,7 +136,7 @@ async function printLineItem(id: number, origin: string): Promise<ItemResult> {
         unit_amount: print.priceCents,
         product_data: {
           name: print.title,
-          description: `${print.spec} · ${print.edition}`,
+          description: `${formatPrintSpec(print)} · ${print.edition}`,
           images: [absoluteImageUrl(print.image, origin)],
         },
       },

@@ -15,6 +15,13 @@
       "when": 1783322109678,
       "tag": "0001_stripe-orders",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789141180406,
+      "tag": "0002_print-dimensions",
+      "breakpoints": true
     }
   ]
 }

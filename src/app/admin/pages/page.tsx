@@ -11,7 +11,14 @@ import PrintsBody from "src/app/_components/pages/PrintsBody";
 import SidebarBody, {
   type NavKey,
 } from "src/app/_components/pages/SidebarBody";
-import { Button, cardCls, PageHeader } from "src/app/admin/_components/ui";
+import {
+  Button,
+  cardCls,
+  Field,
+  inputCls,
+  PageHeader,
+} from "src/app/admin/_components/ui";
+import { PRINT_COPY_FIELDS } from "src/lib/content-keys";
 import { groupExhibitions } from "src/lib/exhibitions";
 import { api } from "src/trpc/react";
 
@@ -23,6 +30,7 @@ const TABS: { key: NavKey; label: string }[] = [
   { key: "exhibitions", label: "Exhibitions" },
 ];
 
+/** Edits shared page copy with drafts preserved across tabs until saved or discarded. */
 export default function AdminPagesEditor() {
   const utils = api.useUtils();
   const content = api.content.list.useQuery();
@@ -132,7 +140,8 @@ export default function AdminPagesEditor() {
       image: p.image,
       imageWidth: p.imageWidth,
       imageHeight: p.imageHeight,
-      spec: p.spec,
+      imageWidthInches: p.imageWidthInches,
+      imageHeightInches: p.imageHeightInches,
       edition: p.edition,
       priceCents: p.priceCents,
       remaining: p.remaining,
@@ -205,6 +214,31 @@ export default function AdminPagesEditor() {
       </div>
 
       <EditProvider value={edit}>
+        {tab === "prints" && (
+          <section className={`${cardCls} mb-6 p-6`}>
+            <h2 className="text-[24px]">Print details & order confirmation</h2>
+            <p className="text-stone mt-2 mb-6 text-[14px]">
+              This copy is shared by all prints. Use Save above to publish
+              changes. Edit each print’s image, size and price under Prints.
+              Border wording does not change the 2-inch border used to calculate
+              paper sizes; edition wording does not change inventory limits.
+            </p>
+            <div className="grid gap-5 md:grid-cols-2">
+              {PRINT_COPY_FIELDS.map((field) => (
+                <Field key={`${resetKey}:${field.key}`} label={field.label}>
+                  <textarea
+                    className={inputCls}
+                    rows={field.multiline ? 3 : 1}
+                    defaultValue={edit.getInitial(field.key, field.default)}
+                    onChange={(event) =>
+                      edit.setDraft(field.key, event.target.value)
+                    }
+                  />
+                </Field>
+              ))}
+            </div>
+          </section>
+        )}
         <div
           className={`cms-preview overflow-auto ${cardCls}`}
           title="Not editable here — artwork, prints and exhibition entries are managed in their own admin sections."

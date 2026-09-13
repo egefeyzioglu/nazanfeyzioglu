@@ -16,7 +16,167 @@ export type ContentField = {
   default: string;
 };
 
+/** Shared print copy, editable from Admin → Pages → Prints. */
+export const PRINT_COPY_FIELDS: ContentField[] = [
+  {
+    key: "prints.modal.lowStock",
+    label: "Low-stock message (use {remaining} for the number of copies)",
+    group: "Prints",
+    default: "Only {remaining} left",
+  },
+  {
+    key: "prints.details.heading",
+    label: "Print type",
+    group: "Prints",
+    default: "Fine Art Giclée Print",
+  },
+  {
+    key: "prints.details.paperLabel",
+    label: "Paper label",
+    group: "Prints",
+    default: "Paper:",
+  },
+  {
+    key: "prints.details.paper",
+    label: "Paper",
+    group: "Prints",
+    default: "Epson Hot Press Bright White",
+  },
+  {
+    key: "prints.details.editionLabel",
+    label: "Edition label",
+    group: "Prints",
+    default: "Edition:",
+  },
+  {
+    key: "prints.details.imageSizeLabel",
+    label: "Image size label",
+    group: "Prints",
+    default: "Image Size:",
+  },
+  {
+    key: "prints.details.paperSizeLabel",
+    label: "Overall paper size label",
+    group: "Prints",
+    default: "Overall Paper Size:",
+  },
+  {
+    key: "prints.details.unknownSize",
+    label: "Unknown size text",
+    group: "Prints",
+    default: "To be confirmed",
+  },
+  {
+    key: "prints.details.borderLabel",
+    label: "Border label",
+    group: "Prints",
+    default: "White Border:",
+  },
+  {
+    key: "prints.details.border",
+    label: "Border description",
+    group: "Prints",
+    default: "2 in on all sides",
+  },
+  {
+    key: "prints.details.signed",
+    label: "Signature",
+    group: "Prints",
+    default: "Hand-signed by the artist",
+  },
+  {
+    key: "prints.details.numbered",
+    label: "Numbering",
+    group: "Prints",
+    default: "Individually numbered",
+  },
+  {
+    key: "prints.details.certificate",
+    label: "Authenticity",
+    group: "Prints",
+    default: "Certificate of Authenticity included",
+  },
+  {
+    key: "prints.details.framing",
+    label: "Framing",
+    group: "Prints",
+    default: "Unframed",
+  },
+  {
+    key: "prints.details.sizeExplanation",
+    label: "Size explanation",
+    group: "Prints",
+    default:
+      "Image Size is the size of the printed artwork. Overall Paper Size includes the 2-inch white border on all sides.",
+    multiline: true,
+  },
+  {
+    key: "prints.modal.eyebrow",
+    label: "Modal eyebrow",
+    group: "Prints",
+    default: "Fine art prints",
+  },
+  {
+    key: "prints.modal.priceOnRequest",
+    label: "Unknown price text",
+    group: "Prints",
+    default: "Price on request",
+  },
+  {
+    key: "prints.modal.addToCart",
+    label: "Purchase button",
+    group: "Prints",
+    default: "Add to cart",
+  },
+  {
+    key: "prints.modal.checkoutNote",
+    label: "Checkout note",
+    group: "Prints",
+    default: "Continue to secure checkout",
+  },
+  {
+    key: "prints.modal.inquire",
+    label: "Inquiry button",
+    group: "Prints",
+    default: "Inquire about this print",
+  },
+  {
+    key: "prints.modal.viewDetails",
+    label: "Details button",
+    group: "Prints",
+    default: "View details",
+  },
+  {
+    key: "prints.modal.close",
+    label: "Close button accessible label",
+    group: "Prints",
+    default: "Close print details",
+  },
+  {
+    key: "prints.modal.soldOut",
+    label: "Sold-out text",
+    group: "Prints",
+    default: "Sold out",
+  },
+  {
+    key: "prints.confirmation.received",
+    label: "Order preparation message",
+    group: "Prints",
+    default:
+      "Your order has been received. Please allow 3–7 business days for your print to be prepared for shipping.",
+    multiline: true,
+  },
+  {
+    key: "prints.confirmation.shipping",
+    label: "Shipping transit clarification",
+    group: "Prints",
+    default: "This preparation time does not include shipping transit time.",
+    multiline: true,
+  },
+];
+
 export const CONTENT_FIELDS: ContentField[] = [
+  ...PRINT_COPY_FIELDS,
   {
     key: "home.eyebrow",
     label: "Home rail eyebrow",
@@ -112,7 +272,7 @@ export const CONTENT_FIELDS: ContentField[] = [
     group: "Prints",
     multiline: true,
     default:
-      "Archival giclée prints of selected paintings, grouped by series. Each is signed and numbered. Paper, sizes and pricing are being finalised.",
+      "Archival giclée prints of selected paintings, grouped by series. Each is signed and numbered. Each print includes a Certificate of Authenticity and is supplied unframed.",
   },
   {
     key: "exhibitions.heading",

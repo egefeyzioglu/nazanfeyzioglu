@@ -21,8 +21,13 @@ import {
   formatPrice,
 } from "src/lib/orders";
 import { api } from "src/trpc/react";
+import {
+  formatPrintSpec,
+  getPrintSizes,
+  type PrintDimensions,
+} from "src/lib/prints";
 
-type PrintRow = {
+type PrintRow = PrintDimensions & {
   id: number;
   title: string;
   image: string;
@@ -34,8 +39,9 @@ type PrintRow = {
   editionSize: number | null;
 };
 
-type PrintFormValues = Omit<PrintRow, "id">;
+type PrintFormValues = Omit<PrintRow, "id" | "spec">;
 
+/** Manages print records and their order within each series. */
 export default function AdminPrintsPage() {
   const utils = api.useUtils();
   const invalidate = () => utils.prints.list.invalidate();
@@ -160,6 +166,7 @@ export default function AdminPrintsPage() {
   );
 }
 
+/** Creates or updates a print's artwork, image dimensions, pricing and edition data. */
 function PrintForm({
   initial,
   onSubmit,
@@ -174,7 +181,17 @@ function PrintForm({
   submitLabel: string;
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [spec, setSpec] = useState(initial?.spec ?? "");
+  const [width, setWidth] = useState(
+    initial?.imageWidthInches?.toString() ?? "",
+  );
+  const [height, setHeight] = useState(
+    initial?.imageHeightInches?.toString() ?? "",
+  );
+  const dimensions = {
+    imageWidthInches: width.trim() === "" ? null : Number(width),
+    imageHeightInches: height.trim() === "" ? null : Number(height),
+  };
+  const sizes = getPrintSizes(dimensions);
   const [edition, setEdition] = useState(initial?.edition ?? "");
   const [price, setPrice] = useState(centsToDollarsString(initial?.priceCents));
   const [editionSize, setEditionSize] = useState(
@@ -203,7 +220,7 @@ function PrintForm({
           image: image.image,
           imageWidth: image.width,
           imageHeight: image.height,
-          spec,
+          ...dimensions,
           edition,
           priceCents: dollarsStringToCents(price),
           editionSize:
@@ -220,13 +237,28 @@ function PrintForm({
             onChange={(e) => setTitle(e.target.value)}
           />
         </Field>
-        <Field label="Spec">
+        <Field label="Image width (inches, excluding the border)">
           <input
+            type="number"
+            min="0.000001"
+            step="any"
             className={inputCls}
-            value={spec}
-            required
-            placeholder="Giclée print · 24 × 36 in"
-            onChange={(e) => setSpec(e.target.value)}
+            value={width}
+            required={height.trim() !== ""}
+            placeholder="24"
+            onChange={(e) => setWidth(e.target.value)}
+          />
+        </Field>
+        <Field label="Image height (inches, excluding the border)">
+          <input
+            type="number"
+            min="0.000001"
+            step="any"
+            className={inputCls}
+            value={height}
+            required={width.trim() !== ""}
+            placeholder="36"
+            onChange={(e) => setHeight(e.target.value)}
           />
         </Field>
         <Field label="Edition">
@@ -259,7 +291,18 @@ function PrintForm({
           />
         </Field>
       </div>
+      <p className="text-stone text-[14px]" aria-live="polite">
+        {formatPrintSpec(dimensions)}. Overall paper size:{" "}
+        {sizes?.paper ?? "To be confirmed"}. Includes a 2-inch white border on
+        all sides. Leave both dimensions blank if unknown.
+      </p>
       <ImageField label="Print image" value={image} onChange={setImage} />
+      {initial?.imageWidthInches === null &&
+        initial.imageHeightInches === null && (
+          <p className="text-stone text-[14px]">
+            Previous specification (for reference): {initial.spec}
+          </p>
+        )}
       {error && <p className="font-mono text-[11px] text-red-700">{error}</p>}
       <div>
         <Button type="submit" disabled={pending || !image}>
@@ -270,6 +313,7 @@ function PrintForm({
   );
 }
 
+/** Displays a print summary with an expandable editor for its physical dimensions and sale data. */
 function PrintCard({
   print,
   onSave,
@@ -296,7 +340,7 @@ function PrintCard({
         </div>
       }
       title={print.title}
-      subtitle={`${print.spec} · ${print.edition} · ${
+      subtitle={`${formatPrintSpec(print)} · ${print.edition} · ${
         print.priceCents === null ? "$ —" : formatPrice(print.priceCents)
       }${print.editionSize !== null ? ` · limit ${print.editionSize}` : ""}`}
       controls={controls}
