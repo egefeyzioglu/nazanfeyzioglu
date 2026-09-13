@@ -56,6 +56,16 @@ Print shipping is a flat **30 CAD per checkout within Canada**, regardless of qu
 
 Prices are set per print (and per digital edition on a work) in the admin panel; items without a price show no buy button. A print's optional **edition size** caps how many copies can be sold — if two buyers race past the check, the later order is flagged **oversold** in `/admin/orders` for a manual refund. Fulfillment (shipping a print, emailing a digital file) is tracked in `/admin/orders`; money — receipts, refunds, payouts — is managed in the Stripe Dashboard.
 
+### Order emails (Resend)
+
+When the webhook records a paid order it sends two emails through [Resend](https://resend.com): an **order confirmation** to the buyer (item, total, shipping address, and the print preparation copy from **Admin → Pages → Prints**) and a **new-order notification** to the seller (customer details, ship-to address, a link to `/admin/orders`, and an **OVERSOLD** flag when a refund is needed). Until Resend is configured, orders are still recorded but nothing is emailed.
+
+1. Verify your sending domain in Resend (**Domains → Add domain**) and create an API key; put it in `.env` as `RESEND_API_KEY`.
+2. Set `ORDER_EMAIL_FROM` to a sender on that domain, e.g. `Nazan Feyzioğlu <orders@example.com>`. Both values are required for any email to go out.
+3. Optionally set `ORDER_NOTIFICATION_EMAIL` for the seller notification; otherwise it goes to the Contact page email edited in the admin panel. Replies to the buyer's confirmation also go to this address.
+
+Emails are sent after the order transaction commits, and delivery failures are logged rather than failing the webhook, so a Stripe retry never duplicates an order. Each message carries a Resend idempotency key derived from the checkout session, so a retried delivery cannot send the same email twice either.
+
 ### Original sales
 
 Run `pnpm db:migrate` before deploying the original checkout changes. Migration `0003_original-orders` adds a numeric original price, a manual availability flag, and the original order type. Existing display prices are preserved; no artwork is automatically made purchasable. This migration follows `0002_print-dimensions` from PR #11 and also supports previews where the earlier `0002_original-orders` migration was already applied.
@@ -85,6 +95,7 @@ Enter both dimensions or leave both blank when the size is not yet confirmed.
 - `src/server/api/` — tRPC routers (admin-gated CRUD + reordering, orders)
 - `src/server/queries.ts` — read-side queries used by the public pages
 - `src/server/stripe.ts` / `src/server/orders.ts` — Stripe client and edition-availability helpers
+- `src/server/email.ts` — Resend client and the order confirmation / seller notification emails
 - `src/app/api/checkout/` and `src/app/api/stripe/webhook/` — checkout-session creation and the order-recording webhook
 - `src/lib/content-keys.ts` — the editable page-text fields and their defaults
 - `src/app/_components/pages/` — page bodies shared by the public pages and the in-place editor

@@ -70,9 +70,9 @@ export default async function CheckoutSuccessPage({
           <p className="mt-4">
             {paid
               ? email
-                ? `A receipt has been sent to ${email}.`
-                : "A receipt has been sent to your email address."
-              : "You'll receive a receipt by email once the payment settles."}
+                ? `An order confirmation has been sent to ${email}.`
+                : "An order confirmation has been sent to your email address."
+              : "You'll receive an order confirmation by email once the payment settles."}
           </p>
         </div>
         <Link
