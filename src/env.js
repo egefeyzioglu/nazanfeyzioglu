@@ -51,6 +51,24 @@ export const env = createEnv({
      * on both production and preview deployments.
      */
     VERCEL_URL: z.string().optional(),
+    /**
+     * Resend API key (re_…) for order emails: a confirmation to the buyer
+     * and a new-order notification to the seller. Optional so the site works
+     * before Resend is configured — orders are still recorded, just not
+     * emailed.
+     */
+    RESEND_API_KEY: z.string().optional(),
+    /**
+     * Sender for order emails, on a domain verified in Resend, e.g.
+     * "Nazan Feyzioğlu <orders@example.com>". Required alongside
+     * RESEND_API_KEY for any email to be sent.
+     */
+    ORDER_EMAIL_FROM: z.string().optional(),
+    /**
+     * Where new-order notifications go. Falls back to the Contact page email
+     * edited in the admin panel.
+     */
+    ORDER_NOTIFICATION_EMAIL: z.string().email().optional(),
   },
 
   /**
@@ -77,6 +95,9 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     SITE_URL: process.env.SITE_URL,
     VERCEL_URL: process.env.VERCEL_URL,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    ORDER_EMAIL_FROM: process.env.ORDER_EMAIL_FROM,
+    ORDER_NOTIFICATION_EMAIL: process.env.ORDER_NOTIFICATION_EMAIL,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },

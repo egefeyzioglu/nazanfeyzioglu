@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
 import { env } from "src/env";
+import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 import { type OrderItemType } from "src/lib/orders";
 import {
   captureServerEvent,
@@ -10,6 +11,8 @@ import {
 } from "src/lib/posthog-server";
 import { db } from "src/server/db";
 import { orders, prints, works } from "src/server/db/schema";
+import { sendOrderEmails } from "src/server/email";
+import { getContent } from "src/server/queries";
 import { getStripe, stripeConfigured } from "src/server/stripe";
 
 /**
@@ -120,34 +123,38 @@ async function recordPaidCheckout(sessionId: string) {
   const quantity = lineItem?.quantity ?? 1;
   const item = await loadItem(itemType, itemId);
 
-  await db.transaction(async (tx) => {
+  const values = {
+    stripeCheckoutSessionId: session.id,
+    stripePaymentIntentId:
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null),
+    itemType,
+    printId: itemType === "print" ? item?.id : null,
+    workId: itemType !== "print" ? item?.id : null,
+    itemTitle: item?.title ?? lineItem?.description ?? "Unknown item",
+    quantity,
+    unitAmount:
+      lineItem?.price?.unit_amount ??
+      Math.round((session.amount_subtotal ?? 0) / quantity),
+    amountTotal: session.amount_total ?? 0,
+    currency: session.currency ?? "cad",
+    customerEmail: session.customer_details?.email ?? null,
+    customerName: session.customer_details?.name ?? null,
+    shippingAddress: session.collected_information?.shipping_details ?? null,
+  } satisfies typeof orders.$inferInsert;
+
+  // Resolved once the order row is committed, so the emails below can never
+  // announce an order that was rolled back.
+  const recorded = await db.transaction(async (tx) => {
     const inserted = await tx
       .insert(orders)
-      .values({
-        stripeCheckoutSessionId: session.id,
-        stripePaymentIntentId:
-          typeof session.payment_intent === "string"
-            ? session.payment_intent
-            : (session.payment_intent?.id ?? null),
-        itemType,
-        printId: itemType === "print" ? item?.id : null,
-        workId: itemType !== "print" ? item?.id : null,
-        itemTitle: item?.title ?? lineItem?.description ?? "Unknown item",
-        quantity,
-        unitAmount:
-          lineItem?.price?.unit_amount ??
-          Math.round((session.amount_subtotal ?? 0) / quantity),
-        amountTotal: session.amount_total ?? 0,
-        currency: session.currency ?? "cad",
-        customerEmail: session.customer_details?.email ?? null,
-        customerName: session.customer_details?.name ?? null,
-        shippingAddress:
-          session.collected_information?.shipping_details ?? null,
-      })
+      .values(values)
       .onConflictDoNothing({ target: orders.stripeCheckoutSessionId })
       .returning({ id: orders.id });
     const orderId = inserted[0]?.id;
-    if (orderId === undefined) return; // already recorded
+    if (orderId === undefined) return null; // already recorded
+    let oversold = false;
 
     // The availability check at session creation can be raced by a concurrent
     // buyer; detect it here and flag the order for a manual refund.
@@ -176,12 +183,14 @@ async function recordPaidCheckout(sessionId: string) {
           ),
         );
       if ((row?.sold ?? 0) > item.editionSize) {
+        oversold = true;
         await tx
           .update(orders)
           .set({ fulfillmentStatus: "oversold" })
           .where(eq(orders.id, orderId));
       }
     }
+    return { orderId, oversold };
   });
 
   const distinctId =
@@ -197,6 +206,29 @@ async function recordPaidCheckout(sessionId: string) {
       $session_id: session.metadata.posthogSessionId,
     }),
   });
+
+  if (!recorded) return;
+
+  // Delivery failures are logged inside sendOrderEmails rather than thrown:
+  // the order is committed, and a non-2xx here would make Stripe retry a
+  // delivery that can no longer insert anything.
+  const content = await getContent().catch(() => CONTENT_DEFAULTS);
+  await sendOrderEmails(
+    {
+      orderId: recorded.orderId,
+      stripeCheckoutSessionId: values.stripeCheckoutSessionId,
+      itemType,
+      itemTitle: values.itemTitle,
+      quantity,
+      unitAmount: values.unitAmount,
+      amountTotal: values.amountTotal,
+      customerEmail: values.customerEmail,
+      customerName: values.customerName,
+      shippingAddress: values.shippingAddress,
+      oversold: recorded.oversold,
+    },
+    content,
+  );
 }
 
 async function loadItem(itemType: OrderItemType, id: number) {
