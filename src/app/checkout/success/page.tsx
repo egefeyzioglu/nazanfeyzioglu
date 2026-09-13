@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import SidebarBody from "src/app/_components/pages/SidebarBody";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 import { formatPrice } from "src/lib/orders";
+import { emailConfigured } from "src/server/email";
 import { getStripe, stripeConfigured } from "src/server/stripe";
 import { getContent } from "src/server/queries";
 
@@ -67,13 +68,18 @@ export default async function CheckoutSuccessPage({
               {paid ? " is confirmed." : " is still being processed."}
             </p>
           )}
-          <p className="mt-4">
-            {paid
-              ? email
-                ? `An order confirmation has been sent to ${email}.`
-                : "An order confirmation has been sent to your email address."
-              : "You'll receive an order confirmation by email once the payment settles."}
-          </p>
+          {emailConfigured() && (
+            // The confirmation is sent by the Stripe webhook, which may not
+            // have run yet when this page renders — so promise it, don't
+            // claim it already happened.
+            <p className="mt-4">
+              {paid
+                ? email
+                  ? `An order confirmation will be emailed to ${email} shortly.`
+                  : "An order confirmation will be emailed to you shortly."
+                : "You'll receive an order confirmation by email once the payment settles."}
+            </p>
+          )}
         </div>
         <Link
           href="/"
