@@ -62,7 +62,7 @@ export default function PrintsBody({
 
       <p className="text-mute mt-4 text-[14px] leading-[1.6]">
         Flat rate shipping within Canada: {formatPrice(PRINT_SHIPPING_CENTS)}{" "}
-        per print order. Free shipping on originals.
+        per print order. Free shipping on originals within Canada.
       </p>
 
       {groups.map((group) => (
