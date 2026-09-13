@@ -99,21 +99,30 @@ function summarizeError(error: unknown): {
   if (!(error instanceof Error)) {
     return { name: "NonError", message: "Non-error value thrown" };
   }
-  const name = error.name || error.constructor.name || "Error";
-  const code = readStringField(error, "code") ?? readStringField(error, "type");
-  const status = readNumberField(error, "statusCode");
-  const parts = [name];
+  // Only identifier-shaped values are forwarded (class names such as
+  // TRPCError, enum codes such as NOT_FOUND, Stripe types such as card_error,
+  // Postgres SQLSTATEs). Anything else collapses to a fixed fallback so
+  // request-derived strings can never reach PostHog.
+  const name = identifier(error.name) ?? identifier(error.constructor.name);
+  const code =
+    identifier(readField(error, "code")) ?? identifier(readField(error, "type"));
+  const status = readField(error, "statusCode");
+  const parts = [name ?? "Error"];
   if (code) parts.push(code);
-  if (status !== undefined) parts.push(`HTTP ${status}`);
-  return { name, code, message: parts.join(" · ") };
+  if (typeof status === "number" && Number.isInteger(status)) {
+    parts.push(`HTTP ${status}`);
+  }
+  return { name: name ?? "Error", code, message: parts.join(" · ") };
 }
 
-function readStringField(obj: object, key: string): string | undefined {
-  const value = (obj as Record<string, unknown>)[key];
-  return typeof value === "string" && value.length <= 64 ? value : undefined;
+const IDENTIFIER = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
+
+function identifier(value: unknown): string | undefined {
+  return typeof value === "string" && IDENTIFIER.test(value)
+    ? value
+    : undefined;
 }
 
-function readNumberField(obj: object, key: string): number | undefined {
-  const value = (obj as Record<string, unknown>)[key];
-  return typeof value === "number" ? value : undefined;
+function readField(obj: object, key: string): unknown {
+  return (obj as Record<string, unknown>)[key];
 }
