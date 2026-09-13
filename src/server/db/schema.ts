@@ -206,12 +206,14 @@ export const orders = createTable(
       .notNull()
       .default("pending"),
     /**
-     * When the buyer confirmation and seller notification were both handed
-     * to Resend. Null means delivery is still owed: a webhook retry for an
-     * already-recorded session sends them then (a crash between committing
-     * the row and sending would otherwise lose them for good).
+     * When each order email was settled: accepted by Resend, or found to have
+     * no recipient. Null means it is still owed, and the webhook sends it on
+     * the next delivery of the Stripe event (the handler answers non-2xx
+     * while anything is owed, so Stripe keeps retrying). Tracked per message
+     * so a retry never resends one that already went out.
      */
-    emailsSentAt: d.timestamp({ withTimezone: true }),
+    confirmationEmailSentAt: d.timestamp({ withTimezone: true }),
+    notificationEmailSentAt: d.timestamp({ withTimezone: true }),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),

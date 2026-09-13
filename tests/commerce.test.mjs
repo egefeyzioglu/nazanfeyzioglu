@@ -81,7 +81,8 @@ function setup() {
       "customerName",
       "shippingAddress",
       "fulfillmentStatus",
-      "emailsSentAt",
+      "confirmationEmailSentAt",
+      "notificationEmailSentAt",
     ]),
     works: fields(["id", "title"]),
     prints: fields(["id", "title", "editionSize"]),
@@ -90,6 +91,10 @@ function setup() {
     eq: (key, value) => (row) => row[key] === value,
     ne: (key, value) => (row) => row[key] !== value,
     isNull: (key) => (row) => row[key] == null,
+    or:
+      (...conditions) =>
+      (row) =>
+        conditions.some((condition) => condition(row)),
     inArray: (key, values) => (row) => values.includes(row[key]),
     and:
       (...conditions) =>
@@ -475,7 +480,8 @@ test("a paid order emails the buyer a confirmation and the seller a notification
   assert.match(notification.text, /Customer: Buyer — buyer@example.com/);
   assert.match(notification.text, /https:\/\/example\.com\/admin\/orders/);
   assert.doesNotMatch(notification.text, /OVERSOLD/);
-  assert.ok(app.state.rows[0].emailsSentAt !== undefined);
+  assert.ok(app.state.rows[0].confirmationEmailSentAt !== undefined);
+  assert.ok(app.state.rows[0].notificationEmailSentAt !== undefined);
 });
 
 test("a webhook retry delivers emails still owed to an already-recorded order", async () => {
@@ -483,14 +489,16 @@ test("a webhook retry delivers emails still owed to an already-recorded order", 
   // anything: the row exists with no emailsSentAt.
   const crashed = setup();
   crashed.state.emailFailure = new Error("process died");
-  await crashed.pay("original");
-  assert.equal(crashed.state.rows[0].emailsSentAt, undefined);
+  assert.equal((await crashed.pay("original")).status, 500);
+  assert.equal(crashed.state.rows[0].confirmationEmailSentAt, undefined);
+  assert.equal(crashed.state.rows[0].notificationEmailSentAt, undefined);
   crashed.state.emailFailure = null;
-  await crashed.pay("original"); // Stripe retry of the same session
+  assert.equal((await crashed.pay("original")).status, 200); // Stripe retry
   assert.equal(crashed.state.rows.length, 1);
   assert.equal(crashed.state.emails.length, 2);
   assert.equal(crashed.state.emails[0].to, "buyer@example.com");
-  assert.ok(crashed.state.rows[0].emailsSentAt !== undefined);
+  assert.ok(crashed.state.rows[0].confirmationEmailSentAt !== undefined);
+  assert.ok(crashed.state.rows[0].notificationEmailSentAt !== undefined);
   await crashed.pay("original"); // a further retry sends nothing more
   assert.equal(crashed.state.emails.length, 2);
 
@@ -507,16 +515,19 @@ test("a webhook retry delivers emails still owed to an already-recorded order", 
   assert.match(oversold.state.emails[1].subject, /^OVERSOLD/);
   assert.match(oversold.state.emails[0].text, /sold out moments before/);
 
-  // Partial acceptance is not delivery: one rejected send keeps it owed.
+  // One rejected message keeps only that message owed: the retry resends
+  // the seller notification without repeating the buyer confirmation.
   const partial = setup();
   partial.state.rejectTo = "nazanfeyzioglu@yahoo.com";
-  await partial.pay("original");
+  assert.equal((await partial.pay("original")).status, 500);
   assert.equal(partial.state.emails.length, 1);
-  assert.equal(partial.state.rows[0].emailsSentAt, undefined);
+  assert.ok(partial.state.rows[0].confirmationEmailSentAt !== undefined);
+  assert.equal(partial.state.rows[0].notificationEmailSentAt, undefined);
   partial.state.rejectTo = null;
-  await partial.pay("original");
-  assert.equal(partial.state.emails.length, 3);
-  assert.ok(partial.state.rows[0].emailsSentAt !== undefined);
+  assert.equal((await partial.pay("original")).status, 200);
+  assert.equal(partial.state.emails.length, 2);
+  assert.equal(partial.state.emails[1].to, "nazanfeyzioglu@yahoo.com");
+  assert.ok(partial.state.rows[0].notificationEmailSentAt !== undefined);
 });
 
 test("print confirmations carry the CMS preparation copy; oversold orders warn the seller", async () => {
@@ -543,10 +554,10 @@ test("print confirmations carry the CMS preparation copy; oversold orders warn t
   assert.match(app.state.emails[5].text, /Refund it in the Stripe Dashboard/);
 });
 
-test("email failures and missing configuration never fail the webhook", async () => {
+test("failed delivery records the order but asks Stripe to retry; unconfigured email acks", async () => {
   const thrown = setup();
   thrown.state.emailFailure = new Error("network down");
-  assert.equal((await thrown.pay("original")).status, 200);
+  assert.equal((await thrown.pay("original")).status, 500);
   assert.equal(thrown.state.rows.length, 1);
 
   const rejected = setup();
@@ -555,7 +566,8 @@ test("email failures and missing configuration never fail the webhook", async ()
     message: "bad from",
     statusCode: 422,
   };
-  assert.equal((await rejected.pay("original")).status, 200);
+  assert.equal((await rejected.pay("original")).status, 500);
+  assert.equal(rejected.state.rows.length, 1);
 
   const unconfigured = setup();
   unconfigured.env.RESEND_API_KEY = undefined;
@@ -565,10 +577,13 @@ test("email failures and missing configuration never fail the webhook", async ()
 
   // Session without a customer email: the seller is still notified.
   const anonymous = setup();
-  await anonymous.pay("original", "cs_anon", {
+  const anonymousResponse = await anonymous.pay("original", "cs_anon", {
     customer_details: { email: null, name: null },
   });
+  assert.equal(anonymousResponse.status, 200);
   assert.equal(anonymous.state.emails.length, 1);
+  // Nothing can ever be sent to the buyer, so that side is settled at once.
+  assert.ok(anonymous.state.rows[0].confirmationEmailSentAt !== undefined);
   assert.equal(anonymous.state.emails[0].to, "nazanfeyzioglu@yahoo.com");
   assert.equal(anonymous.state.emails[0].replyTo, undefined);
   assert.match(anonymous.state.emails[0].text, /Customer: unknown/);

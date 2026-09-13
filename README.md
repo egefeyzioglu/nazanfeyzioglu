@@ -64,11 +64,11 @@ When the webhook records a paid order it sends two emails through [Resend](https
 2. Set `ORDER_EMAIL_FROM` to a sender on that domain, e.g. `Nazan Feyzioğlu <orders@example.com>`. Both values are required for any email to go out.
 3. Optionally set `ORDER_NOTIFICATION_EMAIL` for the seller notification; otherwise it goes to the Contact page email edited in the admin panel. Replies to the buyer's confirmation also go to this address.
 
-Emails are sent after the order transaction commits, and delivery failures are logged rather than failing the webhook, so a Stripe retry never duplicates an order. Each message carries a Resend idempotency key derived from the checkout session, so a retried delivery cannot send the same email twice either. Once both messages are accepted by Resend the order's `emailsSentAt` is set; if the function dies before that (or Resend rejects a message), a later delivery of the same Stripe event sends whatever is still owed from the stored order snapshot.
+Emails are sent after the order transaction commits, so a Stripe retry never duplicates an order. Each message is tracked on the order (`confirmationEmailSentAt`, `notificationEmailSentAt`) and marked settled once Resend accepts it. If a message cannot be handed to Resend, the webhook still keeps the order but answers with a non-2xx status so Stripe redelivers the event with backoff; the retry rebuilds the emails from the stored order snapshot and sends only what is still owed. The same path covers a crash between the commit and the send. Each message also carries a Resend idempotency key derived from the checkout session as a second guard against duplicates. When Resend is not configured, nothing is owed and the webhook acks normally.
 
 When a paid order turns out to be **oversold**, the buyer's email says the item sold out moments before payment completed and that a full refund is coming, rather than confirming the order; the seller's notification carries the refund instruction.
 
-Run `pnpm db:migrate` before deploying: migration `0004_order-emails` adds the nullable `emailsSentAt` column to orders.
+Run `pnpm db:migrate` before deploying: migration `0004_order-emails` adds the nullable `confirmationEmailSentAt` and `notificationEmailSentAt` columns to orders.
 
 ### Original sales
 

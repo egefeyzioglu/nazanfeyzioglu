@@ -46,59 +46,69 @@ export type OrderEmailData = {
   oversold: boolean;
 };
 
+/** The two messages sent for an order, tracked separately. */
+export type OrderEmailKind = "confirmation" | "notification";
+
 /**
- * Sends the customer's order confirmation and the seller's new-order
- * notification for a recorded order. Never throws: the order is already
- * committed and the Stripe webhook must still be acknowledged, so delivery
- * failures are logged instead. Each message carries an idempotency key derived
- * from the checkout session so a retried webhook cannot send duplicates.
+ * Sends whichever of the customer's order confirmation and the seller's
+ * new-order notification are still owed for a recorded order. Never throws:
+ * the order is already committed, so delivery failures are logged instead.
+ * Each message carries an idempotency key derived from the checkout session,
+ * so a retried webhook cannot send duplicates.
  *
- * Resolves true once every applicable message was accepted by Resend, so the
- * caller can record delivery; false (including when email is not configured)
- * leaves the order owed its emails.
+ * Resolves, per message, whether it is now settled: accepted by Resend, not
+ * owed, or impossible to send (no recipient). False means it is still owed
+ * (delivery failed, or email is not configured) and the caller should keep
+ * it pending.
  */
 export async function sendOrderEmails(
   order: OrderEmailData,
   content: Record<string, string>,
-): Promise<boolean> {
-  if (!emailConfigured()) return false;
+  owed: Record<OrderEmailKind, boolean>,
+): Promise<Record<OrderEmailKind, boolean>> {
+  if (!emailConfigured()) return { confirmation: false, notification: false };
 
   const sellerEmail = env.ORDER_NOTIFICATION_EMAIL ?? content["contact.email"];
-  const sends: Array<Promise<boolean>> = [];
 
-  if (order.customerEmail) {
-    sends.push(
-      deliver("confirmation", order, {
-        to: order.customerEmail,
-        ...(sellerEmail && { replyTo: sellerEmail }),
-        subject: order.oversold
-          ? `About your order — ${describeItem(order)}`
-          : `Order confirmation — ${describeItem(order)}`,
-        ...renderCustomerEmail(order, content),
-      }),
-    );
-  } else {
-    console.warn(
-      `Order ${order.orderId} has no customer email; skipping confirmation`,
-    );
-  }
+  const confirmation = async (): Promise<boolean> => {
+    if (!owed.confirmation) return true;
+    if (!order.customerEmail) {
+      console.warn(
+        `Order ${order.orderId} has no customer email; skipping confirmation`,
+      );
+      return true;
+    }
+    return deliver("confirmation", order, {
+      to: order.customerEmail,
+      ...(sellerEmail && { replyTo: sellerEmail }),
+      subject: order.oversold
+        ? `About your order — ${describeItem(order)}`
+        : `Order confirmation — ${describeItem(order)}`,
+      ...renderCustomerEmail(order, content),
+    });
+  };
 
-  if (sellerEmail) {
-    sends.push(
-      deliver("notification", order, {
-        to: sellerEmail,
-        ...(order.customerEmail && { replyTo: order.customerEmail }),
-        subject: `${order.oversold ? "OVERSOLD — " : ""}New order #${order.orderId}: ${describeItem(order)}`,
-        ...renderSellerEmail(order),
-      }),
-    );
-  } else {
-    console.warn(
-      `No seller email configured (ORDER_NOTIFICATION_EMAIL or contact.email); skipping notification for order ${order.orderId}`,
-    );
-  }
+  const notification = async (): Promise<boolean> => {
+    if (!owed.notification) return true;
+    if (!sellerEmail) {
+      console.warn(
+        `No seller email configured (ORDER_NOTIFICATION_EMAIL or contact.email); skipping notification for order ${order.orderId}`,
+      );
+      return true;
+    }
+    return deliver("notification", order, {
+      to: sellerEmail,
+      ...(order.customerEmail && { replyTo: order.customerEmail }),
+      subject: `${order.oversold ? "OVERSOLD — " : ""}New order #${order.orderId}: ${describeItem(order)}`,
+      ...renderSellerEmail(order),
+    });
+  };
 
-  return (await Promise.all(sends)).every(Boolean);
+  const [confirmed, notified] = await Promise.all([
+    confirmation(),
+    notification(),
+  ]);
+  return { confirmation: confirmed, notification: notified };
 }
 
 type Message = {
@@ -110,7 +120,7 @@ type Message = {
 };
 
 async function deliver(
-  kind: "confirmation" | "notification",
+  kind: OrderEmailKind,
   order: OrderEmailData,
   message: Message,
 ): Promise<boolean> {

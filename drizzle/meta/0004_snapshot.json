@@ -1,5 +1,5 @@
 {
-  "id": "1b0395b9-0d69-41f6-8343-bbc6e9e82dbb",
+  "id": "3aeb2b91-8e84-4075-8220-bb5ce4a2919d",
   "prevId": "60e00c6f-8a56-4273-850d-7691127bb453",
   "version": "7",
   "dialect": "postgresql",
@@ -191,8 +191,14 @@
           "notNull": true,
           "default": "'pending'"
         },
-        "emailsSentAt": {
-          "name": "emailsSentAt",
+        "confirmationEmailSentAt": {
+          "name": "confirmationEmailSentAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notificationEmailSentAt": {
+          "name": "notificationEmailSentAt",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
