@@ -30,6 +30,39 @@ dashboard so everything stays native to Vercel:
 3. Deploy. The app connects through `pg` with a shared pool, so it works with
    Neon's PgBouncer endpoint on serverless functions.
 
+### Automated production migrations
+
+`vercel.json` runs `pnpm db:migrate` before `pnpm build` when `VERCEL_ENV`
+is `production`. With `main` configured as Vercel's Production Branch, merging a
+PR into `main` automatically applies pending migrations before publishing the
+new application. A migration failure stops the build. Production redeploys also
+run pending migrations; Drizzle records applied migrations so reruns are safe.
+Preview and local builds only build the app.
+
+This uses the production `DATABASE_URL` already supplied by the Neon-Vercel
+integration, so no GitHub production secret is needed. Keep Vercel's Production
+Branch set to `main` and its production database URL pointed at the Neon
+production branch. Preview database branching continues through the integration.
+See [Neon's build migration guidance](https://neon.com/blog/neon-vercel-native-integration).
+
+`.github/workflows/database-migrations.yml` checks PRs targeting `main` and
+pushes to `main` by applying committed migrations twice to disposable Postgres 16.
+This check uses no Neon credentials. It checks initial setup and safe reruns;
+it does not verify the current production database state or gate Vercel builds.
+
+Commit generated SQL and `drizzle/meta/` together after `pnpm db:generate`.
+The build applies pending migrations using Drizzle's migration journal; it does
+not generate migrations, push the schema, or seed data. Existing databases must
+already have the migration history corresponding to their schema. If a database
+was initialized with `db:push` or manual SQL, reconcile that history before
+merging this automation.
+
+Keep migrations compatible with the currently deployed application, which
+continues serving traffic while the new version builds. Applied migrations are
+not rolled back if the subsequent application build fails. Avoid overlapping
+production builds: Drizzle Kit does not serialize concurrent migration runners.
+After correcting a failed migration, redeploy through Vercel.
+
 ## CMS / admin panel
 
 All site content — series, works, prints, exhibitions, and page text — lives in the database and is edited at `/admin`. Public pages render dynamically, so edits show up immediately.
