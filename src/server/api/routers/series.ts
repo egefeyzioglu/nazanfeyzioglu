@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { captureServerEvent } from "src/lib/posthog-server";
 import {
   adminProcedure,
   createTRPCRouter,
@@ -57,6 +58,10 @@ export const seriesRouter = createTRPCRouter({
         .insert(series)
         .values({ ...input, position: max + 1 })
         .returning();
+      await captureServerEvent(ctx.userId, "series_created", {
+        series_id: row?.id,
+        has_status_note: input.statusNote != null,
+      });
       return row;
     }),
 
@@ -75,6 +80,10 @@ export const seriesRouter = createTRPCRouter({
         .set(values)
         .where(eq(series.id, id))
         .returning();
+      await captureServerEvent(ctx.userId, "series_updated", {
+        series_id: id,
+        has_status_note: input.statusNote != null,
+      });
       return row;
     }),
 
@@ -87,6 +96,9 @@ export const seriesRouter = createTRPCRouter({
         await tx.delete(works).where(eq(works.seriesId, input.id));
         await tx.delete(prints).where(eq(prints.seriesId, input.id));
         await tx.delete(series).where(eq(series.id, input.id));
+      });
+      await captureServerEvent(ctx.userId, "series_deleted", {
+        series_id: input.id,
       });
     }),
 

@@ -1,5 +1,6 @@
 "use client";
 
+import posthog from "posthog-js";
 import { useState, type ReactNode } from "react";
 
 export default function BuyButton({
@@ -29,9 +30,18 @@ export default function BuyButton({
           setError(null);
 
           try {
+            posthog.capture("checkout_started", {
+              item_type: itemType,
+              item_id: id,
+            });
+
             const res = await fetch("/api/checkout", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                "X-POSTHOG-DISTINCT-ID": posthog.get_distinct_id(),
+                "X-POSTHOG-SESSION-ID": posthog.get_session_id(),
+              },
               body: JSON.stringify({ itemType, id, cancelPath }),
             });
             const data = (await res.json()) as {
@@ -47,6 +57,7 @@ export default function BuyButton({
 
             window.location.assign(data.url);
           } catch (err) {
+            posthog.captureException(err);
             setError(
               err instanceof Error
                 ? err.message

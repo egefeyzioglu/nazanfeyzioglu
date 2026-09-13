@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { captureServerEvent } from "src/lib/posthog-server";
 import { adminProcedure, createTRPCRouter } from "src/server/api/trpc";
 import { orders } from "src/server/db/schema";
 
@@ -29,6 +30,11 @@ export const ordersRouter = createTRPCRouter({
         .set({ fulfillmentStatus: input.fulfillmentStatus })
         .where(eq(orders.id, input.id))
         .returning();
+      await captureServerEvent(ctx.userId, "order_fulfillment_updated", {
+        order_id: input.id,
+        fulfillment_status: input.fulfillmentStatus,
+        item_type: row?.itemType,
+      });
       return row;
     }),
 });

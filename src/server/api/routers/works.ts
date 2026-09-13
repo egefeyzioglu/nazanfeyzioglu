@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { captureServerEvent } from "src/lib/posthog-server";
 import {
   adminProcedure,
   createTRPCRouter,
@@ -83,6 +84,12 @@ export const worksRouter = createTRPCRouter({
         .insert(works)
         .values({ ...input, position: max + 1 })
         .returning();
+      await captureServerEvent(ctx.userId, "work_created", {
+        work_id: row?.id,
+        series_id: input.seriesId,
+        is_digital: input.digital,
+        has_digital_price: input.digitalPriceCents != null,
+      });
       return row;
     }),
 
@@ -95,14 +102,24 @@ export const worksRouter = createTRPCRouter({
         .set(values)
         .where(eq(works.id, id))
         .returning();
+      await captureServerEvent(ctx.userId, "work_updated", {
+        work_id: id,
+        series_id: row?.seriesId,
+        is_digital: input.digital,
+        has_digital_price: input.digitalPriceCents != null,
+      });
       return row;
     }),
 
   delete: adminProcedure
     .input(z.object({ id: z.number().int() }))
-    .mutation(({ ctx, input }) =>
-      ctx.db.delete(works).where(eq(works.id, input.id)),
-    ),
+    .mutation(async ({ ctx, input }) => {
+      const result = await ctx.db.delete(works).where(eq(works.id, input.id));
+      await captureServerEvent(ctx.userId, "work_deleted", {
+        work_id: input.id,
+      });
+      return result;
+    }),
 
   reorder: adminProcedure
     .input(z.object({ seriesId: z.number().int(), ids: uniqueIds }))

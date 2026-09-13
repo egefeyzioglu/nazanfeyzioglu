@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { formatPrintSpec } from "src/lib/prints";
 
+import { captureServerEvent } from "src/lib/posthog-server";
 import {
   adminProcedure,
   createTRPCRouter,
@@ -65,6 +66,12 @@ export const printsRouter = createTRPCRouter({
         .insert(prints)
         .values({ ...input, spec: formatPrintSpec(input), position: max + 1 })
         .returning();
+      await captureServerEvent(ctx.userId, "print_created", {
+        print_id: row?.id,
+        series_id: input.seriesId,
+        has_price: input.priceCents != null,
+        has_edition_limit: input.editionSize != null,
+      });
       return row;
     }),
 
@@ -85,14 +92,24 @@ export const printsRouter = createTRPCRouter({
         .set({ ...values, spec: formatPrintSpec(values) })
         .where(eq(prints.id, id))
         .returning();
+      await captureServerEvent(ctx.userId, "print_updated", {
+        print_id: id,
+        series_id: row?.seriesId,
+        has_price: input.priceCents != null,
+        has_edition_limit: input.editionSize != null,
+      });
       return row;
     }),
 
   delete: adminProcedure
     .input(z.object({ id: z.number().int() }))
-    .mutation(({ ctx, input }) =>
-      ctx.db.delete(prints).where(eq(prints.id, input.id)),
-    ),
+    .mutation(async ({ ctx, input }) => {
+      const result = await ctx.db.delete(prints).where(eq(prints.id, input.id));
+      await captureServerEvent(ctx.userId, "print_deleted", {
+        print_id: input.id,
+      });
+      return result;
+    }),
 
   reorder: adminProcedure
     .input(z.object({ seriesId: z.number().int(), ids: uniqueIds }))
