@@ -68,16 +68,15 @@ export default async function CheckoutSuccessPage({
               {paid ? " is confirmed." : " is still being processed."}
             </p>
           )}
-          {emailConfigured() && (
+          {emailConfigured() && email && (
             // The confirmation is sent by the Stripe webhook, which may not
             // have run yet when this page renders — so promise it, don't
-            // claim it already happened.
+            // claim it already happened. Without a customer email the
+            // webhook skips the confirmation, so promise nothing.
             <p className="mt-4">
               {paid
-                ? email
-                  ? `An order confirmation will be emailed to ${email} shortly.`
-                  : "An order confirmation will be emailed to you shortly."
-                : "You'll receive an order confirmation by email once the payment settles."}
+                ? `An order confirmation will be emailed to ${email} shortly.`
+                : `An order confirmation will be emailed to ${email} once the payment settles.`}
             </p>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
@@ -11,7 +11,7 @@ import {
 } from "src/lib/posthog-server";
 import { db } from "src/server/db";
 import { orders, prints, works } from "src/server/db/schema";
-import { sendOrderEmails } from "src/server/email";
+import { type OrderEmailData, sendOrderEmails } from "src/server/email";
 import { getContent } from "src/server/queries";
 import { getStripe, stripeConfigured } from "src/server/stripe";
 
@@ -207,28 +207,70 @@ async function recordPaidCheckout(sessionId: string) {
     }),
   });
 
-  if (!recorded) return;
+  const pending: OrderEmailData | null = recorded
+    ? {
+        orderId: recorded.orderId,
+        stripeCheckoutSessionId: values.stripeCheckoutSessionId,
+        itemType,
+        itemTitle: values.itemTitle,
+        quantity,
+        unitAmount: values.unitAmount,
+        amountTotal: values.amountTotal,
+        customerEmail: values.customerEmail,
+        customerName: values.customerName,
+        shippingAddress: values.shippingAddress,
+        oversold: recorded.oversold,
+      }
+    : await owedEmails(session.id);
+  if (!pending) return;
 
   // Delivery failures are logged inside sendOrderEmails rather than thrown:
   // the order is committed, and a non-2xx here would make Stripe retry a
-  // delivery that can no longer insert anything.
+  // delivery that can no longer insert anything. Only a fully delivered
+  // order is marked sent; a crash before this point leaves emailsSentAt null
+  // so the next delivery of the same event (Stripe retries until it gets a
+  // 2xx) picks it up via owedEmails.
   const content = await getContent().catch(() => CONTENT_DEFAULTS);
-  await sendOrderEmails(
-    {
-      orderId: recorded.orderId,
-      stripeCheckoutSessionId: values.stripeCheckoutSessionId,
-      itemType,
-      itemTitle: values.itemTitle,
-      quantity,
-      unitAmount: values.unitAmount,
-      amountTotal: values.amountTotal,
-      customerEmail: values.customerEmail,
-      customerName: values.customerName,
-      shippingAddress: values.shippingAddress,
-      oversold: recorded.oversold,
-    },
-    content,
-  );
+  if (await sendOrderEmails(pending, content)) {
+    await db
+      .update(orders)
+      .set({ emailsSentAt: new Date() })
+      .where(eq(orders.id, pending.orderId));
+  }
+}
+
+/**
+ * An already-recorded order whose emails were never delivered (the process
+ * died between committing the row and sending), rebuilt from the stored
+ * snapshot; null when there is nothing owed.
+ */
+async function owedEmails(
+  stripeCheckoutSessionId: string,
+): Promise<OrderEmailData | null> {
+  const [row] = await db
+    .select({
+      orderId: orders.id,
+      stripeCheckoutSessionId: orders.stripeCheckoutSessionId,
+      itemType: orders.itemType,
+      itemTitle: orders.itemTitle,
+      quantity: orders.quantity,
+      unitAmount: orders.unitAmount,
+      amountTotal: orders.amountTotal,
+      customerEmail: orders.customerEmail,
+      customerName: orders.customerName,
+      shippingAddress: orders.shippingAddress,
+      fulfillmentStatus: orders.fulfillmentStatus,
+    })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.stripeCheckoutSessionId, stripeCheckoutSessionId),
+        isNull(orders.emailsSentAt),
+      ),
+    );
+  if (!row) return null;
+  const { fulfillmentStatus, ...order } = row;
+  return { ...order, oversold: fulfillmentStatus === "oversold" };
 }
 
 async function loadItem(itemType: OrderItemType, id: number) {

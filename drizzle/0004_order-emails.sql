@@ -1,0 +1,1 @@
+ALTER TABLE "nazanfeyzioglu_order" ADD COLUMN IF NOT EXISTS "emailsSentAt" timestamp with time zone;

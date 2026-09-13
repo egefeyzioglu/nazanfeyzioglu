@@ -205,6 +205,13 @@ export const orders = createTable(
       .$type<FulfillmentStatus>()
       .notNull()
       .default("pending"),
+    /**
+     * When the buyer confirmation and seller notification were both handed
+     * to Resend. Null means delivery is still owed: a webhook retry for an
+     * already-recorded session sends them then (a crash between committing
+     * the row and sending would otherwise lose them for good).
+     */
+    emailsSentAt: d.timestamp({ withTimezone: true }),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),

@@ -48,26 +48,32 @@ export type OrderEmailData = {
 
 /**
  * Sends the customer's order confirmation and the seller's new-order
- * notification for a just-recorded order. Never throws: the order is already
+ * notification for a recorded order. Never throws: the order is already
  * committed and the Stripe webhook must still be acknowledged, so delivery
  * failures are logged instead. Each message carries an idempotency key derived
  * from the checkout session so a retried webhook cannot send duplicates.
+ *
+ * Resolves true once every applicable message was accepted by Resend, so the
+ * caller can record delivery; false (including when email is not configured)
+ * leaves the order owed its emails.
  */
 export async function sendOrderEmails(
   order: OrderEmailData,
   content: Record<string, string>,
-): Promise<void> {
-  if (!emailConfigured()) return;
+): Promise<boolean> {
+  if (!emailConfigured()) return false;
 
   const sellerEmail = env.ORDER_NOTIFICATION_EMAIL ?? content["contact.email"];
-  const sends: Array<Promise<void>> = [];
+  const sends: Array<Promise<boolean>> = [];
 
   if (order.customerEmail) {
     sends.push(
       deliver("confirmation", order, {
         to: order.customerEmail,
         ...(sellerEmail && { replyTo: sellerEmail }),
-        subject: `Order confirmation — ${describeItem(order)}`,
+        subject: order.oversold
+          ? `About your order — ${describeItem(order)}`
+          : `Order confirmation — ${describeItem(order)}`,
         ...renderCustomerEmail(order, content),
       }),
     );
@@ -92,7 +98,7 @@ export async function sendOrderEmails(
     );
   }
 
-  await Promise.all(sends);
+  return (await Promise.all(sends)).every(Boolean);
 }
 
 type Message = {
@@ -107,9 +113,9 @@ async function deliver(
   kind: "confirmation" | "notification",
   order: OrderEmailData,
   message: Message,
-): Promise<void> {
+): Promise<boolean> {
   const from = env.ORDER_EMAIL_FROM;
-  if (!from) return;
+  if (!from) return false;
   try {
     const { error } = await getResend().emails.send(
       { from, ...message },
@@ -119,12 +125,15 @@ async function deliver(
       console.error(
         `Resend rejected the order ${kind} for order ${order.orderId}: ${error.name}: ${error.message}`,
       );
+      return false;
     }
+    return true;
   } catch (err) {
     console.error(
       `Failed to send the order ${kind} for order ${order.orderId}`,
       err,
     );
+    return false;
   }
 }
 
@@ -181,9 +190,17 @@ function renderCustomerEmail(
   const greeting = order.customerName
     ? `Dear ${order.customerName},`
     : "Hello,";
-  const intro = `Thank you for your purchase. Your order for ${describeItem(order)} is confirmed.`;
+  const intro = order.oversold
+    ? `Thank you for your interest in ${describeItem(order)}. Unfortunately it sold out moments before your payment completed, so we are unable to fulfil this order.`
+    : `Thank you for your purchase. Your order for ${describeItem(order)} is confirmed.`;
   const paragraphs: string[] = [];
-  if (order.itemType === "print") {
+  if (order.oversold) {
+    // Don't promise preparation or shipping for an order that is being
+    // refunded; the seller email carries the refund instruction.
+    paragraphs.push(
+      "Your payment will be refunded in full to your original payment method within a few business days. You do not need to do anything.",
+    );
+  } else if (order.itemType === "print") {
     for (const key of [
       "prints.confirmation.received",
       "prints.confirmation.shipping",
@@ -200,9 +217,10 @@ function renderCustomerEmail(
       "Your digital edition will be sent to this email address shortly.",
     );
   }
-  const shippingLines = order.shippingAddress
-    ? formatShipping(order.shippingAddress)
-    : [];
+  const shippingLines =
+    order.shippingAddress && !order.oversold
+      ? formatShipping(order.shippingAddress)
+      : [];
   const outro = `Order reference: #${order.orderId}. Simply reply to this email if you have any questions.`;
 
   const text = [
@@ -220,7 +238,7 @@ function renderCustomerEmail(
   ].join("\n");
 
   const html = layout(
-    "Thank you",
+    order.oversold ? "About your order" : "Thank you",
     [
       `<p>${escapeHtml(greeting)}</p>`,
       `<p>${escapeHtml(intro)}</p>`,

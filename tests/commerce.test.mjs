@@ -36,6 +36,8 @@ function setup() {
     emails: [],
     /** When set, the mocked Resend client throws or returns this error. */
     emailFailure: null,
+    /** When set, the mocked Resend client rejects sends to this address. */
+    rejectTo: null,
     event: null,
     session: null,
     work: {
@@ -72,6 +74,14 @@ function setup() {
       "paymentStatus",
       "stripeCheckoutSessionId",
       "stripePaymentIntentId",
+      "itemTitle",
+      "unitAmount",
+      "amountTotal",
+      "customerEmail",
+      "customerName",
+      "shippingAddress",
+      "fulfillmentStatus",
+      "emailsSentAt",
     ]),
     works: fields(["id", "title"]),
     prints: fields(["id", "title", "editionSize"]),
@@ -79,6 +89,7 @@ function setup() {
   const orm = {
     eq: (key, value) => (row) => row[key] === value,
     ne: (key, value) => (row) => row[key] !== value,
+    isNull: (key) => (row) => row[key] == null,
     inArray: (key, values) => (row) => values.includes(row[key]),
     and:
       (...conditions) =>
@@ -187,6 +198,12 @@ function setup() {
         emails = {
           send: async (payload, options) => {
             if (state.emailFailure instanceof Error) throw state.emailFailure;
+            if (payload.to === state.rejectTo) {
+              return {
+                data: null,
+                error: { name: "validation_error", message: "rejected" },
+              };
+            }
             state.emails.push({ ...payload, ...options });
             return {
               data: state.emailFailure ? null : { id: "email_1" },
@@ -458,6 +475,48 @@ test("a paid order emails the buyer a confirmation and the seller a notification
   assert.match(notification.text, /Customer: Buyer — buyer@example.com/);
   assert.match(notification.text, /https:\/\/example\.com\/admin\/orders/);
   assert.doesNotMatch(notification.text, /OVERSOLD/);
+  assert.ok(app.state.rows[0].emailsSentAt !== undefined);
+});
+
+test("a webhook retry delivers emails still owed to an already-recorded order", async () => {
+  // Simulate a crash after the order committed but before Resend accepted
+  // anything: the row exists with no emailsSentAt.
+  const crashed = setup();
+  crashed.state.emailFailure = new Error("process died");
+  await crashed.pay("original");
+  assert.equal(crashed.state.rows[0].emailsSentAt, undefined);
+  crashed.state.emailFailure = null;
+  await crashed.pay("original"); // Stripe retry of the same session
+  assert.equal(crashed.state.rows.length, 1);
+  assert.equal(crashed.state.emails.length, 2);
+  assert.equal(crashed.state.emails[0].to, "buyer@example.com");
+  assert.ok(crashed.state.rows[0].emailsSentAt !== undefined);
+  await crashed.pay("original"); // a further retry sends nothing more
+  assert.equal(crashed.state.emails.length, 2);
+
+  // The retry rebuilds the emails from the stored snapshot, including the
+  // oversold flag the transaction set.
+  const oversold = setup();
+  oversold.state.print.editionSize = 1;
+  await oversold.pay("print", "cs_a");
+  oversold.state.emailFailure = new Error("process died");
+  await oversold.pay("print", "cs_b");
+  oversold.state.emailFailure = null;
+  oversold.state.emails.length = 0;
+  await oversold.pay("print", "cs_b");
+  assert.match(oversold.state.emails[1].subject, /^OVERSOLD/);
+  assert.match(oversold.state.emails[0].text, /sold out moments before/);
+
+  // Partial acceptance is not delivery: one rejected send keeps it owed.
+  const partial = setup();
+  partial.state.rejectTo = "nazanfeyzioglu@yahoo.com";
+  await partial.pay("original");
+  assert.equal(partial.state.emails.length, 1);
+  assert.equal(partial.state.rows[0].emailsSentAt, undefined);
+  partial.state.rejectTo = null;
+  await partial.pay("original");
+  assert.equal(partial.state.emails.length, 3);
+  assert.ok(partial.state.rows[0].emailsSentAt !== undefined);
 });
 
 test("print confirmations carry the CMS preparation copy; oversold orders warn the seller", async () => {
