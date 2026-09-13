@@ -62,7 +62,7 @@ When the webhook records a paid order it sends two emails through [Resend](https
 
 1. Verify your sending domain in Resend (**Domains → Add domain**) and create an API key; put it in `.env` as `RESEND_API_KEY`.
 2. Set `ORDER_EMAIL_FROM` to a sender on that domain, e.g. `Nazan Feyzioğlu <orders@example.com>`. Both values are required for any email to go out.
-3. Optionally set `ORDER_NOTIFICATION_EMAIL` for the seller notification; otherwise it goes to the Contact page email edited in the admin panel. Replies to the buyer's confirmation also go to this address.
+3. Optionally set `ORDER_NOTIFICATION_EMAIL` for the seller notification; otherwise it goes to the Contact page email edited in the admin panel. Replies to the buyer's confirmation also go to this address. If neither is set, the notification stays owed (and the webhook keeps asking Stripe to retry) until one is, so a blank Contact email never silently drops an order notification.
 
 Emails are sent after the order transaction commits, so a Stripe retry never duplicates an order. Each message is tracked on the order (`confirmationEmailSentAt`, `notificationEmailSentAt`) and marked settled once Resend accepts it. If a message cannot be handed to Resend, the webhook still keeps the order but answers with a non-2xx status so Stripe redelivers the event with backoff; the retry rebuilds the emails from the stored order snapshot and sends only what is still owed. The same path covers a crash between the commit and the send. Each message also carries a Resend idempotency key derived from the checkout session as a second guard against duplicates. When Resend is not configured, nothing is owed and the webhook acks normally.
 

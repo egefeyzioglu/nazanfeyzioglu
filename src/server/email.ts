@@ -57,9 +57,10 @@ export type OrderEmailKind = "confirmation" | "notification";
  * so a retried webhook cannot send duplicates.
  *
  * Resolves, per message, whether it is now settled: accepted by Resend, not
- * owed, or impossible to send (no recipient). False means it is still owed
- * (delivery failed, or email is not configured) and the caller should keep
- * it pending.
+ * owed, or (for the confirmation) impossible to send because Stripe gave no
+ * customer email. False means it is still owed — delivery failed, email is
+ * not configured, or no seller address is configured — and the caller should
+ * keep it pending.
  */
 export async function sendOrderEmails(
   order: OrderEmailData,
@@ -91,10 +92,12 @@ export async function sendOrderEmails(
   const notification = async (): Promise<boolean> => {
     if (!owed.notification) return true;
     if (!sellerEmail) {
-      console.warn(
-        `No seller email configured (ORDER_NOTIFICATION_EMAIL or contact.email); skipping notification for order ${order.orderId}`,
+      // Unlike a missing customer email, this is fixable: leave the
+      // notification owed so it goes out once an address is configured.
+      console.error(
+        `No seller email configured (ORDER_NOTIFICATION_EMAIL or the Contact page email); notification for order ${order.orderId} is still owed`,
       );
-      return true;
+      return false;
     }
     return deliver("notification", order, {
       to: sellerEmail,

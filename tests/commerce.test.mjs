@@ -38,6 +38,8 @@ function setup() {
     emailFailure: null,
     /** When set, the mocked Resend client rejects sends to this address. */
     rejectTo: null,
+    /** CMS content overrides applied on top of the defaults. */
+    content: {},
     event: null,
     session: null,
     work: {
@@ -220,7 +222,10 @@ function setup() {
     },
     "src/lib/content-keys": contentKeys,
     "src/server/queries": {
-      getContent: async () => ({ ...contentKeys.CONTENT_DEFAULTS }),
+      getContent: async () => ({
+        ...contentKeys.CONTENT_DEFAULTS,
+        ...state.content,
+      }),
     },
     "next/server": {
       NextResponse: {
@@ -584,6 +589,20 @@ test("failed delivery records the order but asks Stripe to retry; unconfigured e
   assert.equal(anonymous.state.emails.length, 1);
   // Nothing can ever be sent to the buyer, so that side is settled at once.
   assert.ok(anonymous.state.rows[0].confirmationEmailSentAt !== undefined);
+
+  // No seller address anywhere: the notification stays owed (and the
+  // webhook asks for a retry) until one is configured, rather than being
+  // silently dropped.
+  const noSeller = setup();
+  noSeller.state.content["contact.email"] = "";
+  assert.equal((await noSeller.pay("original")).status, 500);
+  assert.equal(noSeller.state.emails.length, 1);
+  assert.ok(noSeller.state.rows[0].confirmationEmailSentAt !== undefined);
+  assert.equal(noSeller.state.rows[0].notificationEmailSentAt, undefined);
+  noSeller.env.ORDER_NOTIFICATION_EMAIL = "artist@example.com";
+  assert.equal((await noSeller.pay("original")).status, 200);
+  assert.equal(noSeller.state.emails.length, 2);
+  assert.equal(noSeller.state.emails[1].to, "artist@example.com");
   assert.equal(anonymous.state.emails[0].to, "nazanfeyzioglu@yahoo.com");
   assert.equal(anonymous.state.emails[0].replyTo, undefined);
   assert.match(anonymous.state.emails[0].text, /Customer: unknown/);
