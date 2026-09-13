@@ -31,6 +31,9 @@ function setup() {
     rows: [],
     sessions: [],
     locks: [],
+    emails: [],
+    /** When set, the mocked Resend client throws or returns this error. */
+    emailFailure: null,
     event: null,
     session: null,
     work: {
@@ -162,9 +165,28 @@ function setup() {
     },
     webhooks: { constructEvent: () => state.event },
   };
+  const contentKeys = load("src/lib/content-keys.ts");
   const dependencies = {
     "server-only": {},
     "drizzle-orm": orm,
+    resend: {
+      Resend: class {
+        emails = {
+          send: async (payload, options) => {
+            if (state.emailFailure instanceof Error) throw state.emailFailure;
+            state.emails.push({ ...payload, ...options });
+            return {
+              data: state.emailFailure ? null : { id: "email_1" },
+              error: state.emailFailure,
+            };
+          },
+        };
+      },
+    },
+    "src/lib/content-keys": contentKeys,
+    "src/server/queries": {
+      getContent: async () => ({ ...contentKeys.CONTENT_DEFAULTS }),
+    },
     "next/server": {
       NextResponse: {
         json: (body, options) => ({ body, status: options?.status ?? 200 }),
@@ -175,6 +197,9 @@ function setup() {
         NODE_ENV: "test",
         STRIPE_WEBHOOK_SECRET: "test",
         STRIPE_SHIPPING_RATE_ID: "legacy",
+        RESEND_API_KEY: "re_test",
+        ORDER_EMAIL_FROM: "Shop <orders@example.com>",
+        SITE_URL: "https://example.com/",
       },
     },
     "src/lib/orders": load("src/lib/orders.ts"),
@@ -191,17 +216,19 @@ function setup() {
     ...inventory,
     getSoldPrintQuantities: async () => new Map(),
   };
+  dependencies["src/server/email"] = load("src/server/email.ts", dependencies);
   const checkout = load("src/app/api/checkout/route.ts", dependencies);
   const webhook = load("src/app/api/stripe/webhook/route.ts", dependencies);
   return {
     state,
     inventory,
+    env: dependencies["src/env"].env,
     checkout: (itemType, extra = {}) =>
       checkout.POST({
         url: "http://localhost:3000/api/checkout",
         json: async () => ({ itemType, id: 1, ...extra }),
       }),
-    pay: async (itemType, id = "cs_1") => {
+    pay: async (itemType, id = "cs_1", sessionOverrides = {}) => {
       state.session = {
         id,
         metadata: { itemType, itemId: "1" },
@@ -217,6 +244,7 @@ function setup() {
             address: { country: "CA", line1: "123 Test St" },
           },
         },
+        ...sessionOverrides,
       };
       state.event = {
         type: "checkout.session.completed",
@@ -341,4 +369,87 @@ test("digital sales do not consume original stock; full refunds restore it", asy
   assert.equal((await app.checkout("original")).status, 200);
   app.state.work.originalUnavailable = true;
   assert.equal((await app.checkout("original")).status, 409);
+});
+
+test("a paid order emails the buyer a confirmation and the seller a notification, once", async () => {
+  const app = setup();
+  await app.pay("original");
+  await app.pay("original"); // Stripe retry: already recorded, nothing resent
+  assert.equal(app.state.emails.length, 2);
+  const [confirmation, notification] = app.state.emails;
+
+  assert.equal(confirmation.from, "Shop <orders@example.com>");
+  assert.equal(confirmation.to, "buyer@example.com");
+  assert.equal(confirmation.replyTo, "nazanfeyzioglu@yahoo.com");
+  assert.equal(confirmation.idempotencyKey, "order-confirmation/cs_1");
+  assert.match(confirmation.subject, /Painting \(original\)/);
+  assert.match(confirmation.text, /Dear Buyer,/);
+  assert.match(confirmation.text, /Total: 1,900 CAD/);
+  assert.match(confirmation.text, /Shipping: Free/);
+  assert.match(confirmation.text, /123 Test St/);
+  assert.match(confirmation.html, /123 Test St/);
+  assert.doesNotMatch(confirmation.text, /3–7 business days/);
+
+  assert.equal(notification.to, "nazanfeyzioglu@yahoo.com");
+  assert.equal(notification.replyTo, "buyer@example.com");
+  assert.equal(notification.idempotencyKey, "order-notification/cs_1");
+  assert.equal(notification.subject, "New order #1: Painting (original)");
+  assert.match(notification.text, /Customer: Buyer — buyer@example.com/);
+  assert.match(notification.text, /https:\/\/example\.com\/admin\/orders/);
+  assert.doesNotMatch(notification.text, /OVERSOLD/);
+});
+
+test("print confirmations carry the CMS preparation copy; oversold orders warn the seller", async () => {
+  const app = setup();
+  app.env.ORDER_NOTIFICATION_EMAIL = "artist@example.com";
+  await app.pay("print");
+  const [confirmation, notification] = app.state.emails;
+  assert.equal(confirmation.replyTo, "artist@example.com");
+  assert.equal(notification.to, "artist@example.com");
+  assert.match(confirmation.text, /3–7 business days/);
+  assert.match(confirmation.html, /3–7 business days/);
+  assert.match(confirmation.text, /Shipping: 30 CAD|Shipping: Free/);
+
+  app.state.work.digital = true;
+  await app.pay("digital", "cs_2");
+  assert.equal(app.state.emails.length, 4);
+  assert.doesNotMatch(app.state.emails[2].text, /Shipping:/);
+  assert.match(app.state.emails[2].text, /digital edition/);
+
+  app.state.print.editionSize = 1;
+  await app.pay("print", "cs_3");
+  assert.equal(app.state.rows[2].fulfillmentStatus, "oversold");
+  assert.match(app.state.emails[5].subject, /^OVERSOLD — New order #3/);
+  assert.match(app.state.emails[5].text, /Refund it in the Stripe Dashboard/);
+});
+
+test("email failures and missing configuration never fail the webhook", async () => {
+  const thrown = setup();
+  thrown.state.emailFailure = new Error("network down");
+  assert.equal((await thrown.pay("original")).status, 200);
+  assert.equal(thrown.state.rows.length, 1);
+
+  const rejected = setup();
+  rejected.state.emailFailure = {
+    name: "validation_error",
+    message: "bad from",
+    statusCode: 422,
+  };
+  assert.equal((await rejected.pay("original")).status, 200);
+
+  const unconfigured = setup();
+  unconfigured.env.RESEND_API_KEY = undefined;
+  assert.equal((await unconfigured.pay("original")).status, 200);
+  assert.equal(unconfigured.state.emails.length, 0);
+  assert.equal(unconfigured.state.rows.length, 1);
+
+  // Session without a customer email: the seller is still notified.
+  const anonymous = setup();
+  await anonymous.pay("original", "cs_anon", {
+    customer_details: { email: null, name: null },
+  });
+  assert.equal(anonymous.state.emails.length, 1);
+  assert.equal(anonymous.state.emails[0].to, "nazanfeyzioglu@yahoo.com");
+  assert.equal(anonymous.state.emails[0].replyTo, undefined);
+  assert.match(anonymous.state.emails[0].text, /Customer: unknown/);
 });
