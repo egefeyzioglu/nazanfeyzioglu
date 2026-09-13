@@ -23,6 +23,9 @@ export default function PostHogIdentify() {
 
     if (isSignedIn && user) {
       if (currentUserId !== user.id) {
+        // Switching directly between accounts: start a fresh person and
+        // session rather than merging the new account into the old one.
+        if (currentUserId) posthog.reset();
         posthog.identify(user.id, {
           email: user.primaryEmailAddress?.emailAddress,
           name: user.fullName ?? undefined,

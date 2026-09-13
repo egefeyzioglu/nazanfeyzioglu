@@ -70,6 +70,12 @@ export const worksRouter = createTRPCRouter({
           code: "NOT_FOUND",
           message: "Original not found. Refresh the page and try again.",
         });
+      captureServerEvent(ctx.userId, "original_sale_updated", {
+        work_id: row.id,
+        series_id: row.seriesId,
+        has_original_price: row.originalPriceCents != null,
+        original_unavailable: row.originalUnavailable,
+      });
       return row;
     }),
 
