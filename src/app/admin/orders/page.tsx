@@ -217,6 +217,7 @@ function PaymentChip({ status }: { status: PaymentStatus }) {
   );
 }
 
+/** Status chip for the order's effective fulfillment state, including "no action required". */
 function FulfillmentChip({ status }: { status: EffectiveFulfillment }) {
   const { cls, label } = {
     pending: { cls: "border-clay-soft text-clay", label: "pending" },

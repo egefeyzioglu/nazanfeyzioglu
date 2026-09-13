@@ -22,6 +22,9 @@ export const FULFILLMENT_STATUSES = [
 ] as const;
 export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
 
+/** A stored fulfillment status, or `no_action` for refunded orders that never shipped. */
+export type EffectiveFulfillment = FulfillmentStatus | "no_action";
+
 /**
  * What the admin should see and do about an order's fulfillment. A fully
  * refunded order that was never fulfilled (or was flagged oversold) needs no
@@ -29,8 +32,6 @@ export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
  * fulfillment controls are hidden. A refunded order that was already shipped
  * stays `fulfilled` — the goods went out, the refund is a separate matter.
  */
-export type EffectiveFulfillment = FulfillmentStatus | "no_action";
-
 export function effectiveFulfillment(order: {
   paymentStatus: PaymentStatus;
   fulfillmentStatus: FulfillmentStatus;
