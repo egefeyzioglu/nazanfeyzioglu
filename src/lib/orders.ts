@@ -23,6 +23,23 @@ export const FULFILLMENT_STATUSES = [
 export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
 
 /**
+ * What the admin should see and do about an order's fulfillment. A fully
+ * refunded order that was never fulfilled (or was flagged oversold) needs no
+ * further action, so it is shown as `no_action` instead of `pending` and its
+ * fulfillment controls are hidden. A refunded order that was already shipped
+ * stays `fulfilled` — the goods went out, the refund is a separate matter.
+ */
+export type EffectiveFulfillment = FulfillmentStatus | "no_action";
+
+export function effectiveFulfillment(order: {
+  paymentStatus: PaymentStatus;
+  fulfillmentStatus: FulfillmentStatus;
+}): EffectiveFulfillment {
+  if (order.paymentStatus !== "refunded") return order.fulfillmentStatus;
+  return order.fulfillmentStatus === "fulfilled" ? "fulfilled" : "no_action";
+}
+
+/**
  * Shape of the shipping details snapshot stored on an order (Stripe's
  * shipping_details object: recipient name + address).
  */

@@ -64,7 +64,7 @@ In **Admin ? Originals**, set a checkout price in CAD to enable **Buy original**
 
 Each original checkout is for exactly one piece. Paid original orders appear in **Orders**, with filters for originals, prints and digital editions, customer details, shipping address, and fulfillment controls. A paid original is shown as sold and cannot start another checkout. As with limited prints, already-open concurrent checkouts can both pay: the webhook serializes stock checks and flags excess purchases **oversold** for refund review in Stripe. This is oversale detection, not a checkout reservation.
 
-Full refunds restore original availability unless it is manually marked unavailable. Digital purchases of the same work never consume original stock. No additional Stripe webhook subscriptions are required. Existing manual invoices are not imported.
+Full refunds restore original availability unless it is manually marked unavailable. A fully refunded order that was never fulfilled (or was flagged oversold) shows **no action required** in Orders instead of pending, and its fulfillment controls are hidden; a refunded order that had already been fulfilled stays fulfilled. Digital purchases of the same work never consume original stock. No additional Stripe webhook subscriptions are required. Existing manual invoices are not imported.
 
 Run `node --test tests/commerce.test.mjs` for mocked checkout, availability, webhook and refund regression tests; use Stripe test mode for end-to-end validation after migration.
 
