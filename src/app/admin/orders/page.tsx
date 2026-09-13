@@ -13,6 +13,7 @@ import {
 } from "src/lib/orders";
 import { api } from "src/trpc/react";
 
+/** Admin order list with type filters, payment/fulfillment chips and fulfillment controls. */
 export default function AdminOrdersPage() {
   const [filter, setFilter] = useState<OrderItemType | "all">("all");
   const utils = api.useUtils();
