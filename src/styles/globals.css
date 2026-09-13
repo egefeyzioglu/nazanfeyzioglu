@@ -183,9 +183,7 @@
   color: #1c1a17;
 }
 .hover-clay {
-  transition:
-    border-color 0.25s ease,
-    color 0.25s ease;
+  transition: border-color 0.25s ease, color 0.25s ease;
 }
 .hover-clay:hover {
   color: #c75b45;
