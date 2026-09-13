@@ -342,3 +342,30 @@ test("digital sales do not consume original stock; full refunds restore it", asy
   app.state.work.originalUnavailable = true;
   assert.equal((await app.checkout("original")).status, 409);
 });
+
+test("fully refunded orders no longer read as pending in the admin", async () => {
+  const app = setup();
+  const { effectiveFulfillment } = load("src/lib/orders.ts");
+  await app.pay("original");
+  const order = app.state.rows[0];
+  assert.equal(effectiveFulfillment(order), "pending");
+  await app.refund("cs_1", 100);
+  assert.equal(effectiveFulfillment(order), "pending");
+  await app.refund("cs_1", 190000);
+  assert.equal(order.paymentStatus, "refunded");
+  assert.equal(effectiveFulfillment(order), "no_action");
+  assert.equal(
+    effectiveFulfillment({
+      paymentStatus: "refunded",
+      fulfillmentStatus: "oversold",
+    }),
+    "no_action",
+  );
+  assert.equal(
+    effectiveFulfillment({
+      paymentStatus: "refunded",
+      fulfillmentStatus: "fulfilled",
+    }),
+    "fulfilled",
+  );
+});
