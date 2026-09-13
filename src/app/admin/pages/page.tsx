@@ -8,6 +8,7 @@ import ContactBody from "src/app/_components/pages/ContactBody";
 import ExhibitionsBody from "src/app/_components/pages/ExhibitionsBody";
 import HomeBody from "src/app/_components/pages/HomeBody";
 import PrintsBody from "src/app/_components/pages/PrintsBody";
+import ShippingBody from "src/app/_components/pages/ShippingBody";
 import SidebarBody, {
   type NavKey,
 } from "src/app/_components/pages/SidebarBody";
@@ -28,6 +29,7 @@ const TABS: { key: NavKey; label: string }[] = [
   { key: "contact", label: "Contact" },
   { key: "prints", label: "Prints" },
   { key: "exhibitions", label: "Exhibitions" },
+  { key: "shipping", label: "Shipping, Returns & Exchanges" },
 ];
 
 /** Edits shared page copy with drafts preserved across tabs until saved or discarded. */
@@ -255,6 +257,7 @@ export default function AdminPagesEditor() {
             )}
             {tab === "about" && <AboutBody content={baseline} />}
             {tab === "contact" && <ContactBody content={baseline} />}
+            {tab === "shipping" && <ShippingBody content={baseline} />}
             {tab === "prints" && (
               <PrintsBody
                 groups={previewPrintGroups}

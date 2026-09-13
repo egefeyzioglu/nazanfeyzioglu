@@ -4,7 +4,13 @@ import Link from "next/link";
 
 import { EditableText } from "src/app/_components/Editable";
 
-export type NavKey = "series" | "prints" | "about" | "exhibitions" | "contact";
+export type NavKey =
+  | "series"
+  | "prints"
+  | "about"
+  | "exhibitions"
+  | "contact"
+  | "shipping";
 
 const NAV: { key: NavKey; label: string; href: string }[] = [
   { key: "series", label: "Series", href: "/" },
@@ -64,6 +70,16 @@ export default function SidebarBody({
       </div>
 
       <div className="text-ash mt-10 font-mono text-[10px] leading-[2] tracking-[0.16em] uppercase md:mt-0">
+        <Link
+          href="/shipping-returns"
+          aria-current={active === "shipping" ? "page" : undefined}
+          className={`hover-clay mb-5 block ${active === "shipping" ? "text-clay" : "text-stone"}`}
+        >
+          <EditableText
+            k="nav.shipping"
+            value={content["nav.shipping"] ?? "Shipping, Returns & Exchanges"}
+          />
+        </Link>
         <EditableText
           k="sidebar.location"
           value={content["sidebar.location"] ?? ""}
