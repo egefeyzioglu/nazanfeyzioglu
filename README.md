@@ -39,15 +39,19 @@ new application. A migration failure stops the build. Production redeploys also
 run pending migrations; Drizzle records applied migrations so reruns are safe.
 Preview and local builds only build the app.
 
-This uses the production `DATABASE_URL` already supplied by the Neon-Vercel
-integration, so no GitHub production secret is needed. Keep Vercel's Production
+The migration runner prefers `DATABASE_URL_UNPOOLED`, falling back to the
+integration's `DATABASE_URL`. For Neon URLs it removes the endpoint's `-pooler`
+suffix to use the same database directly, preserving credentials and SSL options.
+Session advisory locks require this direct connection. No GitHub production
+secret is needed. Keep Vercel's Production
 Branch set to `main` and its production database URL pointed at the Neon
 production branch. Preview database branching continues through the integration.
 See [Neon's build migration guidance](https://neon.com/blog/neon-vercel-native-integration).
 
 `.github/workflows/database-migrations.yml` checks PRs targeting `main` and
 pushes to `main` by applying committed migrations twice to disposable Postgres 16.
-This check uses no Neon credentials. It checks initial setup and safe reruns;
+The check also verifies concurrent runners wait and recover after a migration
+failure. It uses no Neon credentials. It checks initial setup and safe reruns;
 it does not verify the current production database state or gate Vercel builds.
 
 Commit generated SQL and `drizzle/meta/` together after `pnpm db:generate`.
@@ -59,8 +63,12 @@ merging this automation.
 
 Keep migrations compatible with the currently deployed application, which
 continues serving traffic while the new version builds. Applied migrations are
-not rolled back if the subsequent application build fails. Avoid overlapping
-production builds: Drizzle Kit does not serialize concurrent migration runners.
+not rolled back if the subsequent application build fails. `pnpm db:migrate`
+uses a dedicated Postgres session and an advisory lock before reading the
+migration journal. Concurrent runners wait up to five minutes for database locks
+and then fail the build if blocked. Closing the session releases the advisory
+lock on success or failure. All automated and manual migrations must use this
+runner to participate in serialization; direct Drizzle Kit calls bypass its lock.
 After correcting a failed migration, redeploy through Vercel.
 
 ## CMS / admin panel

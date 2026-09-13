@@ -7,7 +7,7 @@
     "build": "next build",
     "check": "next lint && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "dev": "next dev --turbo",
