@@ -80,6 +80,9 @@ Migration `0002_print-dimensions.sql` imports recognized legacy inch sizes once,
 leaving unknown formats blank and preserving the original `spec` text. Review
 blank sizes in Admin → Prints; the previous specification is shown for reference.
 Enter both dimensions or leave both blank when the size is not yet confirmed.
+Migration `0004_print-border-copy.sql` rewrites the border copy from 2 inches to
+1 inch only where the stored value still matches the old default, so custom
+edits are preserved.
 
 - `src/server/db/schema.ts` — `series`, `work`, `print`, `exhibition`, `site_content`, and `order` tables
 - `src/server/api/` — tRPC routers (admin-gated CRUD + reordering, orders)
