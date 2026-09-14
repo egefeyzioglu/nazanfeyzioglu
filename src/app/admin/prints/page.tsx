@@ -293,7 +293,7 @@ function PrintForm({
       </div>
       <p className="text-stone text-[14px]" aria-live="polite">
         {formatPrintSpec(dimensions)}. Overall paper size:{" "}
-        {sizes?.paper ?? "To be confirmed"}. Includes a 2-inch white border on
+        {sizes?.paper ?? "To be confirmed"}. Includes a 1-inch white border on
         all sides. Leave both dimensions blank if unknown.
       </p>
       <ImageField label="Print image" value={image} onChange={setImage} />

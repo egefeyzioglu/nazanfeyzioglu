@@ -56,6 +56,20 @@ Print shipping is a flat **30 CAD per checkout within Canada**, regardless of qu
 
 Prices are set per print (and per digital edition on a work) in the admin panel; items without a price show no buy button. A print's optional **edition size** caps how many copies can be sold — if two buyers race past the check, the later order is flagged **oversold** in `/admin/orders` for a manual refund. Fulfillment (shipping a print, emailing a digital file) is tracked in `/admin/orders`; money — receipts, refunds, payouts — is managed in the Stripe Dashboard.
 
+### Order emails (Resend)
+
+When the webhook records a paid order it sends two emails through [Resend](https://resend.com): an **order confirmation** to the buyer (item, total, shipping address, and the print preparation copy from **Admin → Pages → Prints**) and a **new-order notification** to the seller (customer details, ship-to address, a link to `/admin/orders`, and an **OVERSOLD** flag when a refund is needed). Until Resend is configured, orders are still recorded but nothing is emailed.
+
+1. Verify your sending domain in Resend (**Domains → Add domain**) and create an API key; put it in `.env` as `RESEND_API_KEY`.
+2. Set `ORDER_EMAIL_FROM` to a sender on that domain, e.g. `Nazan Feyzioğlu <orders@example.com>`. Both values are required for any email to go out.
+3. Optionally set `ORDER_NOTIFICATION_EMAIL` for the seller notification; otherwise it goes to the Contact page email edited in the admin panel. Replies to the buyer's confirmation also go to this address. If neither is set, the notification stays owed (and the webhook keeps asking Stripe to retry) until one is, so a blank Contact email never silently drops an order notification.
+
+Emails are sent after the order transaction commits, so a Stripe retry never duplicates an order. Each message is tracked on the order (`confirmationEmailSentAt`, `notificationEmailSentAt`) and marked settled once Resend accepts it. If a message cannot be handed to Resend, the webhook still keeps the order but answers with a non-2xx status so Stripe redelivers the event with backoff; the retry rebuilds the emails from the stored order snapshot and sends only what is still owed. The same path covers a crash between the commit and the send. Each message also carries a Resend idempotency key derived from the checkout session as a second guard against duplicates. When Resend is not configured, both messages are settled as never sent and the webhook acks normally; replaying the event after Resend is configured does not email that order.
+
+When a paid order turns out to be **oversold**, the buyer's email says the item sold out moments before payment completed and that a full refund is coming, rather than confirming the order; the seller's notification carries the refund instruction.
+
+Run `pnpm db:migrate` before deploying: migration `0005_order-emails` adds the nullable `confirmationEmailSentAt` and `notificationEmailSentAt` columns to orders.
+
 ### Original sales
 
 Run `pnpm db:migrate` before deploying the original checkout changes. Migration `0003_original-orders` adds a numeric original price, a manual availability flag, and the original order type. Existing display prices are preserved; no artwork is automatically made purchasable. This migration follows `0002_print-dimensions` from PR #11 and also supports previews where the earlier `0002_original-orders` migration was already applied.
@@ -64,7 +78,7 @@ In **Admin ? Originals**, set a checkout price in CAD to enable **Buy original**
 
 Each original checkout is for exactly one piece. Paid original orders appear in **Orders**, with filters for originals, prints and digital editions, customer details, shipping address, and fulfillment controls. A paid original is shown as sold and cannot start another checkout. As with limited prints, already-open concurrent checkouts can both pay: the webhook serializes stock checks and flags excess purchases **oversold** for refund review in Stripe. This is oversale detection, not a checkout reservation.
 
-Full refunds restore original availability unless it is manually marked unavailable. Digital purchases of the same work never consume original stock. No additional Stripe webhook subscriptions are required. Existing manual invoices are not imported.
+Full refunds restore original availability unless it is manually marked unavailable. A fully refunded order that was never fulfilled (or was flagged oversold) shows **no action required** in Orders instead of pending, and its fulfillment controls are hidden; a refunded order that had already been fulfilled stays fulfilled. Digital purchases of the same work never consume original stock. No additional Stripe webhook subscriptions are required. Existing manual invoices are not imported.
 
 Run `node --test tests/commerce.test.mjs` for mocked checkout, availability, webhook and refund regression tests; use Stripe test mode for end-to-end validation after migration.
 
@@ -73,18 +87,22 @@ Run `node --test tests/commerce.test.mjs` for mocked checkout, availability, web
 Print sizes are stored as physical image width and height in inches, separately
 from the image file's pixel dimensions. The catalogue, product details, and
 checkout description are generated from those values. Overall paper dimensions
-add four inches per axis for the two-inch border on all sides.
+add two inches per axis for the one-inch border on all sides.
 
 Run `pnpm db:migrate` before deploying the structured print-size change.
 Migration `0002_print-dimensions.sql` imports recognized legacy inch sizes once,
 leaving unknown formats blank and preserving the original `spec` text. Review
 blank sizes in Admin → Prints; the previous specification is shown for reference.
 Enter both dimensions or leave both blank when the size is not yet confirmed.
+Migration `0004_print-border-copy.sql` rewrites the border copy from 2 inches to
+1 inch only where the stored value still matches the old default, so custom
+edits are preserved.
 
 - `src/server/db/schema.ts` — `series`, `work`, `print`, `exhibition`, `site_content`, and `order` tables
 - `src/server/api/` — tRPC routers (admin-gated CRUD + reordering, orders)
 - `src/server/queries.ts` — read-side queries used by the public pages
 - `src/server/stripe.ts` / `src/server/orders.ts` — Stripe client and edition-availability helpers
+- `src/server/email.ts` — Resend client and the order confirmation / seller notification emails
 - `src/app/api/checkout/` and `src/app/api/stripe/webhook/` — checkout-session creation and the order-recording webhook
 - `src/lib/content-keys.ts` — the editable page-text fields and their defaults
 - `src/app/_components/pages/` — page bodies shared by the public pages and the in-place editor
@@ -103,7 +121,9 @@ The `/api/stripe/webhook` route reports every non-2xx or thrown path with
 `area=stripe-webhook`. Reports include the Stripe event id, event type,
 checkout session id, payment intent id, item type and item id when those are
 available. Payloads, secrets, signatures, headers and customer details are not
-logged or sent to Sentry.
+logged or sent to Sentry. Sentry is the alerting channel for the webhook;
+PostHog separately receives only the error type and code of handler exceptions
+alongside the analytics events.
 
 Recommended Sentry alerts:
 

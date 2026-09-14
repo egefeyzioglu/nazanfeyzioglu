@@ -21,6 +21,7 @@ function load(path, dependencies = {}) {
     console,
     Error,
     URL,
+    crypto,
     require: (id) =>
       Object.hasOwn(dependencies, id) ? dependencies[id] : require(id),
   });
@@ -32,7 +33,15 @@ function setup() {
     rows: [],
     sessions: [],
     locks: [],
+    analytics: [],
+    emails: [],
     reports: [],
+    /** When set, the mocked Resend client throws or returns this error. */
+    emailFailure: null,
+    /** When set, the mocked Resend client rejects sends to this address. */
+    rejectTo: null,
+    /** CMS content overrides applied on top of the defaults. */
+    content: {},
     event: null,
     session: null,
     retrieveSession: async () => state.session,
@@ -70,6 +79,15 @@ function setup() {
       "paymentStatus",
       "stripeCheckoutSessionId",
       "stripePaymentIntentId",
+      "itemTitle",
+      "unitAmount",
+      "amountTotal",
+      "customerEmail",
+      "customerName",
+      "shippingAddress",
+      "fulfillmentStatus",
+      "confirmationEmailSentAt",
+      "notificationEmailSentAt",
     ]),
     works: fields(["id", "title"]),
     prints: fields(["id", "title", "editionSize"]),
@@ -77,6 +95,11 @@ function setup() {
   const orm = {
     eq: (key, value) => (row) => row[key] === value,
     ne: (key, value) => (row) => row[key] !== value,
+    isNull: (key) => (row) => row[key] == null,
+    or:
+      (...conditions) =>
+      (row) =>
+        conditions.some((condition) => condition(row)),
     inArray: (key, values) => (row) => values.includes(row[key]),
     and:
       (...conditions) =>
@@ -146,13 +169,20 @@ function setup() {
     update: () => ({
       set: (values) => ({
         where: (predicate) => {
-          const rows = state.rows.filter(predicate);
-          rows.forEach((row) => Object.assign(row, values));
-          return {
-            returning: async () => rows.map((row) => ({ id: row.id })),
-            then: (resolve, reject) =>
-              Promise.resolve(undefined).then(resolve, reject),
-          };
+          const matched = state.rows.filter(predicate);
+          matched.forEach((row) => Object.assign(row, values));
+          // Awaitable directly, or chained with .returning() for a projection.
+          const result = Promise.resolve();
+          result.returning = async (projection) =>
+            matched.map((row) =>
+              Object.fromEntries(
+                Object.entries(projection).map(([key, field]) => [
+                  key,
+                  row[field],
+                ]),
+              ),
+            );
+          return result;
         },
       }),
     }),
@@ -169,9 +199,37 @@ function setup() {
     },
     webhooks: { constructEvent: () => state.event },
   };
+  const contentKeys = load("src/lib/content-keys.ts");
   const dependencies = {
     "server-only": {},
     "drizzle-orm": orm,
+    resend: {
+      Resend: class {
+        emails = {
+          send: async (payload, options) => {
+            if (state.emailFailure instanceof Error) throw state.emailFailure;
+            if (payload.to === state.rejectTo) {
+              return {
+                data: null,
+                error: { name: "validation_error", message: "rejected" },
+              };
+            }
+            state.emails.push({ ...payload, ...options });
+            return {
+              data: state.emailFailure ? null : { id: "email_1" },
+              error: state.emailFailure,
+            };
+          },
+        };
+      },
+    },
+    "src/lib/content-keys": contentKeys,
+    "src/server/queries": {
+      getContent: async () => ({
+        ...contentKeys.CONTENT_DEFAULTS,
+        ...state.content,
+      }),
+    },
     "next/server": {
       NextResponse: {
         json: (body, options) => ({ body, status: options?.status ?? 200 }),
@@ -182,12 +240,19 @@ function setup() {
         NODE_ENV: "test",
         STRIPE_WEBHOOK_SECRET: "test",
         STRIPE_SHIPPING_RATE_ID: "legacy",
+        RESEND_API_KEY: "re_test",
+        ORDER_EMAIL_FROM: "Shop <orders@example.com>",
+        SITE_URL: "https://example.com/",
       },
     },
     "src/lib/orders": load("src/lib/orders.ts"),
     "src/lib/prints": load("src/lib/prints.ts"),
     "src/server/db": { db },
     "src/server/db/schema": schema,
+    "src/server/stripe": {
+      getStripe: () => stripe,
+      stripeConfigured: () => true,
+    },
     "src/server/observability": {
       deploymentEnvironment: () => "development",
       reportWebhookFailure: (err, ctx, level = "error") =>
@@ -197,9 +262,11 @@ function setup() {
           ...ctx,
         }),
     },
-    "src/server/stripe": {
-      getStripe: () => stripe,
-      stripeConfigured: () => true,
+    "src/lib/posthog-server": {
+      captureServerEvent: (distinctId, event, properties) => {
+        state.analytics.push({ distinctId, event, properties });
+      },
+      captureServerException: () => {},
     },
   };
   const inventory = load("src/server/orders.ts", dependencies);
@@ -207,14 +274,17 @@ function setup() {
     ...inventory,
     getSoldPrintQuantities: async () => new Map(),
   };
+  dependencies["src/server/email"] = load("src/server/email.ts", dependencies);
   const checkout = load("src/app/api/checkout/route.ts", dependencies);
   const webhook = load("src/app/api/stripe/webhook/route.ts", dependencies);
   return {
     state,
     inventory,
+    env: dependencies["src/env"].env,
     checkout: (itemType, extra = {}) =>
       checkout.POST({
         url: "http://localhost:3000/api/checkout",
+        headers: new Headers({ "x-posthog-distinct-id": "visitor_1" }),
         json: async () => ({ itemType, id: 1, ...extra }),
       }),
     pay: async (itemType, id = "cs_1", sessionOverrides = {}) => {
@@ -364,6 +434,204 @@ test("digital sales do not consume original stock; full refunds restore it", asy
   assert.equal((await app.checkout("original")).status, 409);
 });
 
+test("fully refunded orders no longer read as pending in the admin", async () => {
+  const app = setup();
+  const { effectiveFulfillment } = load("src/lib/orders.ts");
+  await app.pay("original");
+  const order = app.state.rows[0];
+  assert.equal(effectiveFulfillment(order), "pending");
+  await app.refund("cs_1", 100);
+  assert.equal(effectiveFulfillment(order), "pending");
+  await app.refund("cs_1", 190000);
+  assert.equal(order.paymentStatus, "refunded");
+  assert.equal(effectiveFulfillment(order), "no_action");
+  assert.equal(
+    effectiveFulfillment({
+      paymentStatus: "refunded",
+      fulfillmentStatus: "oversold",
+    }),
+    "no_action",
+  );
+  assert.equal(
+    effectiveFulfillment({
+      paymentStatus: "refunded",
+      fulfillmentStatus: "fulfilled",
+    }),
+    "fulfilled",
+  );
+});
+
+test("checkout funnel events are attributed to the buyer's PostHog id", async () => {
+  const app = setup();
+  await app.checkout("original");
+  await app.pay("original");
+  await app.refund("cs_1", 190000);
+  const events = app.state.analytics.map((e) => [e.distinctId, e.event]);
+  assert.deepEqual(events, [
+    ["visitor_1", "checkout_session_created"],
+    ["checkout:cs_1", "checkout_completed"],
+    [`order:${app.state.rows[0].id}`, "order_refunded"],
+  ]);
+  assert.equal(app.state.sessions[0].metadata.posthogDistinctId, "visitor_1");
+});
+
+test("a paid order emails the buyer a confirmation and the seller a notification, once", async () => {
+  const app = setup();
+  await app.pay("original");
+  await app.pay("original"); // Stripe retry: already recorded, nothing resent
+  assert.equal(app.state.emails.length, 2);
+  const [confirmation, notification] = app.state.emails;
+
+  assert.equal(confirmation.from, "Shop <orders@example.com>");
+  assert.equal(confirmation.to, "buyer@example.com");
+  assert.equal(confirmation.replyTo, "nazanfeyzioglu@yahoo.com");
+  assert.equal(confirmation.idempotencyKey, "order-confirmation/cs_1");
+  assert.match(confirmation.subject, /Painting \(original\)/);
+  assert.match(confirmation.text, /Dear Buyer,/);
+  assert.match(confirmation.text, /Total: 1,900 CAD/);
+  assert.match(confirmation.text, /Shipping: Free/);
+  assert.match(confirmation.text, /123 Test St/);
+  assert.match(confirmation.html, /123 Test St/);
+  assert.doesNotMatch(confirmation.text, /3–7 business days/);
+
+  assert.equal(notification.to, "nazanfeyzioglu@yahoo.com");
+  assert.equal(notification.replyTo, "buyer@example.com");
+  assert.equal(notification.idempotencyKey, "order-notification/cs_1");
+  assert.equal(notification.subject, "New order #1: Painting (original)");
+  assert.match(notification.text, /Customer: Buyer — buyer@example.com/);
+  assert.match(notification.text, /https:\/\/example\.com\/admin\/orders/);
+  assert.doesNotMatch(notification.text, /OVERSOLD/);
+  assert.ok(app.state.rows[0].confirmationEmailSentAt !== undefined);
+  assert.ok(app.state.rows[0].notificationEmailSentAt !== undefined);
+});
+
+test("a webhook retry delivers emails still owed to an already-recorded order", async () => {
+  // Simulate a crash after the order committed but before Resend accepted
+  // anything: the row exists with no emailsSentAt.
+  const crashed = setup();
+  crashed.state.emailFailure = new Error("process died");
+  assert.equal((await crashed.pay("original")).status, 500);
+  assert.equal(crashed.state.rows[0].confirmationEmailSentAt, undefined);
+  assert.equal(crashed.state.rows[0].notificationEmailSentAt, undefined);
+  crashed.state.emailFailure = null;
+  assert.equal((await crashed.pay("original")).status, 200); // Stripe retry
+  assert.equal(crashed.state.rows.length, 1);
+  assert.equal(crashed.state.emails.length, 2);
+  assert.equal(crashed.state.emails[0].to, "buyer@example.com");
+  assert.ok(crashed.state.rows[0].confirmationEmailSentAt !== undefined);
+  assert.ok(crashed.state.rows[0].notificationEmailSentAt !== undefined);
+  await crashed.pay("original"); // a further retry sends nothing more
+  assert.equal(crashed.state.emails.length, 2);
+
+  // The retry rebuilds the emails from the stored snapshot, including the
+  // oversold flag the transaction set.
+  const oversold = setup();
+  oversold.state.print.editionSize = 1;
+  await oversold.pay("print", "cs_a");
+  oversold.state.emailFailure = new Error("process died");
+  await oversold.pay("print", "cs_b");
+  oversold.state.emailFailure = null;
+  oversold.state.emails.length = 0;
+  await oversold.pay("print", "cs_b");
+  assert.match(oversold.state.emails[1].subject, /^OVERSOLD/);
+  assert.match(oversold.state.emails[0].text, /sold out moments before/);
+
+  // One rejected message keeps only that message owed: the retry resends
+  // the seller notification without repeating the buyer confirmation.
+  const partial = setup();
+  partial.state.rejectTo = "nazanfeyzioglu@yahoo.com";
+  assert.equal((await partial.pay("original")).status, 500);
+  assert.equal(partial.state.emails.length, 1);
+  assert.ok(partial.state.rows[0].confirmationEmailSentAt !== undefined);
+  assert.equal(partial.state.rows[0].notificationEmailSentAt, undefined);
+  partial.state.rejectTo = null;
+  assert.equal((await partial.pay("original")).status, 200);
+  assert.equal(partial.state.emails.length, 2);
+  assert.equal(partial.state.emails[1].to, "nazanfeyzioglu@yahoo.com");
+  assert.ok(partial.state.rows[0].notificationEmailSentAt !== undefined);
+});
+
+test("print confirmations carry the CMS preparation copy; oversold orders warn the seller", async () => {
+  const app = setup();
+  app.env.ORDER_NOTIFICATION_EMAIL = "artist@example.com";
+  await app.pay("print");
+  const [confirmation, notification] = app.state.emails;
+  assert.equal(confirmation.replyTo, "artist@example.com");
+  assert.equal(notification.to, "artist@example.com");
+  assert.match(confirmation.text, /3–7 business days/);
+  assert.match(confirmation.html, /3–7 business days/);
+  assert.match(confirmation.text, /Shipping: 30 CAD|Shipping: Free/);
+
+  app.state.work.digital = true;
+  await app.pay("digital", "cs_2");
+  assert.equal(app.state.emails.length, 4);
+  assert.doesNotMatch(app.state.emails[2].text, /Shipping:/);
+  assert.match(app.state.emails[2].text, /digital edition/);
+
+  app.state.print.editionSize = 1;
+  await app.pay("print", "cs_3");
+  assert.equal(app.state.rows[2].fulfillmentStatus, "oversold");
+  assert.match(app.state.emails[5].subject, /^OVERSOLD — New order #3/);
+  assert.match(app.state.emails[5].text, /Refund it in the Stripe Dashboard/);
+});
+
+test("failed delivery records the order but asks Stripe to retry; unconfigured email acks", async () => {
+  const thrown = setup();
+  thrown.state.emailFailure = new Error("network down");
+  assert.equal((await thrown.pay("original")).status, 500);
+  assert.equal(thrown.state.rows.length, 1);
+
+  const rejected = setup();
+  rejected.state.emailFailure = {
+    name: "validation_error",
+    message: "bad from",
+    statusCode: 422,
+  };
+  assert.equal((await rejected.pay("original")).status, 500);
+  assert.equal(rejected.state.rows.length, 1);
+
+  // Unconfigured email is settled as "never sent" rather than left owed, so
+  // replaying the event after Resend is configured does not email a stale
+  // order.
+  const unconfigured = setup();
+  unconfigured.env.RESEND_API_KEY = undefined;
+  assert.equal((await unconfigured.pay("original")).status, 200);
+  assert.equal(unconfigured.state.emails.length, 0);
+  assert.equal(unconfigured.state.rows.length, 1);
+  assert.ok(unconfigured.state.rows[0].confirmationEmailSentAt !== undefined);
+  assert.ok(unconfigured.state.rows[0].notificationEmailSentAt !== undefined);
+  unconfigured.env.RESEND_API_KEY = "re_test";
+  assert.equal((await unconfigured.pay("original")).status, 200);
+  assert.equal(unconfigured.state.emails.length, 0);
+
+  // Session without a customer email: the seller is still notified.
+  const anonymous = setup();
+  const anonymousResponse = await anonymous.pay("original", "cs_anon", {
+    customer_details: { email: null, name: null },
+  });
+  assert.equal(anonymousResponse.status, 200);
+  assert.equal(anonymous.state.emails.length, 1);
+  // Nothing can ever be sent to the buyer, so that side is settled at once.
+  assert.ok(anonymous.state.rows[0].confirmationEmailSentAt !== undefined);
+
+  // No seller address anywhere: the notification stays owed (and the
+  // webhook asks for a retry) until one is configured, rather than being
+  // silently dropped.
+  const noSeller = setup();
+  noSeller.state.content["contact.email"] = "";
+  assert.equal((await noSeller.pay("original")).status, 500);
+  assert.equal(noSeller.state.emails.length, 1);
+  assert.ok(noSeller.state.rows[0].confirmationEmailSentAt !== undefined);
+  assert.equal(noSeller.state.rows[0].notificationEmailSentAt, undefined);
+  noSeller.env.ORDER_NOTIFICATION_EMAIL = "artist@example.com";
+  assert.equal((await noSeller.pay("original")).status, 200);
+  assert.equal(noSeller.state.emails.length, 2);
+  assert.equal(noSeller.state.emails[1].to, "artist@example.com");
+  assert.equal(anonymous.state.emails[0].to, "nazanfeyzioglu@yahoo.com");
+  assert.equal(anonymous.state.emails[0].replyTo, undefined);
+  assert.match(anonymous.state.emails[0].text, /Customer: unknown/);
+});
+
 test("webhook handler failure is reported with event context and returns 500", async () => {
   const app = setup();
   app.state.retrieveSession = async () => {
@@ -381,6 +649,18 @@ test("webhook handler failure is reported with event context and returns 500", a
     eventType: "checkout.session.completed",
     checkoutSessionId: "cs_fails",
   });
+});
+
+test("owed order emails are reported as a warning alongside the retry", async () => {
+  const app = setup();
+  app.state.emailFailure = new Error("network down");
+  assert.equal((await app.pay("original")).status, 500);
+  const report = app.state.reports.at(-1);
+  assert.equal(report.message, "Order email delivery pending retry");
+  assert.equal(report.level, "warning");
+  assert.equal(report.stage, "persist");
+  assert.equal(report.checkoutSessionId, "cs_1");
+  assert.equal(report.itemType, "original");
 });
 
 test("refund for an unknown order is reported as a warning", async () => {
@@ -401,7 +681,9 @@ test("refund for an unknown order is reported as a warning", async () => {
 
 test("session without item metadata is acknowledged and reported", async () => {
   const app = setup();
-  const res = await app.pay("print", "cs_no_metadata", { metadata: {} });
+  const res = await app.pay("print", "cs_no_metadata", {
+    metadata: { itemType: "gift-card", itemId: "1.5" },
+  });
   assert.equal(res.status, 200);
   assert.deepEqual(app.state.reports.at(-1), {
     message: "Checkout session has no item metadata",
@@ -429,9 +711,15 @@ test("webhook telemetry redacts secrets and customer emails and bounds length", 
   );
   assert.equal(code, "resource_missing");
   assert.doesNotMatch(message, /example\.com|sk_live|pw@host/);
-  assert.match(message, /\[email\] paid with \[redacted-key\] via \[redacted-dsn\]/);
+  assert.match(
+    message,
+    /\[email\] paid with \[redacted-key\] via \[redacted-dsn\]/,
+  );
   assert.ok(message.length <= 301);
-  assert.equal(scrub.scrubText("session cs_test_123 evt_1 pi_2"), "session cs_test_123 evt_1 pi_2");
+  assert.equal(
+    scrub.scrubText("session cs_test_123 evt_1 pi_2"),
+    "session cs_test_123 evt_1 pi_2",
+  );
 
   const event = scrub.scrubSentryEvent({
     message: "whsec_secret",

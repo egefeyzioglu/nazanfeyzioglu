@@ -5,6 +5,10 @@ import { z } from "zod";
 
 import { env } from "src/env";
 import { CURRENCY, PRINT_SHIPPING_CENTS } from "src/lib/orders";
+import {
+  captureServerEvent,
+  captureServerException,
+} from "src/lib/posthog-server";
 import { db } from "src/server/db";
 import {
   getSoldOriginalIds,
@@ -35,6 +39,13 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const distinctId =
+    req.headers.get("x-posthog-distinct-id")?.slice(0, 200) ??
+    `checkout:${crypto.randomUUID()}`;
+  const posthogSessionId = req.headers
+    .get("x-posthog-session-id")
+    ?.slice(0, 200);
+
   if (!stripeConfigured()) {
     return NextResponse.json(
       { error: "Checkout is not configured" },
@@ -74,7 +85,12 @@ export async function POST(req: Request) {
     session = await getStripe().checkout.sessions.create({
       mode: "payment",
       line_items: [item.lineItem],
-      metadata: { itemType: body.itemType, itemId: String(body.id) },
+      metadata: {
+        itemType: body.itemType,
+        itemId: String(body.id),
+        posthogDistinctId: distinctId,
+        ...(posthogSessionId && { posthogSessionId }),
+      },
       customer_creation: "if_required",
       ...item.extraParams,
       success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -82,6 +98,7 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("Stripe checkout session creation failed", err);
+    captureServerException(err, distinctId);
     return NextResponse.json(
       { error: "Could not start checkout — please try again" },
       { status: 502 },
@@ -94,6 +111,12 @@ export async function POST(req: Request) {
       { status: 502 },
     );
   }
+
+  captureServerEvent(distinctId, "checkout_session_created", {
+    item_type: body.itemType,
+    item_id: body.id,
+    ...(posthogSessionId && { $session_id: posthogSessionId }),
+  });
   return NextResponse.json({ url: session.url });
 }
 
