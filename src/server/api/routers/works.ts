@@ -75,9 +75,8 @@ export const worksRouter = createTRPCRouter({
           message: "Original not found. Refresh the page and try again.",
         });
       const changed =
-        before === undefined ||
-        before.originalPriceCents !== row.originalPriceCents ||
-        before.originalUnavailable !== row.originalUnavailable;
+        before?.originalPriceCents !== row.originalPriceCents ||
+        before?.originalUnavailable !== row.originalUnavailable;
       if (changed) {
         captureServerEvent(ctx.userId, "original_sale_updated", {
           work_id: row.id,
