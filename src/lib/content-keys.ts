@@ -7,17 +7,31 @@
  * line.
  */
 
+import { PRINT_SHIPPING_CENTS, PRINT_SHIPPING_KEY } from "src/lib/orders";
+
 export type ContentField = {
   key: string;
   label: string;
   /** Which admin section the field is edited under. */
   group: "Home" | "About" | "Contact" | "Prints" | "Exhibitions" | "Sidebar";
   multiline?: boolean;
+  /**
+   * "price" fields hold a CAD amount as a `dollars[.cc]` string and are edited
+   * with a number input; the server rejects anything else.
+   */
+  kind?: "text" | "price";
   default: string;
 };
 
 /** Shared print copy, editable from Admin → Pages → Prints. */
 export const PRINT_COPY_FIELDS: ContentField[] = [
+  {
+    key: PRINT_SHIPPING_KEY,
+    label: "Flat rate shipping within Canada (CAD per print order)",
+    group: "Prints",
+    kind: "price",
+    default: (PRINT_SHIPPING_CENTS / 100).toString(),
+  },
   {
     key: "prints.modal.lowStock",
     label: "Low-stock message (use {remaining} for the number of copies)",

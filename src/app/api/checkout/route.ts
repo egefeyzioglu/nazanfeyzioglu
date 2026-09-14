@@ -4,7 +4,7 @@ import type Stripe from "stripe";
 import { z } from "zod";
 
 import { env } from "src/env";
-import { CURRENCY, PRINT_SHIPPING_CENTS } from "src/lib/orders";
+import { CURRENCY, printShippingCents } from "src/lib/orders";
 import {
   captureServerEvent,
   captureServerException,
@@ -15,6 +15,7 @@ import {
   getSoldPrintQuantities,
   remainingCopies,
 } from "src/server/orders";
+import { getContent } from "src/server/queries";
 import { getStripe, stripeConfigured } from "src/server/stripe";
 
 /**
@@ -146,6 +147,9 @@ async function printLineItem(id: number, origin: string): Promise<ItemResult> {
     return { error: "This edition is sold out", status: 409 };
   }
   const maxQuantity = Math.min(MAX_PRINT_QUANTITY, remaining ?? Infinity);
+  // The rate is admin-editable; read it per checkout so a change applies to
+  // the next session without a deploy.
+  const shippingCents = printShippingCents(await getContent());
 
   return {
     lineItem: {
@@ -176,7 +180,7 @@ async function printLineItem(id: number, origin: string): Promise<ItemResult> {
           shipping_rate_data: {
             type: "fixed_amount",
             fixed_amount: {
-              amount: PRINT_SHIPPING_CENTS,
+              amount: shippingCents,
               currency: CURRENCY,
             },
             display_name: "Flat rate shipping within Canada",
