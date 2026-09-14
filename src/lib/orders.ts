@@ -75,10 +75,12 @@ export const PRINT_SHIPPING_KEY = "prints.shipping.price";
  * row can never disable checkout.
  */
 export function printShippingCents(content: Record<string, string>): number {
-  return (
-    dollarsStringToCents(content[PRINT_SHIPPING_KEY] ?? "") ??
-    PRINT_SHIPPING_CENTS
-  );
+  const cents = dollarsStringToCents(content[PRINT_SHIPPING_KEY] ?? "");
+  // A pathologically long digit string parses to Infinity or an unsafe
+  // integer; treat it like a malformed value rather than sending it to Stripe.
+  return cents !== null && Number.isSafeInteger(cents)
+    ? cents
+    : PRINT_SHIPPING_CENTS;
 }
 
 /**

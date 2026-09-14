@@ -402,6 +402,9 @@ test("print shipping charges the admin-set rate; a malformed rate falls back to 
   app.state.content["prints.shipping.price"] = "free";
   await app.checkout("print");
   assert.equal(shipping(2), 3000);
+  app.state.content["prints.shipping.price"] = "9".repeat(400);
+  await app.checkout("print");
+  assert.equal(shipping(3), 3000);
 });
 
 test("original payment records fulfillment details once; excess sale is flagged", async () => {
