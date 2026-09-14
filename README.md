@@ -68,7 +68,7 @@ Emails are sent after the order transaction commits, so a Stripe retry never dup
 
 When a paid order turns out to be **oversold**, the buyer's email says the item sold out moments before payment completed and that a full refund is coming, rather than confirming the order; the seller's notification carries the refund instruction.
 
-Run `pnpm db:migrate` before deploying: migration `0004_order-emails` adds the nullable `confirmationEmailSentAt` and `notificationEmailSentAt` columns to orders.
+Run `pnpm db:migrate` before deploying: migration `0005_order-emails` adds the nullable `confirmationEmailSentAt` and `notificationEmailSentAt` columns to orders.
 
 ### Original sales
 
@@ -87,13 +87,16 @@ Run `node --test tests/commerce.test.mjs` for mocked checkout, availability, web
 Print sizes are stored as physical image width and height in inches, separately
 from the image file's pixel dimensions. The catalogue, product details, and
 checkout description are generated from those values. Overall paper dimensions
-add four inches per axis for the two-inch border on all sides.
+add two inches per axis for the one-inch border on all sides.
 
 Run `pnpm db:migrate` before deploying the structured print-size change.
 Migration `0002_print-dimensions.sql` imports recognized legacy inch sizes once,
 leaving unknown formats blank and preserving the original `spec` text. Review
 blank sizes in Admin → Prints; the previous specification is shown for reference.
 Enter both dimensions or leave both blank when the size is not yet confirmed.
+Migration `0004_print-border-copy.sql` rewrites the border copy from 2 inches to
+1 inch only where the stored value still matches the old default, so custom
+edits are preserved.
 
 - `src/server/db/schema.ts` — `series`, `work`, `print`, `exhibition`, `site_content`, and `order` tables
 - `src/server/api/` — tRPC routers (admin-gated CRUD + reordering, orders)

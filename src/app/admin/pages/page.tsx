@@ -220,7 +220,7 @@ export default function AdminPagesEditor() {
             <p className="text-stone mt-2 mb-6 text-[14px]">
               This copy is shared by all prints. Use Save above to publish
               changes. Edit each print’s image, size and price under Prints.
-              Border wording does not change the 2-inch border used to calculate
+              Border wording does not change the 1-inch border used to calculate
               paper sizes; edition wording does not change inventory limits.
             </p>
             <div className="grid gap-5 md:grid-cols-2">

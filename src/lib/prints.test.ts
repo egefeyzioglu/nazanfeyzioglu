@@ -3,19 +3,19 @@ import { test } from "node:test";
 
 import { formatPrintSpec, getPrintSizes } from "./prints";
 
-void test("adds the two-inch border to both sides of each image dimension", () => {
+void test("adds the one-inch border to both sides of each image dimension", () => {
   assert.deepEqual(
     getPrintSizes({ imageWidthInches: 24, imageHeightInches: 36 }),
     {
       image: "24 × 36 in",
-      paper: "28 × 40 in",
+      paper: "26 × 38 in",
     },
   );
   assert.deepEqual(
     getPrintSizes({ imageWidthInches: 36, imageHeightInches: 24 }),
     {
       image: "36 × 24 in",
-      paper: "40 × 28 in",
+      paper: "38 × 26 in",
     },
   );
 });
@@ -25,7 +25,7 @@ void test("supports decimal inches", () => {
     getPrintSizes({ imageWidthInches: 9.5, imageHeightInches: 12.5 }),
     {
       image: "9.5 × 12.5 in",
-      paper: "13.5 × 16.5 in",
+      paper: "11.5 × 14.5 in",
     },
   );
 });
