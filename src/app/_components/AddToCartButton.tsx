@@ -48,13 +48,14 @@ export default function AddToCartButton({
         {atCap ? inCartLabel : children}
       </button>
       {(added || atCap) && (
-        <Link
-          href="/cart"
-          role="status"
-          className="hover-clay text-stone font-mono text-[10px] tracking-[0.16em] uppercase"
-        >
-          {added ? `Added · ${viewCartLabel}` : viewCartLabel}
-        </Link>
+        <div role="status">
+          <Link
+            href="/cart"
+            className="hover-clay text-stone font-mono text-[10px] tracking-[0.16em] uppercase"
+          >
+            {added ? `Added · ${viewCartLabel}` : viewCartLabel}
+          </Link>
+        </div>
       )}
     </div>
   );

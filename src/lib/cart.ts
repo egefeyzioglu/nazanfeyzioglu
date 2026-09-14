@@ -105,6 +105,31 @@ export function setLineQuantity(
   );
 }
 
+/** A line reported by Stripe as purchased, used to reconcile the cart afterwards. */
+export type PurchasedLine = CartItemRef & { quantity: number };
+
+/**
+ * Removes what a completed checkout bought — only those items, only those
+ * quantities — so anything added in another tab, or after the checkout
+ * started, survives. Returns the same array instance when nothing matched.
+ */
+export function removePurchasedLines(
+  lines: CartLine[],
+  purchased: PurchasedLine[],
+): CartLine[] {
+  let changed = false;
+  const next = lines.flatMap((line) => {
+    const bought = purchased
+      .filter((p) => sameItem(p, line))
+      .reduce((sum, p) => sum + p.quantity, 0);
+    if (bought === 0) return [line];
+    changed = true;
+    const quantity = line.quantity - bought;
+    return quantity > 0 ? [{ ...line, quantity }] : [];
+  });
+  return changed ? next : lines;
+}
+
 export function cartCount(lines: CartLine[]): number {
   return lines.reduce((sum, l) => sum + l.quantity, 0);
 }

@@ -15,11 +15,17 @@ import {
   CART_STORAGE_KEY,
   parseStoredCart,
   removeLine,
+  removePurchasedLines,
   serializeCart,
   setLineQuantity,
   type CartItemRef,
   type CartLine,
+  type PurchasedLine,
 } from "src/lib/cart";
+
+/** Checkout session ids whose purchases have already been removed from the cart. */
+const RECONCILED_STORAGE_KEY = "nazanfeyzioglu.cart.reconciled.v1";
+const RECONCILED_LIMIT = 20;
 
 export type CartContextValue = {
   lines: CartLine[];
@@ -34,7 +40,12 @@ export type CartContextValue = {
   remove: (ref: CartItemRef) => void;
   removeMany: (refs: CartItemRef[]) => void;
   setQuantity: (ref: CartItemRef, quantity: number) => void;
-  clear: () => void;
+  /**
+   * Removes a completed checkout's purchases from the cart, once per session
+   * id — reopening the success page later (or in another tab) does not touch
+   * lines added since.
+   */
+  reconcilePurchase: (sessionId: string, purchased: PurchasedLine[]) => void;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -45,6 +56,27 @@ function readStorage(): CartLine[] {
   } catch {
     // Storage can be unavailable (privacy modes, quota) — treat as empty.
     return [];
+  }
+}
+
+function readReconciled(): string[] {
+  try {
+    const raw = window.localStorage.getItem(RECONCILED_STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((id): id is string => typeof id === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function markReconciled(sessionId: string) {
+  try {
+    const ids = [...readReconciled(), sessionId].slice(-RECONCILED_LIMIT);
+    window.localStorage.setItem(RECONCILED_STORAGE_KEY, JSON.stringify(ids));
+  } catch {
+    // Best-effort, like the cart itself.
   }
 }
 
@@ -102,7 +134,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
         ),
       setQuantity: (ref: CartItemRef, quantity: number) =>
         update((current) => setLineQuantity(current, ref, quantity)),
-      clear: () => update((current) => (current.length === 0 ? current : [])),
+      reconcilePurchase: (sessionId: string, purchased: PurchasedLine[]) => {
+        if (readReconciled().includes(sessionId)) return;
+        markReconciled(sessionId);
+        update((current) => removePurchasedLines(current, purchased));
+      },
     }),
     [update],
   );

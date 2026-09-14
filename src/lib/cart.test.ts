@@ -8,6 +8,7 @@ import {
   cartSubtotalCents,
   parseStoredCart,
   removeLine,
+  removePurchasedLines,
   serializeCart,
   setLineQuantity,
   type CartLine,
@@ -79,6 +80,25 @@ void test("setting a quantity to zero removes the line", () => {
   assert.deepEqual(lines, []);
   lines = removeLine(addLine([], line()), { itemType: "print", id: 1 });
   assert.deepEqual(lines, []);
+});
+
+void test("removing purchased lines decrements only what was bought", () => {
+  const lines = [
+    line({ quantity: 3 }),
+    line({ id: 2, quantity: 1 }),
+    line({ itemType: "original", id: 5 }),
+  ];
+  const next = removePurchasedLines(lines, [
+    { itemType: "print", id: 1, quantity: 2 },
+    { itemType: "original", id: 5, quantity: 1 },
+    { itemType: "digital", id: 9, quantity: 1 },
+  ]);
+  assert.deepEqual(next, [line({ quantity: 1 }), line({ id: 2, quantity: 1 })]);
+  assert.equal(removePurchasedLines(lines, []), lines);
+  assert.equal(
+    removePurchasedLines(lines, [{ itemType: "digital", id: 1, quantity: 1 }]),
+    lines,
+  );
 });
 
 void test("totals count copies, and shipping is flat only when a print is included", () => {

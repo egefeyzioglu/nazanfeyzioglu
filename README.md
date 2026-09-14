@@ -105,4 +105,4 @@ Enter both dimensions or leave both blank when the size is not yet confirmed.
 - `pnpm db:studio` — browse the database in Drizzle Studio
 - `pnpm db:generate && pnpm db:migrate` — create/apply migrations after schema changes
 - `pnpm check` — lint + typecheck
-- `pnpm test` — unit tests (`src/**/*.test.ts`, run with `tsx --test`)
+- `pnpm test` — unit tests (`src/lib/*.test.ts`, run with `tsx --test`; add new files to the script)

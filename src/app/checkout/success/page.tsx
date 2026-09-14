@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import ClearCart from "src/app/_components/ClearCart";
+import ReconcileCart from "src/app/_components/ReconcileCart";
 import SidebarBody from "src/app/_components/pages/SidebarBody";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 import { formatPrice } from "src/lib/orders";
+import {
+  listSessionLineItems,
+  purchasedLines,
+} from "src/server/checkout-lines";
 import { getStripe, stripeConfigured } from "src/server/stripe";
 import { getContent } from "src/server/queries";
 
@@ -25,27 +29,26 @@ export default async function CheckoutSuccessPage({
   const { session_id: sessionId } = await searchParams;
   if (!stripeConfigured() || !sessionId) notFound();
 
-  const session = await getStripe()
-    .checkout.sessions.retrieve(sessionId, {
-      expand: ["line_items.data.price.product"],
-    })
-    .catch(() => null);
-  if (!session) notFound();
+  const stripeData = await Promise.all([
+    getStripe().checkout.sessions.retrieve(sessionId),
+    listSessionLineItems(sessionId),
+  ]).catch(() => null);
+  if (!stripeData) notFound();
+  const [session, lines] = stripeData;
   const content = await getContent().catch(() => CONTENT_DEFAULTS);
 
   const paid = session.payment_status !== "unpaid";
-  const lines = session.line_items?.data ?? [];
-  const hasPrint = lines.some(
-    (line) =>
-      typeof line.price?.product === "object" &&
-      !line.price.product.deleted &&
-      line.price.product.metadata.itemType === "print",
-  );
+  const purchased = purchasedLines(session, lines).map((line) => ({
+    itemType: line.itemType,
+    id: line.itemId,
+    quantity: line.quantity,
+  }));
+  const hasPrint = purchased.some((line) => line.itemType === "print");
   const email = session.customer_details?.email;
 
   return (
     <div className="bg-paper text-ink flex min-h-screen flex-col md:flex-row">
-      {paid && <ClearCart />}
+      {paid && <ReconcileCart sessionId={session.id} purchased={purchased} />}
       <SidebarBody active={hasPrint ? "prints" : "series"} content={content} />
       <main className="flex-1 px-9 pt-12 pb-24 md:ml-[280px] md:max-w-[1040px] md:min-w-0 md:px-[72px] md:pt-16">
         <div className="text-ash font-mono text-[10.5px] tracking-[0.3em] uppercase">

@@ -3,7 +3,12 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
 import { env } from "src/env";
-import { ORDER_ITEM_TYPES, type OrderItemType } from "src/lib/orders";
+import { type OrderItemType } from "src/lib/orders";
+import {
+  listSessionLineItems,
+  purchasedLines,
+  type PurchasedLine,
+} from "src/server/checkout-lines";
 import { db } from "src/server/db";
 import { orderItems, orders, prints, works } from "src/server/db/schema";
 import { getStripe, stripeConfigured } from "src/server/stripe";
@@ -71,71 +76,19 @@ export async function POST(req: Request) {
   return NextResponse.json({ received: true });
 }
 
-/** A purchased line, as identified from the session's line-item metadata. */
-type PurchasedLine = {
-  itemType: OrderItemType;
-  itemId: number;
-  quantity: number;
-  unitAmount: number;
-  amountTotal: number;
-  /** Stripe's product name — the fallback title when the item was deleted. */
-  description: string | null;
-};
-
-function isOrderItemType(value: unknown): value is OrderItemType {
-  return (ORDER_ITEM_TYPES as readonly unknown[]).includes(value);
-}
-
 /**
- * Reads item type/id off each line item's product metadata (written by the
- * checkout route). Sessions created before the cart existed carried a single
- * item in the session metadata instead; those are still honoured so a
- * checkout that straddles a deploy is recorded.
- */
-function purchasedLines(session: Stripe.Checkout.Session): PurchasedLine[] {
-  const lines = session.line_items?.data ?? [];
-  const legacyType = session.metadata?.itemType;
-  const legacyId = Number(session.metadata?.itemId);
-
-  return lines.flatMap((line, index) => {
-    const product = line.price?.product;
-    const metadata =
-      typeof product === "object" && !product.deleted ? product.metadata : null;
-    let itemType: unknown = metadata?.itemType;
-    let itemId = Number(metadata?.itemId);
-    if (!isOrderItemType(itemType) && index === 0 && lines.length === 1) {
-      itemType = legacyType;
-      itemId = legacyId;
-    }
-    if (!isOrderItemType(itemType) || !Number.isInteger(itemId)) return [];
-    const quantity = line.quantity ?? 1;
-    return [
-      {
-        itemType,
-        itemId,
-        quantity,
-        unitAmount:
-          line.price?.unit_amount ??
-          Math.round(line.amount_subtotal / quantity),
-        amountTotal: line.amount_total,
-        description: line.description ?? null,
-      },
-    ];
-  });
-}
-
-/**
- * Fetches the full session (the event payload omits line items) and upserts
- * the order with one row per line. Idempotent via the unique session id —
- * Stripe retries deliveries, and completed/async_payment_succeeded can both
- * fire.
+ * Fetches the session and all of its line items (the event payload omits
+ * them) and upserts the order with one row per line. Idempotent via the
+ * unique session id — Stripe retries deliveries, and
+ * completed/async_payment_succeeded can both fire.
  */
 async function recordPaidCheckout(sessionId: string) {
-  const session = await getStripe().checkout.sessions.retrieve(sessionId, {
-    expand: ["line_items.data.price.product"],
-  });
+  const [session, lineItems] = await Promise.all([
+    getStripe().checkout.sessions.retrieve(sessionId),
+    listSessionLineItems(sessionId),
+  ]);
 
-  const lines = purchasedLines(session);
+  const lines = purchasedLines(session, lineItems);
   if (lines.length === 0) {
     // Not a session this integration created (or malformed metadata); ack it
     // rather than have Stripe retry forever.
