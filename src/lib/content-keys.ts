@@ -7,7 +7,7 @@
  * line.
  */
 
-import { PRINT_SHIPPING_CENTS, PRINT_SHIPPING_KEY } from "src/lib/orders";
+import { PRINT_SHIPPING_CENTS, PRINT_SHIPPING_KEY } from "./orders";
 
 export type ContentField = {
   key: string;
