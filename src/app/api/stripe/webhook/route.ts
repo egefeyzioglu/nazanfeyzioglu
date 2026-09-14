@@ -249,8 +249,17 @@ async function recordPaidCheckout(sessionId: string): Promise<boolean> {
   // Each message that Resend accepts is marked settled on its own, so a
   // retry (Stripe redelivers while we answer non-2xx, and after a crash
   // between the commit and this point) sends only what is still owed.
-  const content = await getContent().catch(() => CONTENT_DEFAULTS);
-  const settled = await sendOrderEmails(pending.order, content, pending.owed);
+  //
+  // Without Resend configured there is nothing to deliver, and that is not
+  // retryable: the messages are settled as never sent, so replaying the
+  // event after Resend is set up does not email a stale order.
+  const settled = emailConfigured()
+    ? await sendOrderEmails(
+        pending.order,
+        await getContent().catch(() => CONTENT_DEFAULTS),
+        pending.owed,
+      )
+    : { confirmation: true, notification: true };
   const now = new Date();
   const update = {
     ...(pending.owed.confirmation &&
@@ -264,7 +273,7 @@ async function recordPaidCheckout(sessionId: string): Promise<boolean> {
       .set(update)
       .where(eq(orders.id, pending.order.orderId));
   }
-  return !emailConfigured() || (settled.confirmation && settled.notification);
+  return settled.confirmation && settled.notification;
 }
 
 type PendingEmails = {

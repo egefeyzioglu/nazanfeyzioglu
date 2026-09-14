@@ -206,8 +206,9 @@ export const orders = createTable(
       .notNull()
       .default("pending"),
     /**
-     * When each order email was settled: accepted by Resend (or, for the
-     * confirmation, when Stripe supplied no customer email to send to). Null
+     * When each order email was settled: accepted by Resend, skipped because
+     * Resend is not configured, or (for the confirmation) impossible because
+     * Stripe supplied no customer email to send to. Null
      * means it is still owed, and the webhook sends it on
      * the next delivery of the Stripe event (the handler answers non-2xx
      * while anything is owed, so Stripe keeps retrying). Tracked per message

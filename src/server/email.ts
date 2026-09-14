@@ -60,7 +60,8 @@ export type OrderEmailKind = "confirmation" | "notification";
  * owed, or (for the confirmation) impossible to send because Stripe gave no
  * customer email. False means it is still owed — delivery failed, email is
  * not configured, or no seller address is configured — and the caller should
- * keep it pending.
+ * keep it pending. (The webhook only calls this when email is configured; it
+ * settles unconfigured orders itself, since that is not retryable.)
  */
 export async function sendOrderEmails(
   order: OrderEmailData,

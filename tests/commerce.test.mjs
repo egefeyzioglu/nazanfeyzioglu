@@ -574,11 +574,19 @@ test("failed delivery records the order but asks Stripe to retry; unconfigured e
   assert.equal((await rejected.pay("original")).status, 500);
   assert.equal(rejected.state.rows.length, 1);
 
+  // Unconfigured email is settled as "never sent" rather than left owed, so
+  // replaying the event after Resend is configured does not email a stale
+  // order.
   const unconfigured = setup();
   unconfigured.env.RESEND_API_KEY = undefined;
   assert.equal((await unconfigured.pay("original")).status, 200);
   assert.equal(unconfigured.state.emails.length, 0);
   assert.equal(unconfigured.state.rows.length, 1);
+  assert.ok(unconfigured.state.rows[0].confirmationEmailSentAt !== undefined);
+  assert.ok(unconfigured.state.rows[0].notificationEmailSentAt !== undefined);
+  unconfigured.env.RESEND_API_KEY = "re_test";
+  assert.equal((await unconfigured.pay("original")).status, 200);
+  assert.equal(unconfigured.state.emails.length, 0);
 
   // Session without a customer email: the seller is still notified.
   const anonymous = setup();
