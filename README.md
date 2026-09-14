@@ -91,6 +91,49 @@ Enter both dimensions or leave both blank when the size is not yet confirmed.
 - `src/app/admin/` — the admin panel UI (`/admin/pages` is the in-place page editor)
 - `src/server/uploadthing.ts` — admin-gated UploadThing file router
 
+## Monitoring (Sentry)
+
+Sentry is optional until configured. In Vercel, install the Sentry integration
+for the project so it injects the DSN and build-time source-map variables, or
+set `SENTRY_DSN` manually from the Sentry project settings. Events are tagged
+with `VERCEL_ENV` (`production`, `preview` or `development`) when Vercel
+provides it.
+
+The `/api/stripe/webhook` route reports every non-2xx or thrown path with
+`area=stripe-webhook`. Reports include the Stripe event id, event type,
+checkout session id, payment intent id, item type and item id when those are
+available. Payloads, secrets, signatures, headers and customer details are not
+logged or sent to Sentry.
+
+Recommended Sentry alerts:
+
+- Issue alert for `area:stripe-webhook environment:production` when there is
+  more than 1 event in 1 hour, routed to email or Slack.
+- A separate new issue alert for `area:stripe-webhook environment:production`,
+  also routed to email or Slack.
+
+To trigger test failures in a non-production environment with the Stripe CLI:
+
+```bash
+stripe trigger checkout.session.completed --override checkout_session:metadata.itemType=print --override checkout_session:metadata.itemId=abc      # metadata warning, 200
+stripe trigger checkout.session.completed --override checkout_session:metadata.itemType=print --override checkout_session:metadata.itemId=99999999999   # integer out of range -> handler error, 500
+```
+
+To test the signature path, temporarily set an incorrect
+`STRIPE_WEBHOOK_SECRET` in a non-production environment and send a Stripe CLI
+event.
+
+Failed delivery runbook:
+
+1. Open Stripe Dashboard → Developers → Webhooks → endpoint → event deliveries
+   to inspect delivery status and the response body.
+2. Resend from the event page, or run
+   `stripe events resend evt_… --webhook-endpoint we_… --live`.
+3. Replays are idempotent through the unique checkout session id.
+4. If Stripe disabled the endpoint after prolonged failures, re-enable it
+   manually.
+5. Verify the resulting order state in `/admin/orders`.
+
 ## Useful scripts
 
 - `pnpm db:studio` — browse the database in Drizzle Studio

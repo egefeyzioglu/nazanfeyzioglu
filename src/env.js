@@ -47,6 +47,15 @@ export const env = createEnv({
      */
     SITE_URL: z.string().url().optional(),
     /**
+     * Sentry DSN. Optional so monitoring can be enabled after deploy; when
+     * unset, webhook failures are only written to the server console.
+     */
+    SENTRY_DSN: z.string().url().optional(),
+    /**
+     * Vercel deployment environment, injected automatically on Vercel.
+     */
+    VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
+    /**
      * Deployment host (e.g. "my-app-abc123.vercel.app") that Vercel injects
      * on both production and preview deployments.
      */
@@ -76,6 +85,8 @@ export const env = createEnv({
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     SITE_URL: process.env.SITE_URL,
+    SENTRY_DSN: process.env.SENTRY_DSN,
+    VERCEL_ENV: process.env.VERCEL_ENV,
     VERCEL_URL: process.env.VERCEL_URL,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,

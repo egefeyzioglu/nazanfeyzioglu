@@ -19,6 +19,7 @@ function load(path, dependencies = {}) {
   vm.runInNewContext(outputText, {
     exports,
     console,
+    Error,
     URL,
     require: (id) =>
       Object.hasOwn(dependencies, id) ? dependencies[id] : require(id),
@@ -31,8 +32,10 @@ function setup() {
     rows: [],
     sessions: [],
     locks: [],
+    reports: [],
     event: null,
     session: null,
+    retrieveSession: async () => state.session,
     work: {
       id: 1,
       title: "Painting",
@@ -142,10 +145,14 @@ function setup() {
     }),
     update: () => ({
       set: (values) => ({
-        where: async (predicate) => {
-          state.rows
-            .filter(predicate)
-            .forEach((row) => Object.assign(row, values));
+        where: (predicate) => {
+          const rows = state.rows.filter(predicate);
+          rows.forEach((row) => Object.assign(row, values));
+          return {
+            returning: async () => rows.map((row) => ({ id: row.id })),
+            then: (resolve, reject) =>
+              Promise.resolve(undefined).then(resolve, reject),
+          };
         },
       }),
     }),
@@ -157,7 +164,7 @@ function setup() {
           state.sessions.push(params);
           return { url: "https://checkout.stripe.com/test" };
         },
-        retrieve: async () => state.session,
+        retrieve: async () => state.retrieveSession(),
       },
     },
     webhooks: { constructEvent: () => state.event },
@@ -181,6 +188,15 @@ function setup() {
     "src/lib/prints": load("src/lib/prints.ts"),
     "src/server/db": { db },
     "src/server/db/schema": schema,
+    "src/server/observability": {
+      deploymentEnvironment: () => "development",
+      reportWebhookFailure: (err, ctx, level = "error") =>
+        state.reports.push({
+          message: err instanceof Error ? err.message : String(err),
+          level,
+          ...ctx,
+        }),
+    },
     "src/server/stripe": {
       getStripe: () => stripe,
       stripeConfigured: () => true,
@@ -201,7 +217,7 @@ function setup() {
         url: "http://localhost:3000/api/checkout",
         json: async () => ({ itemType, id: 1, ...extra }),
       }),
-    pay: async (itemType, id = "cs_1") => {
+    pay: async (itemType, id = "cs_1", sessionOverrides = {}) => {
       state.session = {
         id,
         metadata: { itemType, itemId: "1" },
@@ -217,8 +233,11 @@ function setup() {
             address: { country: "CA", line1: "123 Test St" },
           },
         },
+        ...sessionOverrides,
       };
       state.event = {
+        id: `evt_${id}`,
+        livemode: false,
         type: "checkout.session.completed",
         data: { object: { id, payment_status: "paid" } },
       };
@@ -229,6 +248,8 @@ function setup() {
     },
     refund: async (id, amount) => {
       state.event = {
+        id: `evt_refund_${id}`,
+        livemode: false,
         type: "charge.refunded",
         data: {
           object: {
@@ -341,4 +362,56 @@ test("digital sales do not consume original stock; full refunds restore it", asy
   assert.equal((await app.checkout("original")).status, 200);
   app.state.work.originalUnavailable = true;
   assert.equal((await app.checkout("original")).status, 409);
+});
+
+test("webhook handler failure is reported with event context and returns 500", async () => {
+  const app = setup();
+  app.state.retrieveSession = async () => {
+    throw new Error("Stripe retrieve failed");
+  };
+  const res = await app.pay("print", "cs_fails");
+  assert.equal(res.status, 500);
+  assert.deepEqual(app.state.reports.at(-1), {
+    message: "Stripe retrieve failed",
+    level: "error",
+    stage: "handler",
+    environment: "development",
+    livemode: false,
+    eventId: "evt_cs_fails",
+    eventType: "checkout.session.completed",
+    checkoutSessionId: "cs_fails",
+  });
+});
+
+test("refund for an unknown order is reported as a warning", async () => {
+  const app = setup();
+  const res = await app.refund("cs_missing", 190000);
+  assert.equal(res.status, 200);
+  assert.deepEqual(app.state.reports.at(-1), {
+    message: "Refund for unknown order",
+    level: "warning",
+    stage: "persist",
+    environment: "development",
+    livemode: false,
+    eventId: "evt_refund_cs_missing",
+    eventType: "charge.refunded",
+    paymentIntentId: "pi_cs_missing",
+  });
+});
+
+test("session without item metadata is acknowledged and reported", async () => {
+  const app = setup();
+  const res = await app.pay("print", "cs_no_metadata", { metadata: {} });
+  assert.equal(res.status, 200);
+  assert.deepEqual(app.state.reports.at(-1), {
+    message: "Checkout session has no item metadata",
+    level: "warning",
+    stage: "handler",
+    environment: "development",
+    livemode: false,
+    eventId: "evt_cs_no_metadata",
+    eventType: "checkout.session.completed",
+    checkoutSessionId: "cs_no_metadata",
+    paymentIntentId: "pi_cs_no_metadata",
+  });
 });

@@ -6,6 +6,11 @@ import { env } from "src/env";
 import { type OrderItemType } from "src/lib/orders";
 import { db } from "src/server/db";
 import { orders, prints, works } from "src/server/db/schema";
+import {
+  deploymentEnvironment,
+  reportWebhookFailure,
+  type WebhookFailureContext,
+} from "src/server/observability";
 import { getStripe, stripeConfigured } from "src/server/stripe";
 
 /**
@@ -14,7 +19,13 @@ import { getStripe, stripeConfigured } from "src/server/stripe";
  * reach the handler unauthenticated — the Stripe signature is the auth.
  */
 export async function POST(req: Request) {
+  const ctx: WebhookFailureContext = {
+    stage: "config",
+    environment: deploymentEnvironment(),
+  };
+
   if (!stripeConfigured() || !env.STRIPE_WEBHOOK_SECRET) {
+    reportWebhookFailure(new Error("Stripe webhook is not configured"), ctx);
     return NextResponse.json(
       { error: "Stripe webhook is not configured" },
       { status: 503 },
@@ -23,6 +34,11 @@ export async function POST(req: Request) {
 
   const signature = req.headers.get("stripe-signature");
   if (!signature) {
+    reportWebhookFailure(
+      new Error("Missing Stripe signature"),
+      { ...ctx, stage: "signature" },
+      "warning",
+    );
     return NextResponse.json({ error: "Missing signature" }, { status: 400 });
   }
 
@@ -35,37 +51,72 @@ export async function POST(req: Request) {
       signature,
       env.STRIPE_WEBHOOK_SECRET,
     );
-  } catch {
+  } catch (err) {
+    reportWebhookFailure(err, { ...ctx, stage: "signature" }, "warning");
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  switch (event.type) {
-    case "checkout.session.completed":
-    case "checkout.session.async_payment_succeeded": {
-      // A session can complete before a delayed payment method settles;
-      // async_payment_succeeded covers that case later. Only record once paid.
-      if (event.data.object.payment_status === "paid") {
-        await recordPaidCheckout(event.data.object.id);
+  ctx.stage = "handler";
+  ctx.livemode = event.livemode;
+  ctx.eventId = event.id;
+  ctx.eventType = event.type;
+  if (
+    event.type === "checkout.session.completed" ||
+    event.type === "checkout.session.async_payment_succeeded"
+  ) {
+    ctx.checkoutSessionId = event.data.object.id;
+  }
+  if (
+    event.type === "charge.refunded" &&
+    typeof event.data.object.payment_intent === "string"
+  ) {
+    ctx.paymentIntentId = event.data.object.payment_intent;
+  }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded": {
+        // A session can complete before a delayed payment method settles;
+        // async_payment_succeeded covers that case later. Only record once paid.
+        if (event.data.object.payment_status === "paid") {
+          await recordPaidCheckout(event.data.object.id, ctx);
+        }
+        break;
       }
-      break;
-    }
-    case "charge.refunded": {
-      const charge = event.data.object;
-      // Fires for partial refunds too — only flip the order once the full
-      // amount has been returned.
-      if (
-        charge.amount_refunded >= charge.amount &&
-        typeof charge.payment_intent === "string"
-      ) {
-        await db
-          .update(orders)
-          .set({ paymentStatus: "refunded" })
-          .where(eq(orders.stripePaymentIntentId, charge.payment_intent));
+      case "charge.refunded": {
+        const charge = event.data.object;
+        // Fires for partial refunds too — only flip the order once the full
+        // amount has been returned.
+        if (
+          charge.amount_refunded >= charge.amount &&
+          typeof charge.payment_intent === "string"
+        ) {
+          ctx.stage = "persist";
+          const refunded = await db
+            .update(orders)
+            .set({ paymentStatus: "refunded" })
+            .where(eq(orders.stripePaymentIntentId, charge.payment_intent))
+            .returning({ id: orders.id });
+          if (refunded.length === 0) {
+            reportWebhookFailure(
+              new Error("Refund for unknown order"),
+              ctx,
+              "warning",
+            );
+          }
+        }
+        break;
       }
-      break;
+      default:
+        break;
     }
-    default:
-      break;
+  } catch (err) {
+    reportWebhookFailure(err, ctx);
+    return NextResponse.json(
+      { error: "Webhook handler failed" },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ received: true });
@@ -76,13 +127,22 @@ export async function POST(req: Request) {
  * the order. Idempotent via the unique session id — Stripe retries
  * deliveries, and completed/async_payment_succeeded can both fire.
  */
-async function recordPaidCheckout(sessionId: string) {
+async function recordPaidCheckout(
+  sessionId: string,
+  ctx: WebhookFailureContext,
+) {
   const session = await getStripe().checkout.sessions.retrieve(sessionId, {
     expand: ["line_items"],
   });
+  ctx.paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id;
 
   const itemType = session.metadata?.itemType;
   const itemId = Number(session.metadata?.itemId);
+  if (itemType !== undefined) ctx.itemType = itemType;
+  if (Number.isFinite(itemId)) ctx.itemId = itemId;
   if (
     (itemType !== "print" &&
       itemType !== "digital" &&
@@ -91,16 +151,27 @@ async function recordPaidCheckout(sessionId: string) {
   ) {
     // Not a session this integration created (or malformed metadata); ack it
     // rather than have Stripe retry forever.
-    console.warn(
-      `Ignoring checkout session without item metadata: ${sessionId}`,
+    reportWebhookFailure(
+      new Error("Checkout session has no item metadata"),
+      ctx,
+      "warning",
     );
     return;
   }
 
   const lineItem = session.line_items?.data[0];
   const quantity = lineItem?.quantity ?? 1;
+  ctx.stage = "lookup";
   const item = await loadItem(itemType, itemId);
+  if (!item) {
+    reportWebhookFailure(
+      new Error("Ordered item no longer exists"),
+      ctx,
+      "warning",
+    );
+  }
 
+  ctx.stage = "persist";
   await db.transaction(async (tx) => {
     const inserted = await tx
       .insert(orders)
