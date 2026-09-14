@@ -60,6 +60,10 @@ export const worksRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...values } = input;
+      const before = await ctx.db.query.works.findFirst({
+        where: (w, { eq: is }) => is(w.id, id),
+        columns: { originalPriceCents: true, originalUnavailable: true },
+      });
       const [row] = await ctx.db
         .update(works)
         .set(values)
@@ -70,12 +74,18 @@ export const worksRouter = createTRPCRouter({
           code: "NOT_FOUND",
           message: "Original not found. Refresh the page and try again.",
         });
-      captureServerEvent(ctx.userId, "original_sale_updated", {
-        work_id: row.id,
-        series_id: row.seriesId,
-        has_original_price: row.originalPriceCents != null,
-        original_unavailable: row.originalUnavailable,
-      });
+      const changed =
+        before === undefined ||
+        before.originalPriceCents !== row.originalPriceCents ||
+        before.originalUnavailable !== row.originalUnavailable;
+      if (changed) {
+        captureServerEvent(ctx.userId, "original_sale_updated", {
+          work_id: row.id,
+          series_id: row.seriesId,
+          has_original_price: row.originalPriceCents != null,
+          original_unavailable: row.originalUnavailable,
+        });
+      }
       return row;
     }),
 
