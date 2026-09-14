@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
-import { formatPrintSpec } from "src/lib/prints";
 import type Stripe from "stripe";
 import { z } from "zod";
 
 import { env } from "src/env";
-import { CURRENCY, PRINT_SHIPPING_CENTS } from "src/lib/orders";
+import { cartLineKey, type CartItemRef } from "src/lib/cart";
+import {
+  CURRENCY,
+  MAX_CART_LINES,
+  MAX_PRINT_QUANTITY,
+  ORDER_ITEM_TYPES,
+  requiresShipping,
+  shippingCentsFor,
+} from "src/lib/orders";
+import { formatPrintSpec } from "src/lib/prints";
 import { db } from "src/server/db";
 import {
   getSoldOriginalIds,
@@ -14,25 +22,31 @@ import {
 import { getStripe, stripeConfigured } from "src/server/stripe";
 
 /**
- * Creates a Stripe Checkout Session for a print, original or digital edition and
- * returns its URL for the client to redirect to. Prices always come from the
- * database — the client only ever names an item.
+ * Creates a Stripe Checkout Session for the cart's items and returns its URL
+ * for the client to redirect to. Prices always come from the database — the
+ * client only ever names items and quantities. Each line item carries its
+ * item type/id in product metadata, which the webhook reads back to record
+ * the order.
  *
  * The admin CMS stays on tRPC; this public mutation is a plain route handler.
  */
 
-/** Per-checkout cap for open (unlimited) print editions. */
-const MAX_PRINT_QUANTITY = 10;
+const itemSchema = z.object({
+  itemType: z.enum(ORDER_ITEM_TYPES),
+  id: z.number().int().positive(),
+  quantity: z.number().int().positive(),
+});
 
 const bodySchema = z.object({
-  itemType: z.enum(["print", "digital", "original"]),
-  id: z.number().int().positive(),
+  items: z.array(itemSchema).min(1).max(MAX_CART_LINES),
   /** Same-site path to return to when checkout is cancelled. */
   cancelPath: z
     .string()
     .regex(/^\/(?!\/)/, "must be a same-site path")
-    .default("/"),
+    .default("/cart"),
 });
+
+type RequestedItem = z.infer<typeof itemSchema>;
 
 export async function POST(req: Request) {
   if (!stripeConfigured()) {
@@ -48,6 +62,9 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
+  if (new Set(body.items.map(cartLineKey)).size !== body.items.length) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
 
   const origin = siteOrigin(req);
   if (origin === null) {
@@ -59,24 +76,54 @@ export async function POST(req: Request) {
       { status: 503 },
     );
   }
-  const item =
-    body.itemType === "print"
-      ? await printLineItem(body.id, origin)
-      : body.itemType === "original"
-        ? await originalLineItem(body.id, origin)
-        : await digitalLineItem(body.id, origin);
-  if ("error" in item) {
-    return NextResponse.json({ error: item.error }, { status: item.status });
+
+  const resolved = await resolveLineItems(body.items, origin);
+  if ("problems" in resolved) {
+    return NextResponse.json(
+      {
+        error: resolved.problems.map((p) => p.message).join(" "),
+        unavailable: resolved.problems.flatMap((p) =>
+          p.kind === "unavailable" ? [p.ref] : [],
+        ),
+        adjustments: resolved.problems.flatMap((p) =>
+          p.kind === "quantity" ? [{ ...p.ref, quantity: p.maxQuantity }] : [],
+        ),
+      },
+      { status: 409 },
+    );
   }
+
+  const itemTypes = body.items.map((i) => i.itemType);
+  const shippingParams: Partial<Stripe.Checkout.SessionCreateParams> =
+    requiresShipping(itemTypes)
+      ? {
+          shipping_address_collection: { allowed_countries: ["CA"] },
+          shipping_options: [
+            {
+              shipping_rate_data: {
+                type: "fixed_amount",
+                fixed_amount: {
+                  amount: shippingCentsFor(itemTypes),
+                  currency: CURRENCY,
+                },
+                display_name:
+                  shippingCentsFor(itemTypes) === 0
+                    ? "Free shipping within Canada"
+                    : "Flat rate shipping within Canada",
+              },
+            },
+          ],
+        }
+      : {};
 
   let session;
   try {
     session = await getStripe().checkout.sessions.create({
       mode: "payment",
-      line_items: [item.lineItem],
-      metadata: { itemType: body.itemType, itemId: String(body.id) },
+      line_items: resolved.lineItems,
+      metadata: { cart: "1", lines: String(resolved.lineItems.length) },
       customer_creation: "if_required",
-      ...item.extraParams,
+      ...shippingParams,
       success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}${body.cancelPath}`,
     });
@@ -97,150 +144,173 @@ export async function POST(req: Request) {
   return NextResponse.json({ url: session.url });
 }
 
-type ItemResult =
+type LineItem = Stripe.Checkout.SessionCreateParams.LineItem;
+
+/**
+ * Why a requested line cannot be checked out as-is. `unavailable` lines are
+ * dropped from the cart by the client; `quantity` lines are reduced to
+ * `maxQuantity` so the shopper can retry.
+ */
+type Problem =
+  | { kind: "unavailable"; ref: CartItemRef; message: string }
   | {
-      lineItem: Stripe.Checkout.SessionCreateParams.LineItem;
-      extraParams: Partial<Stripe.Checkout.SessionCreateParams>;
-    }
-  | { error: string; status: number };
-
-/** Builds a purchasable print line item with generated size text and remaining-copy limits. */
-async function printLineItem(id: number, origin: string): Promise<ItemResult> {
-  const print = await db.query.prints.findFirst({
-    where: (p, { eq }) => eq(p.id, id),
-  });
-  if (!print) return { error: "Print not found", status: 404 };
-  if (print.priceCents === null) {
-    return {
-      error: "This print is not available for purchase yet",
-      status: 409,
+      kind: "quantity";
+      ref: CartItemRef;
+      maxQuantity: number;
+      message: string;
     };
-  }
 
-  const sold = await getSoldPrintQuantities([print.id]);
-  const remaining = remainingCopies(print.editionSize, sold.get(print.id) ?? 0);
-  if (remaining !== null && remaining <= 0) {
-    return { error: "This edition is sold out", status: 409 };
-  }
-  const maxQuantity = Math.min(MAX_PRINT_QUANTITY, remaining ?? Infinity);
+/**
+ * Loads every requested item in two batched queries and validates each
+ * against price, availability and quantity caps. Returns Stripe line items
+ * in request order, or the full list of problems so the shopper can fix the
+ * cart in one go.
+ */
+async function resolveLineItems(
+  items: RequestedItem[],
+  origin: string,
+): Promise<{ lineItems: LineItem[] } | { problems: Problem[] }> {
+  const printIds = items.filter((i) => i.itemType === "print").map((i) => i.id);
+  const workIds = items.filter((i) => i.itemType !== "print").map((i) => i.id);
 
-  return {
-    lineItem: {
-      quantity: 1,
-      // Quantity is adjusted on Stripe's page; the webhook reads the final
-      // quantity from the session's line items, not from our metadata.
-      ...(maxQuantity > 1 && {
-        adjustable_quantity: {
-          enabled: true,
-          minimum: 1,
-          maximum: maxQuantity,
-        },
-      }),
-      price_data: {
-        currency: CURRENCY,
-        unit_amount: print.priceCents,
-        product_data: {
+  const [printRows, workRows] = await Promise.all([
+    printIds.length
+      ? db.query.prints.findMany({
+          where: (p, { inArray }) => inArray(p.id, printIds),
+        })
+      : [],
+    workIds.length
+      ? db.query.works.findMany({
+          where: (w, { inArray }) => inArray(w.id, workIds),
+        })
+      : [],
+  ]);
+  const [soldPrints, soldOriginals] = await Promise.all([
+    getSoldPrintQuantities(printRows.map((p) => p.id)),
+    getSoldOriginalIds(
+      items.filter((i) => i.itemType === "original").map((i) => i.id),
+    ),
+  ]);
+  const printsById = new Map(printRows.map((p) => [p.id, p]));
+  const worksById = new Map(workRows.map((w) => [w.id, w]));
+
+  const lineItems: LineItem[] = [];
+  const problems: Problem[] = [];
+
+  for (const item of items) {
+    const ref: CartItemRef = { itemType: item.itemType, id: item.id };
+    const unavailable = (message: string) =>
+      problems.push({ kind: "unavailable", ref, message });
+
+    if (item.itemType === "print") {
+      const print = printsById.get(item.id);
+      if (!print) {
+        unavailable("A print in your cart is no longer available.");
+        continue;
+      }
+      if (print.priceCents === null) {
+        unavailable(`${print.title} is not available for purchase yet.`);
+        continue;
+      }
+      const remaining = remainingCopies(
+        print.editionSize,
+        soldPrints.get(print.id) ?? 0,
+      );
+      if (remaining !== null && remaining <= 0) {
+        unavailable(`${print.title} is sold out.`);
+        continue;
+      }
+      const maxQuantity = Math.min(MAX_PRINT_QUANTITY, remaining ?? Infinity);
+      if (item.quantity > maxQuantity) {
+        problems.push({
+          kind: "quantity",
+          ref,
+          maxQuantity,
+          message: `Only ${maxQuantity} ${maxQuantity === 1 ? "copy" : "copies"} of ${print.title} ${maxQuantity === 1 ? "is" : "are"} available; your cart has been updated.`,
+        });
+        continue;
+      }
+      lineItems.push(
+        lineItem(ref, item.quantity, print.priceCents, {
           name: print.title,
           description: `${formatPrintSpec(print)} · ${print.edition}`,
           images: [absoluteImageUrl(print.image, origin)],
-        },
-      },
-    },
-    extraParams: {
-      shipping_address_collection: { allowed_countries: ["CA"] },
-      shipping_options: [
-        {
-          shipping_rate_data: {
-            type: "fixed_amount",
-            fixed_amount: {
-              amount: PRINT_SHIPPING_CENTS,
-              currency: CURRENCY,
-            },
-            display_name: "Flat rate shipping within Canada",
-          },
-        },
-      ],
-    },
-  };
-}
+        }),
+      );
+      continue;
+    }
 
-async function originalLineItem(
-  id: number,
-  origin: string,
-): Promise<ItemResult> {
-  const work = await db.query.works.findFirst({
-    where: (w, { eq }) => eq(w.id, id),
-  });
-  if (!work) return { error: "Original not found", status: 404 };
-  if (
-    work.digital ||
-    work.originalUnavailable ||
-    work.originalPriceCents === null
-  ) {
-    return {
-      error: "This original is not available for purchase",
-      status: 409,
-    };
-  }
-  if ((await getSoldOriginalIds([id])).has(id)) {
-    return { error: "This original is sold out", status: 409 };
-  }
-  return {
-    lineItem: {
-      quantity: 1,
-      price_data: {
-        currency: CURRENCY,
-        unit_amount: work.originalPriceCents,
-        product_data: {
-          name: `${work.title} \u2014 original`,
+    const work = worksById.get(item.id);
+    if (!work) {
+      unavailable("A work in your cart is no longer available.");
+      continue;
+    }
+    if (item.quantity > 1) {
+      problems.push({
+        kind: "quantity",
+        ref,
+        maxQuantity: 1,
+        message: `Only one copy of ${work.title} can be purchased; your cart has been updated.`,
+      });
+      continue;
+    }
+    if (item.itemType === "original") {
+      if (
+        work.digital ||
+        work.originalUnavailable ||
+        work.originalPriceCents === null
+      ) {
+        unavailable(`The original of ${work.title} is not available.`);
+        continue;
+      }
+      if (soldOriginals.has(work.id)) {
+        unavailable(`The original of ${work.title} has been sold.`);
+        continue;
+      }
+      lineItems.push(
+        lineItem(ref, 1, work.originalPriceCents, {
+          name: `${work.title} — original`,
           description: work.medium,
           images: [absoluteImageUrl(work.image, origin)],
-        },
-      },
-    },
-    extraParams: {
-      shipping_address_collection: { allowed_countries: ["CA"] },
-      shipping_options: [
-        {
-          shipping_rate_data: {
-            type: "fixed_amount",
-            fixed_amount: { amount: 0, currency: CURRENCY },
-            display_name: "Free shipping",
-          },
-        },
-      ],
-    },
-  };
-}
-
-async function digitalLineItem(
-  id: number,
-  origin: string,
-): Promise<ItemResult> {
-  const work = await db.query.works.findFirst({
-    where: (w, { eq }) => eq(w.id, id),
-  });
-  if (!work) return { error: "Work not found", status: 404 };
-  if (!work.digital || work.digitalPriceCents === null) {
-    return {
-      error: "This work is not available as a digital edition",
-      status: 409,
-    };
+        }),
+      );
+      continue;
+    }
+    if (!work.digital || work.digitalPriceCents === null) {
+      unavailable(`${work.title} is not available as a digital edition.`);
+      continue;
+    }
+    lineItems.push(
+      lineItem(ref, 1, work.digitalPriceCents, {
+        name: `${work.title} — digital edition`,
+        images: [absoluteImageUrl(work.image, origin)],
+      }),
+    );
   }
 
+  return problems.length > 0 ? { problems } : { lineItems };
+}
+
+/** Quantity is fixed here — the cart page is where it is adjusted. */
+function lineItem(
+  ref: CartItemRef,
+  quantity: number,
+  unitAmount: number,
+  product: Omit<
+    Stripe.Checkout.SessionCreateParams.LineItem.PriceData.ProductData,
+    "metadata"
+  >,
+): LineItem {
   return {
-    lineItem: {
-      quantity: 1,
-      price_data: {
-        currency: CURRENCY,
-        unit_amount: work.digitalPriceCents,
-        product_data: {
-          name: `${work.title} — digital edition`,
-          images: [absoluteImageUrl(work.image, origin)],
-        },
+    quantity,
+    price_data: {
+      currency: CURRENCY,
+      unit_amount: unitAmount,
+      product_data: {
+        ...product,
+        metadata: { itemType: ref.itemType, itemId: String(ref.id) },
       },
     },
-    extraParams: {},
   };
 }
 

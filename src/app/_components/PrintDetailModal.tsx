@@ -4,11 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useId, useRef } from "react";
 
-import BuyButton from "src/app/_components/BuyButton";
+import AddToCartButton from "src/app/_components/AddToCartButton";
 import PrintDetails from "src/app/_components/PrintDetails";
 import type { PrintItem } from "src/app/_components/pages/PrintsBody";
 import { formatPrice } from "src/lib/orders";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
+import { formatPrintSpec } from "src/lib/prints";
 
 /** Shows a selected print and purchase actions in a modal that restores focus on close. */
 export default function PrintDetailModal({
@@ -127,14 +128,22 @@ export default function PrintDetailModal({
               </button>
             ) : checkoutEnabled && print.priceCents !== null ? (
               <>
-                <BuyButton
-                  itemType="print"
-                  id={print.id}
-                  cancelPath="/prints"
+                <AddToCartButton
+                  line={{
+                    itemType: "print",
+                    id: print.id,
+                    title: print.title,
+                    detail: `${formatPrintSpec(print)} · ${print.edition}`,
+                    image: print.image,
+                    imageWidth: print.imageWidth,
+                    imageHeight: print.imageHeight,
+                    unitPriceCents: print.priceCents,
+                    href: "/prints",
+                  }}
                   className="cart-btn bg-ink text-paper w-full cursor-pointer px-6 py-4 font-mono text-[12px] tracking-[0.14em] uppercase disabled:cursor-default disabled:opacity-60"
                 >
                   {copy("addToCart")}
-                </BuyButton>
+                </AddToCartButton>
                 <p className="text-ash mt-3 text-center font-mono text-[10px]">
                   {copy("checkoutNote")}
                 </p>

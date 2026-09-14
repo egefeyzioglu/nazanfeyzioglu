@@ -59,8 +59,38 @@ export type ShippingDetails = {
 /** Everything on the site is priced in Canadian dollars. */
 export const CURRENCY = "cad";
 
-/** Flat shipping charge per print checkout, regardless of quantity. */
+/** Flat shipping charge per checkout that contains a print, regardless of quantity. */
 export const PRINT_SHIPPING_CENTS = 3000;
+
+/** Per-checkout cap on copies of one print (open editions are otherwise unlimited). */
+export const MAX_PRINT_QUANTITY = 10;
+
+/** Maximum number of distinct lines in one cart / checkout session. */
+export const MAX_CART_LINES = 20;
+
+/** Originals and digital editions are single-copy: at most one per checkout. */
+export function maxQuantityForType(itemType: OrderItemType): number {
+  return itemType === "print" ? MAX_PRINT_QUANTITY : 1;
+}
+
+/**
+ * Shipping for a set of purchased item types: flat print shipping when any
+ * print is included, free when only originals ship, nothing for digital-only.
+ */
+export function shippingCentsFor(itemTypes: Iterable<OrderItemType>): number {
+  for (const itemType of itemTypes) {
+    if (itemType === "print") return PRINT_SHIPPING_CENTS;
+  }
+  return 0;
+}
+
+/** Whether any of the item types needs a shipping address. */
+export function requiresShipping(itemTypes: Iterable<OrderItemType>): boolean {
+  for (const itemType of itemTypes) {
+    if (itemType !== "digital") return true;
+  }
+  return false;
+}
 
 /**
  * Integer cents → plain dollars string for an admin form input, e.g.

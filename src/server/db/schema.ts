@@ -167,10 +167,12 @@ export const printsRelations = relations(prints, ({ one }) => ({
 }));
 
 /**
- * A completed Stripe Checkout purchase (print, original or digital edition). Rows are
- * inserted by the Stripe webhook only once payment succeeds — abandoned
- * sessions never appear. Stripe stays the source of truth for money (refunds
- * happen in the Stripe Dashboard); this table owns fulfillment state.
+ * A completed Stripe Checkout purchase — one row per checkout session, with
+ * the purchased lines in `orderItems`. Rows are inserted by the Stripe
+ * webhook only once payment succeeds — abandoned sessions never appear.
+ * Stripe stays the source of truth for money (refunds happen in the Stripe
+ * Dashboard); this table owns fulfillment state, which is tracked per order
+ * (one shipment) rather than per line.
  */
 export const orders = createTable(
   "order",
@@ -179,21 +181,16 @@ export const orders = createTable(
     /** Idempotency key — Stripe retries webhook deliveries. */
     stripeCheckoutSessionId: d.varchar({ length: 256 }).notNull().unique(),
     stripePaymentIntentId: d.varchar({ length: 256 }),
-    itemType: d.varchar({ length: 16 }).$type<OrderItemType>().notNull(),
-    /** FK kept for joins; null once the item is deleted from the CMS. */
-    printId: d.integer().references(() => prints.id, { onDelete: "set null" }),
-    workId: d.integer().references(() => works.id, { onDelete: "set null" }),
-    /** Snapshot of the item title at purchase time; survives item deletion. */
-    itemTitle: d.varchar({ length: 256 }).notNull(),
-    quantity: d.integer().notNull(),
-    /** Per-unit price in cents at purchase time. */
-    unitAmount: d.integer().notNull(),
+    /** Sum of the line totals in cents, before shipping. */
+    amountSubtotal: d.integer().notNull(),
+    /** Shipping charged in cents (flat print rate, or zero). */
+    amountShipping: d.integer().notNull().default(0),
     /** Total charged in cents, including shipping, from the Stripe session. */
     amountTotal: d.integer().notNull(),
     currency: d.varchar({ length: 3 }).notNull(),
     customerEmail: d.varchar({ length: 256 }),
     customerName: d.varchar({ length: 256 }),
-    /** Stripe shipping details (name + address); null for digital editions. */
+    /** Stripe shipping details (name + address); null for digital-only orders. */
     shippingAddress: d.jsonb().$type<ShippingDetails>(),
     paymentStatus: d
       .varchar({ length: 16 })
@@ -209,17 +206,11 @@ export const orders = createTable(
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
   (t) => [
-    index("order_print_idx").on(t.printId),
-    index("order_work_idx").on(t.workId),
     index("order_payment_intent_idx").on(t.stripePaymentIntentId),
     index("order_created_idx").on(t.createdAt),
-    check("order_quantity_positive", sql`quantity > 0`),
-    check("order_unit_amount_nonnegative", sql`"unitAmount" >= 0`),
+    check("order_amount_subtotal_nonnegative", sql`"amountSubtotal" >= 0`),
+    check("order_amount_shipping_nonnegative", sql`"amountShipping" >= 0`),
     check("order_amount_total_nonnegative", sql`"amountTotal" >= 0`),
-    check(
-      "order_item_type_valid",
-      sql`"itemType" in ('print', 'digital', 'original')`,
-    ),
     check(
       "order_payment_status_valid",
       sql`"paymentStatus" in ('paid', 'refunded')`,
@@ -228,22 +219,69 @@ export const orders = createTable(
       "order_fulfillment_status_valid",
       sql`"fulfillmentStatus" in ('pending', 'fulfilled', 'oversold')`,
     ),
+  ],
+);
+
+/**
+ * One purchased line of an order: a print (any quantity up to the cap), an
+ * original, or a digital edition. Sold-quantity queries sum these, joined to
+ * the parent order for its payment status.
+ */
+export const orderItems = createTable(
+  "order_item",
+  (d) => ({
+    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    orderId: d
+      .integer()
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    itemType: d.varchar({ length: 16 }).$type<OrderItemType>().notNull(),
+    /** FK kept for joins; null once the item is deleted from the CMS. */
+    printId: d.integer().references(() => prints.id, { onDelete: "set null" }),
+    workId: d.integer().references(() => works.id, { onDelete: "set null" }),
+    /** Snapshot of the item title at purchase time; survives item deletion. */
+    itemTitle: d.varchar({ length: 256 }).notNull(),
+    quantity: d.integer().notNull(),
+    /** Per-unit price in cents at purchase time. */
+    unitAmount: d.integer().notNull(),
+    /** Line total in cents (quantity × unit price), from the Stripe line item. */
+    amountTotal: d.integer().notNull(),
+  }),
+  (t) => [
+    index("order_item_order_idx").on(t.orderId),
+    index("order_item_print_idx").on(t.printId),
+    index("order_item_work_idx").on(t.workId),
+    check("order_item_quantity_positive", sql`quantity > 0`),
+    check("order_item_unit_amount_nonnegative", sql`"unitAmount" >= 0`),
+    check("order_item_amount_total_nonnegative", sql`"amountTotal" >= 0`),
+    check(
+      "order_item_type_valid",
+      sql`"itemType" in ('print', 'digital', 'original')`,
+    ),
     // At most one of printId/workId — not exactly one, because both FKs are
     // set null when the referenced item is deleted from the CMS.
     check(
-      "order_single_item",
+      "order_item_single_item",
       sql`not ("printId" is not null and "workId" is not null)`,
     ),
   ],
 );
 
-export const ordersRelations = relations(orders, ({ one }) => ({
+export const ordersRelations = relations(orders, ({ many }) => ({
+  items: many(orderItems),
+}));
+
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderItems.orderId],
+    references: [orders.id],
+  }),
   print: one(prints, {
-    fields: [orders.printId],
+    fields: [orderItems.printId],
     references: [prints.id],
   }),
   work: one(works, {
-    fields: [orders.workId],
+    fields: [orderItems.workId],
     references: [works.id],
   }),
 }));

@@ -18,7 +18,8 @@
     "preview": "next build && next start",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "db:seed": "tsx --env-file=.env src/server/db/seed.ts"
+    "db:seed": "tsx --env-file=.env src/server/db/seed.ts",
+    "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.12",

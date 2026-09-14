@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import ArtImage from "src/app/_components/ArtImage";
-import BuyButton from "src/app/_components/BuyButton";
+import AddToCartButton from "src/app/_components/AddToCartButton";
 import Sidebar from "src/app/_components/Sidebar";
 import { formatPrice } from "src/lib/orders";
 import { getSeriesBySlug } from "src/server/queries";
@@ -149,14 +149,22 @@ function WorkRow({
               )}
               <div className="mt-[18px] flex items-center gap-[15px] font-mono text-[11px] tracking-[0.14em] uppercase">
                 {checkoutEnabled && work.digitalPriceCents !== null ? (
-                  <BuyButton
-                    itemType="digital"
-                    id={work.id}
-                    cancelPath={`/series/${slug}`}
+                  <AddToCartButton
+                    line={{
+                      itemType: "digital",
+                      id: work.id,
+                      title: `${work.title} — digital edition`,
+                      detail: work.medium,
+                      image: work.image,
+                      imageWidth: work.imageWidth,
+                      imageHeight: work.imageHeight,
+                      unitPriceCents: work.digitalPriceCents,
+                      href: `/series/${slug}`,
+                    }}
                     className="hover-clay border-clay-soft text-clay cursor-pointer border-0 border-b bg-transparent p-0 pb-[3px] font-mono text-[11px] tracking-[0.14em] uppercase disabled:cursor-default disabled:opacity-60"
                   >
                     Digital edition · {formatPrice(work.digitalPriceCents)}
-                  </BuyButton>
+                  </AddToCartButton>
                 ) : (
                   <Link
                     href="/contact"
@@ -183,14 +191,22 @@ function WorkRow({
               ) : work.originalUnavailable ? (
                 <span className="text-ash">Unavailable</span>
               ) : checkoutEnabled && work.originalPriceCents !== null ? (
-                <BuyButton
-                  itemType="original"
-                  id={work.id}
-                  cancelPath={`/series/${slug}`}
+                <AddToCartButton
+                  line={{
+                    itemType: "original",
+                    id: work.id,
+                    title: `${work.title} — original`,
+                    detail: work.medium,
+                    image: work.image,
+                    imageWidth: work.imageWidth,
+                    imageHeight: work.imageHeight,
+                    unitPriceCents: work.originalPriceCents,
+                    href: `/series/${slug}`,
+                  }}
                   className="hover-clay border-clay-soft text-clay cursor-pointer border-0 border-b bg-transparent p-0 pb-[3px] font-mono text-[11px] tracking-[0.14em] uppercase disabled:cursor-default disabled:opacity-60"
                 >
-                  Buy original
-                </BuyButton>
+                  Add original to cart
+                </AddToCartButton>
               ) : (
                 <Link
                   href="/contact"

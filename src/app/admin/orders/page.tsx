@@ -13,7 +13,7 @@ import {
 } from "src/lib/orders";
 import { api } from "src/trpc/react";
 
-/** Admin order list with type filters, payment/fulfillment chips and fulfillment controls. */
+/** Admin order list (one card per checkout, listing its lines) with type filters, payment/fulfillment chips and fulfillment controls. */
 export default function AdminOrdersPage() {
   const [filter, setFilter] = useState<OrderItemType | "all">("all");
   const utils = api.useUtils();
@@ -34,9 +34,9 @@ export default function AdminOrdersPage() {
   }
 
   const allOrders = list.data ?? [];
-  const orders = allOrders.filter(
-    (order) => filter === "all" || order.itemType === filter,
-  );
+  const hasType = (order: (typeof allOrders)[number], type: typeof filter) =>
+    type === "all" || order.items.some((item) => item.itemType === type);
+  const orders = allOrders.filter((order) => hasType(order, filter));
 
   return (
     <div>
@@ -62,12 +62,7 @@ export default function AdminOrdersPage() {
             onClick={() => setFilter(value)}
             className={`border-line rounded-full border px-3 py-2 font-mono text-[11px] ${filter === value ? "bg-ink text-paper" : "text-stone"}`}
           >
-            {label} (
-            {
-              allOrders.filter(
-                (order) => value === "all" || order.itemType === value,
-              ).length
-            }
+            {label} ({allOrders.filter((order) => hasType(order, value)).length}
             )
           </button>
         ))}
@@ -95,15 +90,28 @@ export default function AdminOrdersPage() {
                   <div className="text-ash font-mono text-[10.5px] tracking-[0.12em] uppercase">
                     {createdDate} · {createdTime}
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <h2 className="font-spectral text-[20px] italic">
-                      {order.itemTitle}
-                    </h2>
-                    <Chip>{order.itemType}</Chip>
-                  </div>
+                  <ul className="mt-2 flex list-none flex-col gap-2 p-0">
+                    {order.items.map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex flex-wrap items-center gap-2"
+                      >
+                        <h2 className="font-spectral text-[20px] italic">
+                          {item.itemTitle}
+                        </h2>
+                        <Chip>{item.itemType}</Chip>
+                        <span className="text-stone font-mono text-[11px]">
+                          {item.quantity} × {formatPrice(item.unitAmount)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                   <div className="text-stone mt-2 font-mono text-[11px] leading-[1.8]">
-                    {order.quantity} × {formatPrice(order.unitAmount)} · total{" "}
-                    {formatPrice(order.amountTotal)}
+                    {order.items.length > 1 &&
+                      `${order.items.length} items · subtotal ${formatPrice(order.amountSubtotal)} · `}
+                    {order.amountShipping > 0 &&
+                      `shipping ${formatPrice(order.amountShipping)} · `}
+                    total {formatPrice(order.amountTotal)}
                   </div>
                 </div>
 

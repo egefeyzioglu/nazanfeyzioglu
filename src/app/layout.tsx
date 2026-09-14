@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { type Metadata } from "next";
 import { Spectral, Space_Mono } from "next/font/google";
 
+import { CartProvider } from "src/app/_components/CartProvider";
 import { env } from "src/env";
 
 export const metadata: Metadata = {
@@ -32,7 +33,7 @@ export default function RootLayout({
   const body = (
     <html lang="en" className={`${spectral.variable} ${spaceMono.variable}`}>
       <body className="bg-paper font-spectral text-ink antialiased">
-        {children}
+        <CartProvider>{children}</CartProvider>
       </body>
     </html>
   );

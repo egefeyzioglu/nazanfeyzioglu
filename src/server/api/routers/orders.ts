@@ -5,10 +5,11 @@ import { adminProcedure, createTRPCRouter } from "src/server/api/trpc";
 import { orders } from "src/server/db/schema";
 
 export const ordersRouter = createTRPCRouter({
-  /** All orders, newest first. Money is managed in Stripe; this is fulfillment. */
+  /** All orders with their lines, newest first. Money is managed in Stripe; this is fulfillment. */
   list: adminProcedure.query(({ ctx }) =>
     ctx.db.query.orders.findMany({
       orderBy: (o, { desc }) => [desc(o.createdAt)],
+      with: { items: { orderBy: (i, { asc }) => [asc(i.id)] } },
     }),
   ),
 

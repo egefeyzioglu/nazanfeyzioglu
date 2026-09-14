@@ -2,9 +2,16 @@
 
 import Link from "next/link";
 
+import CartCount from "src/app/_components/CartCount";
 import { EditableText } from "src/app/_components/Editable";
 
-export type NavKey = "series" | "prints" | "about" | "exhibitions" | "contact";
+export type NavKey =
+  | "series"
+  | "prints"
+  | "about"
+  | "exhibitions"
+  | "contact"
+  | "cart";
 
 const NAV: { key: NavKey; label: string; href: string }[] = [
   { key: "series", label: "Series", href: "/" },
@@ -12,6 +19,7 @@ const NAV: { key: NavKey; label: string; href: string }[] = [
   { key: "about", label: "About", href: "/about" },
   { key: "exhibitions", label: "Exhibitions", href: "/exhibitions" },
   { key: "contact", label: "Contact", href: "/contact" },
+  { key: "cart", label: "Cart", href: "/cart" },
 ];
 
 export default function SidebarBody({
@@ -57,6 +65,7 @@ export default function SidebarBody({
                   k={`nav.${item.key}`}
                   value={content[`nav.${item.key}`] ?? item.label}
                 />
+                {item.key === "cart" && <CartCount />}
               </Link>
             );
           })}

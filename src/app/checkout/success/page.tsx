@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import ClearCart from "src/app/_components/ClearCart";
 import SidebarBody from "src/app/_components/pages/SidebarBody";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 import { formatPrice } from "src/lib/orders";
@@ -25,21 +26,27 @@ export default async function CheckoutSuccessPage({
   if (!stripeConfigured() || !sessionId) notFound();
 
   const session = await getStripe()
-    .checkout.sessions.retrieve(sessionId, { expand: ["line_items"] })
+    .checkout.sessions.retrieve(sessionId, {
+      expand: ["line_items.data.price.product"],
+    })
     .catch(() => null);
   if (!session) notFound();
   const content = await getContent().catch(() => CONTENT_DEFAULTS);
 
   const paid = session.payment_status !== "unpaid";
-  const itemName = session.line_items?.data[0]?.description;
+  const lines = session.line_items?.data ?? [];
+  const hasPrint = lines.some(
+    (line) =>
+      typeof line.price?.product === "object" &&
+      !line.price.product.deleted &&
+      line.price.product.metadata.itemType === "print",
+  );
   const email = session.customer_details?.email;
 
   return (
     <div className="bg-paper text-ink flex min-h-screen flex-col md:flex-row">
-      <SidebarBody
-        active={session.metadata?.itemType === "print" ? "prints" : "series"}
-        content={content}
-      />
+      {paid && <ClearCart />}
+      <SidebarBody active={hasPrint ? "prints" : "series"} content={content} />
       <main className="flex-1 px-9 pt-12 pb-24 md:ml-[280px] md:max-w-[1040px] md:min-w-0 md:px-[72px] md:pt-16">
         <div className="text-ash font-mono text-[10.5px] tracking-[0.3em] uppercase">
           Order
@@ -48,7 +55,7 @@ export default async function CheckoutSuccessPage({
           {paid ? "Thank you" : "Payment processing"}
         </h1>
         <div className="text-mute mt-5 max-w-[560px] text-[17px] leading-[1.6] font-light">
-          {paid && session.metadata?.itemType === "print" && (
+          {paid && hasPrint && (
             <>
               <p className="whitespace-pre-line">
                 {content["prints.confirmation.received"]}
@@ -58,14 +65,25 @@ export default async function CheckoutSuccessPage({
               </p>
             </>
           )}
-          {itemName && (
-            <p className="mt-4">
-              {paid ? "Your purchase of " : "Your payment for "}
-              <span className="font-spectral italic">{itemName}</span>
-              {session.amount_total !== null &&
-                ` (${formatPrice(session.amount_total)})`}
-              {paid ? " is confirmed." : " is still being processed."}
-            </p>
+          {lines.length > 0 && (
+            <div className="mt-4">
+              <p>
+                {paid ? "Your purchase" : "Your payment"}
+                {session.amount_total !== null &&
+                  ` of ${formatPrice(session.amount_total)}`}
+                {paid ? " is confirmed:" : " is still being processed:"}
+              </p>
+              <ul className="mt-2 list-none p-0">
+                {lines.map((line) => (
+                  <li key={line.id}>
+                    <span className="font-spectral italic">
+                      {line.description}
+                    </span>
+                    {(line.quantity ?? 1) > 1 && ` × ${line.quantity}`}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           <p className="mt-4">
             {paid

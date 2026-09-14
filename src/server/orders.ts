@@ -3,12 +3,13 @@ import "server-only";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { db } from "src/server/db";
-import { orders } from "src/server/db/schema";
+import { orderItems, orders } from "src/server/db/schema";
 
 /**
- * Copies of each print already sold (non-refunded order quantities). Prints
- * with no sales are absent from the map. Used against `prints.editionSize`
- * to stop overselling; prints with a null editionSize are never limited.
+ * Copies of each print already sold (line quantities on non-refunded
+ * orders). Prints with no sales are absent from the map. Used against
+ * `prints.editionSize` to stop overselling; prints with a null editionSize
+ * are never limited.
  */
 export async function getSoldPrintQuantities(
   printIds: number[],
@@ -16,17 +17,18 @@ export async function getSoldPrintQuantities(
   if (printIds.length === 0) return new Map();
   const rows = await db
     .select({
-      printId: orders.printId,
-      sold: sql<number>`sum(${orders.quantity})::int`,
+      printId: orderItems.printId,
+      sold: sql<number>`sum(${orderItems.quantity})::int`,
     })
-    .from(orders)
+    .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
     .where(
       and(
-        inArray(orders.printId, printIds),
+        inArray(orderItems.printId, printIds),
         ne(orders.paymentStatus, "refunded"),
       ),
     )
-    .groupBy(orders.printId);
+    .groupBy(orderItems.printId);
   return new Map(
     rows.flatMap((r) =>
       r.printId === null ? [] : [[r.printId, r.sold] as const],
@@ -49,12 +51,13 @@ export async function getSoldOriginalIds(
 ): Promise<Set<number>> {
   if (workIds.length === 0) return new Set();
   const rows = await db
-    .select({ workId: orders.workId })
-    .from(orders)
+    .select({ workId: orderItems.workId })
+    .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
     .where(
       and(
-        inArray(orders.workId, workIds),
-        eq(orders.itemType, "original"),
+        inArray(orderItems.workId, workIds),
+        eq(orderItems.itemType, "original"),
         ne(orders.paymentStatus, "refunded"),
       ),
     );

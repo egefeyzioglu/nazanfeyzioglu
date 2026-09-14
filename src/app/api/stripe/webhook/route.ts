@@ -1,11 +1,11 @@
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
 import { env } from "src/env";
-import { type OrderItemType } from "src/lib/orders";
+import { ORDER_ITEM_TYPES, type OrderItemType } from "src/lib/orders";
 import { db } from "src/server/db";
-import { orders, prints, works } from "src/server/db/schema";
+import { orderItems, orders, prints, works } from "src/server/db/schema";
 import { getStripe, stripeConfigured } from "src/server/stripe";
 
 /**
@@ -71,24 +71,72 @@ export async function POST(req: Request) {
   return NextResponse.json({ received: true });
 }
 
+/** A purchased line, as identified from the session's line-item metadata. */
+type PurchasedLine = {
+  itemType: OrderItemType;
+  itemId: number;
+  quantity: number;
+  unitAmount: number;
+  amountTotal: number;
+  /** Stripe's product name — the fallback title when the item was deleted. */
+  description: string | null;
+};
+
+function isOrderItemType(value: unknown): value is OrderItemType {
+  return (ORDER_ITEM_TYPES as readonly unknown[]).includes(value);
+}
+
+/**
+ * Reads item type/id off each line item's product metadata (written by the
+ * checkout route). Sessions created before the cart existed carried a single
+ * item in the session metadata instead; those are still honoured so a
+ * checkout that straddles a deploy is recorded.
+ */
+function purchasedLines(session: Stripe.Checkout.Session): PurchasedLine[] {
+  const lines = session.line_items?.data ?? [];
+  const legacyType = session.metadata?.itemType;
+  const legacyId = Number(session.metadata?.itemId);
+
+  return lines.flatMap((line, index) => {
+    const product = line.price?.product;
+    const metadata =
+      typeof product === "object" && !product.deleted ? product.metadata : null;
+    let itemType: unknown = metadata?.itemType;
+    let itemId = Number(metadata?.itemId);
+    if (!isOrderItemType(itemType) && index === 0 && lines.length === 1) {
+      itemType = legacyType;
+      itemId = legacyId;
+    }
+    if (!isOrderItemType(itemType) || !Number.isInteger(itemId)) return [];
+    const quantity = line.quantity ?? 1;
+    return [
+      {
+        itemType,
+        itemId,
+        quantity,
+        unitAmount:
+          line.price?.unit_amount ??
+          Math.round(line.amount_subtotal / quantity),
+        amountTotal: line.amount_total,
+        description: line.description ?? null,
+      },
+    ];
+  });
+}
+
 /**
  * Fetches the full session (the event payload omits line items) and upserts
- * the order. Idempotent via the unique session id — Stripe retries
- * deliveries, and completed/async_payment_succeeded can both fire.
+ * the order with one row per line. Idempotent via the unique session id —
+ * Stripe retries deliveries, and completed/async_payment_succeeded can both
+ * fire.
  */
 async function recordPaidCheckout(sessionId: string) {
   const session = await getStripe().checkout.sessions.retrieve(sessionId, {
-    expand: ["line_items"],
+    expand: ["line_items.data.price.product"],
   });
 
-  const itemType = session.metadata?.itemType;
-  const itemId = Number(session.metadata?.itemId);
-  if (
-    (itemType !== "print" &&
-      itemType !== "digital" &&
-      itemType !== "original") ||
-    !Number.isInteger(itemId)
-  ) {
+  const lines = purchasedLines(session);
+  if (lines.length === 0) {
     // Not a session this integration created (or malformed metadata); ack it
     // rather than have Stripe retry forever.
     console.warn(
@@ -97,9 +145,7 @@ async function recordPaidCheckout(sessionId: string) {
     return;
   }
 
-  const lineItem = session.line_items?.data[0];
-  const quantity = lineItem?.quantity ?? 1;
-  const item = await loadItem(itemType, itemId);
+  const catalogue = await loadItems(lines);
 
   await db.transaction(async (tx) => {
     const inserted = await tx
@@ -110,14 +156,10 @@ async function recordPaidCheckout(sessionId: string) {
           typeof session.payment_intent === "string"
             ? session.payment_intent
             : (session.payment_intent?.id ?? null),
-        itemType,
-        printId: itemType === "print" ? item?.id : null,
-        workId: itemType !== "print" ? item?.id : null,
-        itemTitle: item?.title ?? lineItem?.description ?? "Unknown item",
-        quantity,
-        unitAmount:
-          lineItem?.price?.unit_amount ??
-          Math.round((session.amount_subtotal ?? 0) / quantity),
+        amountSubtotal:
+          session.amount_subtotal ??
+          lines.reduce((sum, l) => sum + l.amountTotal, 0),
+        amountShipping: session.shipping_cost?.amount_total ?? 0,
         amountTotal: session.amount_total ?? 0,
         currency: session.currency ?? "cad",
         customerEmail: session.customer_details?.email ?? null,
@@ -130,59 +172,132 @@ async function recordPaidCheckout(sessionId: string) {
     const orderId = inserted[0]?.id;
     if (orderId === undefined) return; // already recorded
 
+    await tx.insert(orderItems).values(
+      lines.map((line) => {
+        const item = catalogue.get(itemKey(line));
+        return {
+          orderId,
+          itemType: line.itemType,
+          printId: line.itemType === "print" ? (item?.id ?? null) : null,
+          workId: line.itemType !== "print" ? (item?.id ?? null) : null,
+          itemTitle: item?.title ?? line.description ?? "Unknown item",
+          quantity: line.quantity,
+          unitAmount: line.unitAmount,
+          amountTotal: line.amountTotal,
+        };
+      }),
+    );
+
     // The availability check at session creation can be raced by a concurrent
-    // buyer; detect it here and flag the order for a manual refund.
-    if (itemType !== "digital" && item?.editionSize != null) {
-      // Serialize concurrent webhook transactions for the same physical item: under
-      // READ COMMITTED, two simultaneous deliveries would each miss the
+    // buyer; detect it here and flag the order for a manual refund. Locks are
+    // taken in a fixed order so two multi-item orders cannot deadlock.
+    const limited = lines
+      .map((line) => ({ line, item: catalogue.get(itemKey(line)) }))
+      .filter(
+        (
+          entry,
+        ): entry is {
+          line: PurchasedLine;
+          item: { id: number; title: string; editionSize: number };
+        } =>
+          entry.line.itemType !== "digital" && entry.item?.editionSize != null,
+      )
+      .sort(
+        (a, b) =>
+          a.line.itemType.localeCompare(b.line.itemType) ||
+          a.item.id - b.item.id,
+      );
+
+    let oversold = false;
+    for (const { line, item } of limited) {
+      // Serialize concurrent webhook transactions for the same physical item:
+      // under READ COMMITTED, two simultaneous deliveries would each miss the
       // other's uncommitted insert and both pass the editionSize check. The
       // transaction-scoped advisory lock makes the later committer see the
-      // earlier one's row and flag itself oversold. Namespaced with the table
+      // earlier one's rows and flag itself oversold. Namespaced with the table
       // name because the database may host multiple projects.
       await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${`nazanfeyzioglu_${itemType}`}), ${item.id})`,
+        sql`select pg_advisory_xact_lock(hashtext(${`nazanfeyzioglu_${line.itemType}`}), ${item.id})`,
       );
       const [row] = await tx
         .select({
-          sold: sql<number>`coalesce(sum(${orders.quantity}), 0)::int`,
+          sold: sql<number>`coalesce(sum(${orderItems.quantity}), 0)::int`,
         })
-        .from(orders)
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
         .where(
           and(
-            itemType === "print"
-              ? eq(orders.printId, item.id)
-              : eq(orders.workId, item.id),
-            eq(orders.itemType, itemType),
+            line.itemType === "print"
+              ? eq(orderItems.printId, item.id)
+              : eq(orderItems.workId, item.id),
+            eq(orderItems.itemType, line.itemType),
             ne(orders.paymentStatus, "refunded"),
           ),
         );
-      if ((row?.sold ?? 0) > item.editionSize) {
-        await tx
-          .update(orders)
-          .set({ fulfillmentStatus: "oversold" })
-          .where(eq(orders.id, orderId));
-      }
+      if ((row?.sold ?? 0) > item.editionSize) oversold = true;
+    }
+    if (oversold) {
+      await tx
+        .update(orders)
+        .set({ fulfillmentStatus: "oversold" })
+        .where(eq(orders.id, orderId));
     }
   });
 }
 
-async function loadItem(itemType: OrderItemType, id: number) {
-  if (itemType === "print") {
-    const rows = await db
-      .select({
-        id: prints.id,
-        title: prints.title,
-        editionSize: prints.editionSize,
-      })
-      .from(prints)
-      .where(eq(prints.id, id));
-    return rows[0] ?? null;
+function itemKey(line: { itemType: OrderItemType; itemId: number }): string {
+  return `${line.itemType}:${line.itemId}`;
+}
+
+type CatalogueItem = { id: number; title: string; editionSize: number | null };
+
+/**
+ * Current catalogue rows for the purchased lines, keyed by item type and id.
+ * Items deleted from the CMS since checkout are simply absent. Originals are
+ * an edition of one; digital editions are unlimited.
+ */
+async function loadItems(
+  lines: PurchasedLine[],
+): Promise<Map<string, CatalogueItem>> {
+  const printIds = lines
+    .filter((l) => l.itemType === "print")
+    .map((l) => l.itemId);
+  const workIds = lines
+    .filter((l) => l.itemType !== "print")
+    .map((l) => l.itemId);
+  const [printRows, workRows] = await Promise.all([
+    printIds.length
+      ? db
+          .select({
+            id: prints.id,
+            title: prints.title,
+            editionSize: prints.editionSize,
+          })
+          .from(prints)
+          .where(inArray(prints.id, printIds))
+      : [],
+    workIds.length
+      ? db
+          .select({ id: works.id, title: works.title })
+          .from(works)
+          .where(inArray(works.id, workIds))
+      : [],
+  ]);
+
+  const catalogue = new Map<string, CatalogueItem>();
+  for (const line of lines) {
+    if (line.itemType === "print") {
+      const print = printRows.find((p) => p.id === line.itemId);
+      if (print) catalogue.set(itemKey(line), print);
+    } else {
+      const work = workRows.find((w) => w.id === line.itemId);
+      if (work) {
+        catalogue.set(itemKey(line), {
+          ...work,
+          editionSize: line.itemType === "original" ? 1 : null,
+        });
+      }
+    }
   }
-  const rows = await db
-    .select({ id: works.id, title: works.title })
-    .from(works)
-    .where(eq(works.id, id));
-  return rows[0]
-    ? { ...rows[0], editionSize: itemType === "original" ? 1 : null }
-    : null;
+  return catalogue;
 }

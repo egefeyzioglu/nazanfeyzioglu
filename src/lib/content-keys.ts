@@ -132,7 +132,7 @@ export const PRINT_COPY_FIELDS: ContentField[] = [
     key: "prints.modal.checkoutNote",
     label: "Checkout note",
     group: "Prints",
-    default: "Continue to secure checkout",
+    default: "Review your cart, then continue to secure checkout",
   },
   {
     key: "prints.modal.inquire",
@@ -309,6 +309,12 @@ export const CONTENT_FIELDS: ContentField[] = [
     label: "Nav link — Contact",
     group: "Sidebar",
     default: "Contact",
+  },
+  {
+    key: "nav.cart",
+    label: "Nav link — Cart",
+    group: "Sidebar",
+    default: "Cart",
   },
   {
     key: "sidebar.location",
