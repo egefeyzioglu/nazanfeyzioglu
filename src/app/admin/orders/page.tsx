@@ -4,14 +4,16 @@ import { useState } from "react";
 
 import { Button } from "src/app/admin/_components/ui";
 import {
+  effectiveFulfillment,
   formatPrice,
+  type EffectiveFulfillment,
   type OrderItemType,
-  type FulfillmentStatus,
   type PaymentStatus,
   type ShippingDetails,
 } from "src/lib/orders";
 import { api } from "src/trpc/react";
 
+/** Admin order list with type filters, payment/fulfillment chips and fulfillment controls. */
 export default function AdminOrdersPage() {
   const [filter, setFilter] = useState<OrderItemType | "all">("all");
   const utils = api.useUtils();
@@ -81,6 +83,7 @@ export default function AdminOrdersPage() {
             hour: "numeric",
             minute: "2-digit",
           });
+          const fulfillment = effectiveFulfillment(order);
 
           return (
             <article
@@ -106,7 +109,7 @@ export default function AdminOrdersPage() {
 
                 <div className="flex flex-wrap gap-2">
                   <PaymentChip status={order.paymentStatus} />
-                  <FulfillmentChip status={order.fulfillmentStatus} />
+                  <FulfillmentChip status={fulfillment} />
                 </div>
               </div>
 
@@ -130,7 +133,7 @@ export default function AdminOrdersPage() {
               </div>
 
               <div className="mt-5 flex flex-wrap items-center gap-4">
-                {order.fulfillmentStatus === "pending" && (
+                {fulfillment === "pending" && (
                   <Button
                     disabled={
                       setFulfillment.isPending &&
@@ -146,7 +149,7 @@ export default function AdminOrdersPage() {
                     Mark fulfilled
                   </Button>
                 )}
-                {order.fulfillmentStatus === "fulfilled" && (
+                {fulfillment === "fulfilled" && (
                   <Button
                     variant="ghost"
                     disabled={
@@ -215,17 +218,22 @@ function PaymentChip({ status }: { status: PaymentStatus }) {
   );
 }
 
-function FulfillmentChip({ status }: { status: FulfillmentStatus }) {
-  const cls = {
-    pending: "border-clay-soft text-clay",
-    fulfilled: "border-line text-stone",
-    oversold: "border-red-700 text-red-700",
+/** Status chip for the order's effective fulfillment state, including "no action required". */
+function FulfillmentChip({ status }: { status: EffectiveFulfillment }) {
+  const { cls, label } = {
+    pending: { cls: "border-clay-soft text-clay", label: "pending" },
+    fulfilled: { cls: "border-line text-stone", label: "fulfilled" },
+    oversold: {
+      cls: "border-red-700 text-red-700",
+      label: "OVERSOLD — refund in Stripe",
+    },
+    no_action: { cls: "border-line text-ash", label: "no action required" },
   }[status];
   return (
     <span
       className={`border px-2 py-1 font-mono text-[9.5px] tracking-[0.14em] uppercase ${cls}`}
     >
-      {status === "oversold" ? "OVERSOLD — refund in Stripe" : status}
+      {label}
     </span>
   );
 }
