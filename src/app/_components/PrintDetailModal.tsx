@@ -138,6 +138,14 @@ export default function PrintDetailModal({
                 <p className="text-ash mt-3 text-center font-mono text-[10px]">
                   {copy("checkoutNote")}
                 </p>
+                <p className="mt-2 text-center font-mono text-[10px]">
+                  <Link
+                    href="/policies"
+                    className="hover-clay text-stone border-line border-b pb-[2px] tracking-[0.12em] uppercase"
+                  >
+                    {copy("policiesLink")}
+                  </Link>
+                </p>
               </>
             ) : (
               <Link

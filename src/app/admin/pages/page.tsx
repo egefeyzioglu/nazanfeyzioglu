@@ -7,6 +7,7 @@ import AboutBody from "src/app/_components/pages/AboutBody";
 import ContactBody from "src/app/_components/pages/ContactBody";
 import ExhibitionsBody from "src/app/_components/pages/ExhibitionsBody";
 import HomeBody from "src/app/_components/pages/HomeBody";
+import PoliciesBody from "src/app/_components/pages/PoliciesBody";
 import PrintsBody from "src/app/_components/pages/PrintsBody";
 import SidebarBody, {
   type NavKey,
@@ -28,6 +29,7 @@ const TABS: { key: NavKey; label: string }[] = [
   { key: "contact", label: "Contact" },
   { key: "prints", label: "Prints" },
   { key: "exhibitions", label: "Exhibitions" },
+  { key: "policies", label: "Policies" },
 ];
 
 /** Edits shared page copy with drafts preserved across tabs until saved or discarded. */
@@ -265,6 +267,7 @@ export default function AdminPagesEditor() {
             {tab === "exhibitions" && (
               <ExhibitionsBody groups={exhibitionGroups} content={baseline} />
             )}
+            {tab === "policies" && <PoliciesBody content={baseline} />}
           </div>
         </div>
       </EditProvider>

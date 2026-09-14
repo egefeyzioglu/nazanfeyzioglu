@@ -203,7 +203,13 @@ function WorkRow({
           )}
           {!work.digital && (
             <p className="text-mute mt-3 text-[13px] leading-[1.6]">
-              Free shipping on originals within Canada.
+              Free shipping on originals within Canada.{" "}
+              <Link
+                href="/policies"
+                className="hover-clay text-stone border-line border-b pb-[1px]"
+              >
+                Shipping & returns
+              </Link>
             </p>
           )}
         </figcaption>
