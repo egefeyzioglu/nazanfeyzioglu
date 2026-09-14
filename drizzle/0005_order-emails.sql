@@ -1,0 +1,2 @@
+ALTER TABLE "nazanfeyzioglu_order" ADD COLUMN IF NOT EXISTS "confirmationEmailSentAt" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "nazanfeyzioglu_order" ADD COLUMN IF NOT EXISTS "notificationEmailSentAt" timestamp with time zone;

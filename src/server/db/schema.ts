@@ -205,6 +205,17 @@ export const orders = createTable(
       .$type<FulfillmentStatus>()
       .notNull()
       .default("pending"),
+    /**
+     * When each order email was settled: accepted by Resend, skipped because
+     * Resend is not configured, or (for the confirmation) impossible because
+     * Stripe supplied no customer email to send to. Null
+     * means it is still owed, and the webhook sends it on
+     * the next delivery of the Stripe event (the handler answers non-2xx
+     * while anything is owed, so Stripe keeps retrying). Tracked per message
+     * so a retry never resends one that already went out.
+     */
+    confirmationEmailSentAt: d.timestamp({ withTimezone: true }),
+    notificationEmailSentAt: d.timestamp({ withTimezone: true }),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
