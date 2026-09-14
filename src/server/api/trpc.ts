@@ -8,6 +8,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { z, ZodError } from "zod";
 
+import { captureServerException } from "src/lib/posthog-server";
 import { getAdminStatus, type AdminStatus } from "src/server/auth";
 import { db } from "src/server/db";
 
@@ -70,5 +71,9 @@ export const adminProcedure = t.procedure.use(async ({ ctx, next }) => {
         'Admin role required — set { "role": "admin" } in the user\'s public metadata in the Clerk dashboard.',
     });
   }
-  return next({ ctx: { ...ctx, userId } });
+  const result = await next({ ctx: { ...ctx, userId } });
+  if (!result.ok) {
+    captureServerException(result.error, userId);
+  }
+  return result;
 });

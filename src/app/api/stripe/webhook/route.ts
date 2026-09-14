@@ -4,6 +4,10 @@ import type Stripe from "stripe";
 
 import { env } from "src/env";
 import { type OrderItemType } from "src/lib/orders";
+import {
+  captureServerEvent,
+  captureServerException,
+} from "src/lib/posthog-server";
 import { db } from "src/server/db";
 import { orders, prints, works } from "src/server/db/schema";
 import { getStripe, stripeConfigured } from "src/server/stripe";
@@ -39,33 +43,48 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  switch (event.type) {
-    case "checkout.session.completed":
-    case "checkout.session.async_payment_succeeded": {
-      // A session can complete before a delayed payment method settles;
-      // async_payment_succeeded covers that case later. Only record once paid.
-      if (event.data.object.payment_status === "paid") {
-        await recordPaidCheckout(event.data.object.id);
+  try {
+    switch (event.type) {
+      case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded": {
+        // A session can complete before a delayed payment method settles;
+        // async_payment_succeeded covers that case later. Only record once paid.
+        if (event.data.object.payment_status === "paid") {
+          await recordPaidCheckout(event.data.object.id);
+        }
+        break;
       }
-      break;
-    }
-    case "charge.refunded": {
-      const charge = event.data.object;
-      // Fires for partial refunds too — only flip the order once the full
-      // amount has been returned.
-      if (
-        charge.amount_refunded >= charge.amount &&
-        typeof charge.payment_intent === "string"
-      ) {
-        await db
-          .update(orders)
-          .set({ paymentStatus: "refunded" })
-          .where(eq(orders.stripePaymentIntentId, charge.payment_intent));
+      case "charge.refunded": {
+        const charge = event.data.object;
+        // Fires for partial refunds too — only flip the order once the full
+        // amount has been returned.
+        if (
+          charge.amount_refunded >= charge.amount &&
+          typeof charge.payment_intent === "string"
+        ) {
+          const refunded = await db
+            .update(orders)
+            .set({ paymentStatus: "refunded" })
+            .where(eq(orders.stripePaymentIntentId, charge.payment_intent))
+            .returning({ id: orders.id, itemType: orders.itemType });
+          const refundedOrder = refunded[0];
+          if (refundedOrder) {
+            captureServerEvent(`order:${refundedOrder.id}`, "order_refunded", {
+              item_type: refundedOrder.itemType,
+              amount: charge.amount,
+              currency: charge.currency,
+              $insert_id: event.id,
+            });
+          }
+        }
+        break;
       }
-      break;
+      default:
+        break;
     }
-    default:
-      break;
+  } catch (err) {
+    captureServerException(err, `stripe_webhook:${event.id}`);
+    throw err;
   }
 
   return NextResponse.json({ received: true });
@@ -163,6 +182,20 @@ async function recordPaidCheckout(sessionId: string) {
           .where(eq(orders.id, orderId));
       }
     }
+  });
+
+  const distinctId =
+    session.metadata?.posthogDistinctId ?? `checkout:${session.id}`;
+  captureServerEvent(distinctId, "checkout_completed", {
+    item_type: itemType,
+    item_id: itemId,
+    quantity,
+    amount: session.amount_total ?? 0,
+    currency: session.currency ?? "cad",
+    $insert_id: session.id,
+    ...(session.metadata?.posthogSessionId && {
+      $session_id: session.metadata.posthogSessionId,
+    }),
   });
 }
 

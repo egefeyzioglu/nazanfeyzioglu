@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { captureServerEvent } from "src/lib/posthog-server";
 import {
   adminProcedure,
   createTRPCRouter,
@@ -59,6 +60,10 @@ export const worksRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...values } = input;
+      const before = await ctx.db.query.works.findFirst({
+        where: (w, { eq: is }) => is(w.id, id),
+        columns: { originalPriceCents: true, originalUnavailable: true },
+      });
       const [row] = await ctx.db
         .update(works)
         .set(values)
@@ -69,6 +74,17 @@ export const worksRouter = createTRPCRouter({
           code: "NOT_FOUND",
           message: "Original not found. Refresh the page and try again.",
         });
+      const changed =
+        before?.originalPriceCents !== row.originalPriceCents ||
+        before?.originalUnavailable !== row.originalUnavailable;
+      if (changed) {
+        captureServerEvent(ctx.userId, "original_sale_updated", {
+          work_id: row.id,
+          series_id: row.seriesId,
+          has_original_price: row.originalPriceCents != null,
+          original_unavailable: row.originalUnavailable,
+        });
+      }
       return row;
     }),
 
@@ -83,6 +99,14 @@ export const worksRouter = createTRPCRouter({
         .insert(works)
         .values({ ...input, position: max + 1 })
         .returning();
+      if (row) {
+        captureServerEvent(ctx.userId, "work_created", {
+          work_id: row.id,
+          series_id: row.seriesId,
+          is_digital: row.digital,
+          has_digital_price: row.digitalPriceCents != null,
+        });
+      }
       return row;
     }),
 
@@ -95,14 +119,31 @@ export const worksRouter = createTRPCRouter({
         .set(values)
         .where(eq(works.id, id))
         .returning();
+      if (row) {
+        captureServerEvent(ctx.userId, "work_updated", {
+          work_id: row.id,
+          series_id: row.seriesId,
+          is_digital: row.digital,
+          has_digital_price: row.digitalPriceCents != null,
+        });
+      }
       return row;
     }),
 
   delete: adminProcedure
     .input(z.object({ id: z.number().int() }))
-    .mutation(({ ctx, input }) =>
-      ctx.db.delete(works).where(eq(works.id, input.id)),
-    ),
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .delete(works)
+        .where(eq(works.id, input.id))
+        .returning({ id: works.id, seriesId: works.seriesId });
+      if (row) {
+        captureServerEvent(ctx.userId, "work_deleted", {
+          work_id: row.id,
+          series_id: row.seriesId,
+        });
+      }
+    }),
 
   reorder: adminProcedure
     .input(z.object({ seriesId: z.number().int(), ids: uniqueIds }))
