@@ -19,7 +19,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "db:seed": "tsx --env-file=.env src/server/db/seed.ts",
-    "test": "tsx --test src/lib/cart.test.ts src/lib/prints.test.ts"
+    "test": "tsx --test src/lib/cart.test.ts src/lib/checkout-metadata.test.ts src/lib/prints.test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.12",

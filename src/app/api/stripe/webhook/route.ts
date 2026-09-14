@@ -88,10 +88,12 @@ async function recordPaidCheckout(sessionId: string) {
     listSessionLineItems(sessionId),
   ]);
 
+  // Throws UnidentifiedLineItemError for a cart session with an unreadable
+  // line; the resulting 500 makes Stripe retry instead of losing the order.
   const lines = purchasedLines(session, lineItems);
-  if (lines.length === 0) {
-    // Not a session this integration created (or malformed metadata); ack it
-    // rather than have Stripe retry forever.
+  if (lines === null || lines.length === 0) {
+    // Not a session this integration created; ack it rather than have Stripe
+    // retry forever.
     console.warn(
       `Ignoring checkout session without item metadata: ${sessionId}`,
     );

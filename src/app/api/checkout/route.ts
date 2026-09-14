@@ -5,6 +5,10 @@ import { z } from "zod";
 import { env } from "src/env";
 import { cartLineKey, type CartItemRef } from "src/lib/cart";
 import {
+  CHECKOUT_ITEMS_METADATA_KEY,
+  encodeCheckoutItems,
+} from "src/lib/checkout-metadata";
+import {
   CURRENCY,
   MAX_CART_LINES,
   MAX_PRINT_QUANTITY,
@@ -25,8 +29,8 @@ import { getStripe, stripeConfigured } from "src/server/stripe";
  * Creates a Stripe Checkout Session for the cart's items and returns its URL
  * for the client to redirect to. Prices always come from the database — the
  * client only ever names items and quantities. Each line item carries its
- * item type/id in product metadata, which the webhook reads back to record
- * the order.
+ * item type/id in product metadata, and the session carries the same list,
+ * which the webhook reads back to record the order.
  *
  * The admin CMS stays on tRPC; this public mutation is a plain route handler.
  */
@@ -121,7 +125,12 @@ export async function POST(req: Request) {
     session = await getStripe().checkout.sessions.create({
       mode: "payment",
       line_items: resolved.lineItems,
-      metadata: { cart: "1", lines: String(resolved.lineItems.length) },
+      // `items` duplicates the per-line product metadata so the webhook can
+      // still identify every line if an ad hoc Product is deleted meanwhile.
+      metadata: {
+        cart: "1",
+        [CHECKOUT_ITEMS_METADATA_KEY]: encodeCheckoutItems(body.items),
+      },
       customer_creation: "if_required",
       ...shippingParams,
       success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type Stripe from "stripe";
 
 import ReconcileCart from "src/app/_components/ReconcileCart";
 import SidebarBody from "src/app/_components/pages/SidebarBody";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
+import { type PurchasedLine } from "src/lib/cart";
 import { formatPrice } from "src/lib/orders";
 import {
   listSessionLineItems,
@@ -13,6 +15,21 @@ import { getStripe, stripeConfigured } from "src/server/stripe";
 import { getContent } from "src/server/queries";
 
 export const dynamic = "force-dynamic";
+
+function identifyPurchased(
+  session: Stripe.Checkout.Session,
+  lines: Stripe.LineItem[],
+): PurchasedLine[] {
+  try {
+    return (purchasedLines(session, lines) ?? []).map((line) => ({
+      itemType: line.itemType,
+      id: line.itemId,
+      quantity: line.quantity,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 export const metadata = { title: "Thank you — Nazan Feyzioğlu" };
 
@@ -38,11 +55,10 @@ export default async function CheckoutSuccessPage({
   const content = await getContent().catch(() => CONTENT_DEFAULTS);
 
   const paid = session.payment_status !== "unpaid";
-  const purchased = purchasedLines(session, lines).map((line) => ({
-    itemType: line.itemType,
-    id: line.itemId,
-    quantity: line.quantity,
-  }));
+  // Identification can fail only in the deleted-Product edge case; the
+  // thank-you page still renders from Stripe's descriptions, and the cart is
+  // simply left as-is.
+  const purchased = identifyPurchased(session, lines);
   const hasPrint = purchased.some((line) => line.itemType === "print");
   const email = session.customer_details?.email;
 

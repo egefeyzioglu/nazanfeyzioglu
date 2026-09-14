@@ -2,6 +2,10 @@ import "server-only";
 
 import type Stripe from "stripe";
 
+import {
+  CHECKOUT_ITEMS_METADATA_KEY,
+  decodeCheckoutItems,
+} from "src/lib/checkout-metadata";
 import { ORDER_ITEM_TYPES, type OrderItemType } from "src/lib/orders";
 import { getStripe } from "src/server/stripe";
 
@@ -15,6 +19,20 @@ export type PurchasedLine = {
   /** Stripe's product name — the fallback title when the item was deleted. */
   description: string | null;
 };
+
+/**
+ * Thrown when a session this integration created has a line whose item can
+ * no longer be identified. The webhook lets it propagate so Stripe retries
+ * rather than acknowledging a payment that was never recorded.
+ */
+export class UnidentifiedLineItemError extends Error {
+  constructor(sessionId: string, index: number) {
+    super(
+      `Cannot identify line item ${index} of checkout session ${sessionId}`,
+    );
+    this.name = "UnidentifiedLineItemError";
+  }
+}
 
 function isOrderItemType(value: unknown): value is OrderItemType {
   return (ORDER_ITEM_TYPES as readonly unknown[]).includes(value);
@@ -37,41 +55,60 @@ export function listSessionLineItems(
 }
 
 /**
- * Reads item type/id off each line item's product metadata (written by the
- * checkout route). Sessions created before the cart existed carried a single
- * item in the session metadata instead; those are still honoured so a
- * checkout that straddles a deploy is recorded.
+ * Identifies what each line item bought. Sources, in order:
+ *
+ * 1. The line's product metadata, written by the checkout route.
+ * 2. The session's `items` metadata — the same identifiers by line index,
+ *    which survive the ad hoc Product being deleted in the Dashboard.
+ * 3. Legacy single-item sessions created before the cart existed, which
+ *    carried `itemType`/`itemId` in session metadata.
+ *
+ * Returns null for sessions this integration did not create (no cart or
+ * legacy metadata), and throws when a cart session has a line that none of
+ * the sources can identify.
  */
 export function purchasedLines(
   session: Stripe.Checkout.Session,
   lineItems: Stripe.LineItem[],
-): PurchasedLine[] {
-  const legacyType = session.metadata?.itemType;
-  const legacyId = Number(session.metadata?.itemId);
+): PurchasedLine[] | null {
+  const metadata = session.metadata ?? {};
+  const sessionItems = decodeCheckoutItems(
+    metadata[CHECKOUT_ITEMS_METADATA_KEY],
+  );
+  const legacyType = metadata.itemType;
+  const legacyId = Number(metadata.itemId);
+  const legacy =
+    isOrderItemType(legacyType) && Number.isInteger(legacyId)
+      ? { itemType: legacyType, id: legacyId }
+      : null;
+  if (metadata.cart !== "1" && !legacy) return null;
 
-  return lineItems.flatMap((line, index) => {
+  return lineItems.map((line, index) => {
     const product = line.price?.product;
-    const metadata =
+    const productMeta =
       typeof product === "object" && !product.deleted ? product.metadata : null;
-    let itemType: unknown = metadata?.itemType;
-    let itemId = Number(metadata?.itemId);
-    if (!isOrderItemType(itemType) && index === 0 && lineItems.length === 1) {
-      itemType = legacyType;
-      itemId = legacyId;
+    let itemType: unknown = productMeta?.itemType;
+    let itemId = Number(productMeta?.itemId);
+    if (!isOrderItemType(itemType) || !Number.isInteger(itemId)) {
+      const fallback =
+        sessionItems?.[index] ??
+        (legacy && lineItems.length === 1 ? legacy : null);
+      if (!fallback) throw new UnidentifiedLineItemError(session.id, index);
+      itemType = fallback.itemType;
+      itemId = fallback.id;
     }
-    if (!isOrderItemType(itemType) || !Number.isInteger(itemId)) return [];
+    if (!isOrderItemType(itemType)) {
+      throw new UnidentifiedLineItemError(session.id, index);
+    }
     const quantity = line.quantity ?? 1;
-    return [
-      {
-        itemType,
-        itemId,
-        quantity,
-        unitAmount:
-          line.price?.unit_amount ??
-          Math.round(line.amount_subtotal / quantity),
-        amountTotal: line.amount_total,
-        description: line.description ?? null,
-      },
-    ];
+    return {
+      itemType,
+      itemId,
+      quantity,
+      unitAmount:
+        line.price?.unit_amount ?? Math.round(line.amount_subtotal / quantity),
+      amountTotal: line.amount_total,
+      description: line.description ?? null,
+    };
   });
 }
