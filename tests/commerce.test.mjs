@@ -723,15 +723,19 @@ test("webhook telemetry redacts secrets and customer emails and bounds length", 
 
   const event = scrub.scrubSentryEvent({
     message: "whsec_secret",
-    request: { data: "raw", headers: { "stripe-signature": "t" }, url: "/x" },
+    request: {
+      data: "raw",
+      headers: { "stripe-signature": "t" },
+      url: "/x?token=abc#frag",
+    },
     user: { email: "a@b.co" },
     exception: { values: [{ value: "No such session for buyer@example.com" }] },
-    breadcrumbs: [{ message: "Bearer abc.def" }],
+    breadcrumbs: [{ message: "bearer abc.def" }, { message: "Basic Zm9v" }],
   });
   assert.deepEqual(event, {
     message: "[redacted-key]",
     request: { url: "/x" },
     exception: { values: [{ value: "No such session for [email]" }] },
-    breadcrumbs: [{ message: "[redacted-auth]" }],
+    breadcrumbs: [{ message: "[redacted-auth]" }, { message: "[redacted-auth]" }],
   });
 });

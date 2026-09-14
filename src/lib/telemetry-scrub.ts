@@ -15,7 +15,7 @@ const PATTERNS: Array<[RegExp, string]> = [
   // Database connection strings carry the password.
   [/\bpostgres(?:ql)?:\/\/[^\s"'`]+/gi, "[redacted-dsn]"],
   // Bearer / basic auth material.
-  [/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/g, "[redacted-auth]"],
+  [/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, "[redacted-auth]"],
   // Customer email addresses.
   [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[email]"],
 ];
@@ -55,6 +55,7 @@ export function describeError(err: unknown): {
 type ScrubbableEvent = {
   message?: string;
   request?: {
+    url?: string;
     data?: unknown;
     headers?: unknown;
     cookies?: unknown;
@@ -71,6 +72,10 @@ export function scrubSentryEvent<T extends ScrubbableEvent>(event: T): T {
     delete event.request.headers;
     delete event.request.cookies;
     delete event.request.query_string;
+    if (typeof event.request.url === "string") {
+      // Query and fragment can carry tokens or addresses; keep the path only.
+      event.request.url = event.request.url.replace(/[?#].*$/, "");
+    }
   }
   delete event.user;
   if (typeof event.message === "string") {
