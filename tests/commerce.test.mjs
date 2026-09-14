@@ -406,15 +406,29 @@ function setup() {
       return { id, res: await deliver(paidEvent(id)) };
     },
     pay: (id) => deliver(paidEvent(id)),
-    refund: (id, amount) =>
+    /** Delivers a charge.refunded event; the charge amount is the session's real total. */
+    refund: (id, amountRefunded) =>
       deliver({
-        id: `evt_refund_${id}_${amount}`,
+        id: `evt_refund_${id}_${amountRefunded}`,
         type: "charge.refunded",
         data: {
           object: {
             payment_intent: `pi_${id}`,
-            amount: 190000,
-            amount_refunded: amount,
+            amount: state.stripeSessions.get(id).session.amount_total,
+            amount_refunded: amountRefunded,
+            currency: "cad",
+          },
+        },
+      }),
+    fullRefund: (id) =>
+      deliver({
+        id: `evt_refund_${id}_full`,
+        type: "charge.refunded",
+        data: {
+          object: {
+            payment_intent: `pi_${id}`,
+            amount: state.stripeSessions.get(id).session.amount_total,
+            amount_refunded: state.stripeSessions.get(id).session.amount_total,
             currency: "cad",
           },
         },
@@ -682,7 +696,7 @@ test("digital sales never consume original stock; only full refunds restore it",
   await app.refund(id, 100);
   assert.equal(app.state.orders[1].paymentStatus, "paid");
   assert.equal((await app.inventory.getSoldOriginalIds([1])).has(1), true);
-  await app.refund(id, 190000);
+  await app.fullRefund(id);
   assert.equal(app.state.orders[1].paymentStatus, "refunded");
   assert.equal((await app.inventory.getSoldOriginalIds([1])).size, 0);
   assert.equal((await app.checkout([ORIGINAL])).status, 200);
@@ -697,7 +711,7 @@ test("refunded print quantities free up the edition", async () => {
     plain([...(await app.inventory.getSoldPrintQuantities([1, 2]))]),
     [[1, 2]],
   );
-  await app.refund(id, 190000);
+  await app.fullRefund(id);
   assert.equal((await app.inventory.getSoldPrintQuantities([1])).size, 0);
 });
 
@@ -709,7 +723,7 @@ test("fully refunded orders no longer read as pending in the admin", async () =>
   assert.equal(effectiveFulfillment(order), "pending");
   await app.refund(id, 100);
   assert.equal(effectiveFulfillment(order), "pending");
-  await app.refund(id, 190000);
+  await app.fullRefund(id);
   assert.equal(effectiveFulfillment(order), "no_action");
   assert.equal(
     effectiveFulfillment({
@@ -730,7 +744,7 @@ test("fully refunded orders no longer read as pending in the admin", async () =>
 test("checkout funnel events describe the whole cart and follow the buyer's PostHog id", async () => {
   const app = setup();
   const { id } = await app.buy([PRINT, ORIGINAL]);
-  await app.refund(id, 190000);
+  await app.fullRefund(id);
   const events = app.state.analytics.map((e) => [e.distinctId, e.event]);
   assert.deepEqual(events, [
     ["visitor_1", "checkout_session_created"],
