@@ -20,6 +20,7 @@ function load(path, dependencies = {}) {
     exports,
     console,
     URL,
+    crypto,
     require: (id) =>
       Object.hasOwn(dependencies, id) ? dependencies[id] : require(id),
   });
@@ -31,6 +32,7 @@ function setup() {
     rows: [],
     sessions: [],
     locks: [],
+    analytics: [],
     event: null,
     session: null,
     work: {
@@ -142,10 +144,21 @@ function setup() {
     }),
     update: () => ({
       set: (values) => ({
-        where: async (predicate) => {
-          state.rows
-            .filter(predicate)
-            .forEach((row) => Object.assign(row, values));
+        where: (predicate) => {
+          const matched = state.rows.filter(predicate);
+          matched.forEach((row) => Object.assign(row, values));
+          // Awaitable directly, or chained with .returning() for a projection.
+          const result = Promise.resolve();
+          result.returning = async (projection) =>
+            matched.map((row) =>
+              Object.fromEntries(
+                Object.entries(projection).map(([key, field]) => [
+                  key,
+                  row[field],
+                ]),
+              ),
+            );
+          return result;
         },
       }),
     }),
@@ -185,6 +198,12 @@ function setup() {
       getStripe: () => stripe,
       stripeConfigured: () => true,
     },
+    "src/lib/posthog-server": {
+      captureServerEvent: (distinctId, event, properties) => {
+        state.analytics.push({ distinctId, event, properties });
+      },
+      captureServerException: () => {},
+    },
   };
   const inventory = load("src/server/orders.ts", dependencies);
   dependencies["src/server/orders"] = {
@@ -199,6 +218,7 @@ function setup() {
     checkout: (itemType, extra = {}) =>
       checkout.POST({
         url: "http://localhost:3000/api/checkout",
+        headers: new Headers({ "x-posthog-distinct-id": "visitor_1" }),
         json: async () => ({ itemType, id: 1, ...extra }),
       }),
     pay: async (itemType, id = "cs_1") => {
@@ -368,4 +388,18 @@ test("fully refunded orders no longer read as pending in the admin", async () =>
     }),
     "fulfilled",
   );
+});
+
+test("checkout funnel events are attributed to the buyer's PostHog id", async () => {
+  const app = setup();
+  await app.checkout("original");
+  await app.pay("original");
+  await app.refund("cs_1", 190000);
+  const events = app.state.analytics.map((e) => [e.distinctId, e.event]);
+  assert.deepEqual(events, [
+    ["visitor_1", "checkout_session_created"],
+    ["checkout:cs_1", "checkout_completed"],
+    [`order:${app.state.rows[0].id}`, "order_refunded"],
+  ]);
+  assert.equal(app.state.sessions[0].metadata.posthogDistinctId, "visitor_1");
 });
