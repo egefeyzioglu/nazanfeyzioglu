@@ -3,6 +3,7 @@ import "server-only";
 import * as Sentry from "@sentry/nextjs";
 
 import { env } from "src/env";
+import { describeError } from "src/lib/telemetry-scrub";
 
 export type DeploymentEnvironment = "production" | "preview" | "development";
 
@@ -37,14 +38,9 @@ export function reportWebhookFailure(
   ctx: WebhookFailureContext,
   level: "error" | "warning" = "error",
 ): void {
-  const message = err instanceof Error ? err.message : String(err);
-  const code =
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    typeof err.code === "string"
-      ? err.code
-      : undefined;
+  // Bounded and redacted; the Sentry beforeSend hooks apply the same scrub
+  // to the exception value and stack frames' messages.
+  const { message, code } = describeError(err);
   const log = JSON.stringify({
     tag: "stripe_webhook_failure",
     level,

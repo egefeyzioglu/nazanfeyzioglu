@@ -415,3 +415,35 @@ test("session without item metadata is acknowledged and reported", async () => {
     paymentIntentId: "pi_cs_no_metadata",
   });
 });
+
+test("webhook telemetry redacts secrets and customer emails and bounds length", () => {
+  const scrub = load("src/lib/telemetry-scrub.ts");
+  const { message, code } = scrub.describeError(
+    Object.assign(
+      new Error(
+        "buyer@example.com paid with sk_live_abc123 via postgres://user:pw@host/db " +
+          "x".repeat(400),
+      ),
+      { code: "resource_missing" },
+    ),
+  );
+  assert.equal(code, "resource_missing");
+  assert.doesNotMatch(message, /example\.com|sk_live|pw@host/);
+  assert.match(message, /\[email\] paid with \[redacted-key\] via \[redacted-dsn\]/);
+  assert.ok(message.length <= 301);
+  assert.equal(scrub.scrubText("session cs_test_123 evt_1 pi_2"), "session cs_test_123 evt_1 pi_2");
+
+  const event = scrub.scrubSentryEvent({
+    message: "whsec_secret",
+    request: { data: "raw", headers: { "stripe-signature": "t" }, url: "/x" },
+    user: { email: "a@b.co" },
+    exception: { values: [{ value: "No such session for buyer@example.com" }] },
+    breadcrumbs: [{ message: "Bearer abc.def" }],
+  });
+  assert.deepEqual(event, {
+    message: "[redacted-key]",
+    request: { url: "/x" },
+    exception: { values: [{ value: "No such session for [email]" }] },
+    breadcrumbs: [{ message: "[redacted-auth]" }],
+  });
+});

@@ -141,14 +141,14 @@ async function recordPaidCheckout(
 
   const itemType = session.metadata?.itemType;
   const itemId = Number(session.metadata?.itemId);
-  if (itemType !== undefined) ctx.itemType = itemType;
-  if (Number.isFinite(itemId)) ctx.itemId = itemId;
-  if (
-    (itemType !== "print" &&
-      itemType !== "digital" &&
-      itemType !== "original") ||
-    !Number.isInteger(itemId)
-  ) {
+  const validItemType =
+    itemType === "print" || itemType === "digital" || itemType === "original";
+  const validItemId = Number.isInteger(itemId);
+  // Only validated values go into telemetry: metadata on a session this
+  // integration did not create is untrusted.
+  if (validItemType) ctx.itemType = itemType;
+  if (validItemId) ctx.itemId = itemId;
+  if (!validItemType || !validItemId) {
     // Not a session this integration created (or malformed metadata); ack it
     // rather than have Stripe retry forever.
     reportWebhookFailure(
