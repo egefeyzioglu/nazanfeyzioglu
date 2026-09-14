@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { CONTENT_FIELDS } from "src/lib/content-keys";
+import { captureServerEvent } from "src/lib/posthog-server";
 import { adminProcedure, createTRPCRouter } from "src/server/api/trpc";
 import { siteContent } from "src/server/db/schema";
 
@@ -45,6 +46,9 @@ export const contentRouter = createTRPCRouter({
               set: { value: e.value, updatedAt: new Date() },
             });
         }
+      });
+      captureServerEvent(ctx.userId, "content_saved", {
+        entry_count: input.entries.length,
       });
     }),
 });

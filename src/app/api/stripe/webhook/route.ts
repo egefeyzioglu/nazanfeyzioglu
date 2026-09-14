@@ -5,6 +5,10 @@ import type Stripe from "stripe";
 import { env } from "src/env";
 import { type OrderItemType } from "src/lib/orders";
 import {
+  captureServerEvent,
+  captureServerException,
+} from "src/lib/posthog-server";
+import {
   listSessionLineItems,
   purchasedLines,
   type PurchasedLine,
@@ -44,33 +48,48 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  switch (event.type) {
-    case "checkout.session.completed":
-    case "checkout.session.async_payment_succeeded": {
-      // A session can complete before a delayed payment method settles;
-      // async_payment_succeeded covers that case later. Only record once paid.
-      if (event.data.object.payment_status === "paid") {
-        await recordPaidCheckout(event.data.object.id);
+  try {
+    switch (event.type) {
+      case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded": {
+        // A session can complete before a delayed payment method settles;
+        // async_payment_succeeded covers that case later. Only record once paid.
+        if (event.data.object.payment_status === "paid") {
+          await recordPaidCheckout(event.data.object.id);
+        }
+        break;
       }
-      break;
-    }
-    case "charge.refunded": {
-      const charge = event.data.object;
-      // Fires for partial refunds too — only flip the order once the full
-      // amount has been returned.
-      if (
-        charge.amount_refunded >= charge.amount &&
-        typeof charge.payment_intent === "string"
-      ) {
-        await db
-          .update(orders)
-          .set({ paymentStatus: "refunded" })
-          .where(eq(orders.stripePaymentIntentId, charge.payment_intent));
+      case "charge.refunded": {
+        const charge = event.data.object;
+        // Fires for partial refunds too — only flip the order once the full
+        // amount has been returned.
+        if (
+          charge.amount_refunded >= charge.amount &&
+          typeof charge.payment_intent === "string"
+        ) {
+          const refunded = await db
+            .update(orders)
+            .set({ paymentStatus: "refunded" })
+            .where(eq(orders.stripePaymentIntentId, charge.payment_intent))
+            .returning({ id: orders.id });
+          const refundedOrder = refunded[0];
+          if (refundedOrder) {
+            captureServerEvent(`order:${refundedOrder.id}`, "order_refunded", {
+              item_types: await orderItemTypes(refundedOrder.id),
+              amount: charge.amount,
+              currency: charge.currency,
+              $insert_id: event.id,
+            });
+          }
+        }
+        break;
       }
-      break;
+      default:
+        break;
     }
-    default:
-      break;
+  } catch (err) {
+    captureServerException(err, `stripe_webhook:${event.id}`);
+    throw err;
   }
 
   return NextResponse.json({ received: true });
@@ -198,6 +217,34 @@ async function recordPaidCheckout(sessionId: string) {
         .where(eq(orders.id, orderId));
     }
   });
+
+  const distinctId =
+    session.metadata?.posthogDistinctId ?? `checkout:${session.id}`;
+  captureServerEvent(distinctId, "checkout_completed", {
+    items: lines.map((l) => ({
+      item_type: l.itemType,
+      item_id: l.itemId,
+      quantity: l.quantity,
+    })),
+    item_types: [...new Set(lines.map((l) => l.itemType))],
+    line_count: lines.length,
+    unit_count: lines.reduce((sum, l) => sum + l.quantity, 0),
+    amount: session.amount_total ?? 0,
+    currency: session.currency ?? "cad",
+    $insert_id: session.id,
+    ...(session.metadata?.posthogSessionId && {
+      $session_id: session.metadata.posthogSessionId,
+    }),
+  });
+}
+
+/** Distinct item types on an order, for analytics properties. */
+async function orderItemTypes(orderId: number): Promise<OrderItemType[]> {
+  const rows = await db
+    .select({ itemType: orderItems.itemType })
+    .from(orderItems)
+    .where(eq(orderItems.orderId, orderId));
+  return [...new Set(rows.map((r) => r.itemType))];
 }
 
 function itemKey(line: { itemType: OrderItemType; itemId: number }): string {

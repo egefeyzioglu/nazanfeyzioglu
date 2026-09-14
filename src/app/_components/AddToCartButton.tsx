@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import posthog from "posthog-js";
 import { useState, type ReactNode } from "react";
 
 import { useCart } from "src/app/_components/CartProvider";
@@ -43,6 +44,10 @@ export default function AddToCartButton({
         onClick={() => {
           cart.add({ ...line, quantity: 1 });
           setAdded(true);
+          posthog.capture("cart_item_added", {
+            item_type: line.itemType,
+            item_id: line.id,
+          });
         }}
       >
         {atCap ? inCartLabel : children}

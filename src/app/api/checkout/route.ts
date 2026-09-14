@@ -16,6 +16,10 @@ import {
   requiresShipping,
   shippingCentsFor,
 } from "src/lib/orders";
+import {
+  captureServerEvent,
+  captureServerException,
+} from "src/lib/posthog-server";
 import { formatPrintSpec } from "src/lib/prints";
 import { db } from "src/server/db";
 import {
@@ -53,6 +57,13 @@ const bodySchema = z.object({
 type RequestedItem = z.infer<typeof itemSchema>;
 
 export async function POST(req: Request) {
+  const distinctId =
+    req.headers.get("x-posthog-distinct-id")?.slice(0, 200) ??
+    `checkout:${crypto.randomUUID()}`;
+  const posthogSessionId = req.headers
+    .get("x-posthog-session-id")
+    ?.slice(0, 200);
+
   if (!stripeConfigured()) {
     return NextResponse.json(
       { error: "Checkout is not configured" },
@@ -130,6 +141,8 @@ export async function POST(req: Request) {
       metadata: {
         cart: "1",
         [CHECKOUT_ITEMS_METADATA_KEY]: encodeCheckoutItems(body.items),
+        posthogDistinctId: distinctId,
+        ...(posthogSessionId && { posthogSessionId }),
       },
       customer_creation: "if_required",
       ...shippingParams,
@@ -138,6 +151,7 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("Stripe checkout session creation failed", err);
+    captureServerException(err, distinctId);
     return NextResponse.json(
       { error: "Could not start checkout — please try again" },
       { status: 502 },
@@ -150,10 +164,29 @@ export async function POST(req: Request) {
       { status: 502 },
     );
   }
+
+  captureServerEvent(distinctId, "checkout_session_created", {
+    ...checkoutEventProperties(body.items),
+    ...(posthogSessionId && { $session_id: posthogSessionId }),
+  });
   return NextResponse.json({ url: session.url });
 }
 
 type LineItem = Stripe.Checkout.SessionCreateParams.LineItem;
+
+/** Cart shape for analytics: the lines plus rollups that are easy to filter on. */
+function checkoutEventProperties(items: RequestedItem[]) {
+  return {
+    items: items.map((i) => ({
+      item_type: i.itemType,
+      item_id: i.id,
+      quantity: i.quantity,
+    })),
+    item_types: [...new Set(items.map((i) => i.itemType))],
+    line_count: items.length,
+    unit_count: items.reduce((sum, i) => sum + i.quantity, 0),
+  };
+}
 
 /**
  * Why a requested line cannot be checked out as-is. `unavailable` lines are

@@ -62,7 +62,7 @@ The cart lives in the shopper's browser (`localStorage`, no accounts) and is edi
 
 Checkout (`POST /api/checkout`) re-reads every line from the database — prices, availability, remaining copies — and refuses the whole session if anything is off, telling the cart page which lines to drop or reduce. Each Stripe line item carries its item type and id in product metadata; the webhook reads those back to record one **order** with one **order item** per line. The oversold check runs per physical line, taking advisory locks in a fixed order, and flags the order if any line exceeds its edition. Sessions created before the cart shipped (single item in session metadata) are still recorded.
 
-Run `pnpm db:migrate` before deploying the cart. Migration `0004_cart-orders` moves each existing order's line into the new `order_item` table and adds subtotal and shipping columns to `order` (backfilled from the legacy totals); nothing needs to change in the Stripe Dashboard. `pnpm test` runs the cart and print unit tests.
+Run `pnpm db:migrate` before deploying the cart. Migration `0004_cart-orders` moves each existing order's line into the new `order_item` table and adds subtotal and shipping columns to `order` (backfilled from the legacy totals); nothing needs to change in the Stripe Dashboard. `pnpm test` runs the cart and print unit tests plus the mocked checkout, availability, webhook and refund regression tests in `tests/commerce.test.mjs`.
 
 ### Original sales
 
@@ -105,4 +105,4 @@ Enter both dimensions or leave both blank when the size is not yet confirmed.
 - `pnpm db:studio` — browse the database in Drizzle Studio
 - `pnpm db:generate && pnpm db:migrate` — create/apply migrations after schema changes
 - `pnpm check` — lint + typecheck
-- `pnpm test` — unit tests (`src/lib/*.test.ts`, run with `tsx --test`; add new files to the script)
+- `pnpm test` — unit tests (`src/lib/*.test.ts`) and the mocked commerce flow (`tests/commerce.test.mjs`), run with `tsx --test`; add new files to the script

@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { captureServerEvent } from "src/lib/posthog-server";
 import {
   adminProcedure,
   createTRPCRouter,
@@ -57,6 +58,12 @@ export const seriesRouter = createTRPCRouter({
         .insert(series)
         .values({ ...input, position: max + 1 })
         .returning();
+      if (row) {
+        captureServerEvent(ctx.userId, "series_created", {
+          series_id: row.id,
+          has_status_note: row.statusNote != null,
+        });
+      }
       return row;
     }),
 
@@ -75,6 +82,12 @@ export const seriesRouter = createTRPCRouter({
         .set(values)
         .where(eq(series.id, id))
         .returning();
+      if (row) {
+        captureServerEvent(ctx.userId, "series_updated", {
+          series_id: row.id,
+          has_status_note: row.statusNote != null,
+        });
+      }
       return row;
     }),
 
@@ -83,11 +96,20 @@ export const seriesRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       // Postgres would cascade these via the FK, but the explicit deletes
       // keep the full effect of this mutation visible in one place.
-      await ctx.db.transaction(async (tx) => {
+      const deleted = await ctx.db.transaction(async (tx) => {
         await tx.delete(works).where(eq(works.seriesId, input.id));
         await tx.delete(prints).where(eq(prints.seriesId, input.id));
-        await tx.delete(series).where(eq(series.id, input.id));
+        const [row] = await tx
+          .delete(series)
+          .where(eq(series.id, input.id))
+          .returning({ id: series.id });
+        return row;
       });
+      if (deleted) {
+        captureServerEvent(ctx.userId, "series_deleted", {
+          series_id: deleted.id,
+        });
+      }
     }),
 
   reorder: adminProcedure

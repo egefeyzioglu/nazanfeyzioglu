@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { captureServerEvent } from "src/lib/posthog-server";
 import {
   adminProcedure,
   createTRPCRouter,
@@ -34,6 +35,12 @@ export const exhibitionsRouter = createTRPCRouter({
         .insert(exhibitions)
         .values({ ...input, position: max + 1 })
         .returning();
+      if (row) {
+        captureServerEvent(ctx.userId, "exhibition_created", {
+          exhibition_id: row.id,
+          category: row.category,
+        });
+      }
       return row;
     }),
 
@@ -46,14 +53,28 @@ export const exhibitionsRouter = createTRPCRouter({
         .set(values)
         .where(eq(exhibitions.id, id))
         .returning();
+      if (row) {
+        captureServerEvent(ctx.userId, "exhibition_updated", {
+          exhibition_id: row.id,
+          category: row.category,
+        });
+      }
       return row;
     }),
 
   delete: adminProcedure
     .input(z.object({ id: z.number().int() }))
-    .mutation(({ ctx, input }) =>
-      ctx.db.delete(exhibitions).where(eq(exhibitions.id, input.id)),
-    ),
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .delete(exhibitions)
+        .where(eq(exhibitions.id, input.id))
+        .returning({ id: exhibitions.id });
+      if (row) {
+        captureServerEvent(ctx.userId, "exhibition_deleted", {
+          exhibition_id: row.id,
+        });
+      }
+    }),
 
   reorder: adminProcedure
     .input(z.object({ ids: uniqueIds }))

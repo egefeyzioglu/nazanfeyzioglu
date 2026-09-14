@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import posthog from "posthog-js";
 import { useState } from "react";
 
 import ArtImage from "src/app/_components/ArtImage";
@@ -42,18 +43,36 @@ export default function CartBody({
   async function checkout() {
     setPending(true);
     setError(null);
+    const items = cart.lines.map(({ itemType, id, quantity }) => ({
+      itemType,
+      id,
+      quantity,
+    }));
     try {
+      posthog.capture(
+        "checkout_started",
+        {
+          items: items.map((i) => ({
+            item_type: i.itemType,
+            item_id: i.id,
+            quantity: i.quantity,
+          })),
+          line_count: items.length,
+          subtotal: subtotal,
+        },
+        // The page navigates to Stripe right after; don't leave this in
+        // the batch queue.
+        { send_instantly: true },
+      );
+
       const res = await fetch("/api/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: cart.lines.map(({ itemType, id, quantity }) => ({
-            itemType,
-            id,
-            quantity,
-          })),
-          cancelPath: "/cart",
-        }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-POSTHOG-DISTINCT-ID": posthog.get_distinct_id(),
+          "X-POSTHOG-SESSION-ID": posthog.get_session_id(),
+        },
+        body: JSON.stringify({ items, cancelPath: "/cart" }),
       });
       const data = (await res.json()) as CheckoutError & { url?: string };
       if (!res.ok || !data.url) {
@@ -65,6 +84,7 @@ export default function CartBody({
       }
       window.location.assign(data.url);
     } catch (err) {
+      posthog.captureException(err);
       setError(err instanceof Error ? err.message : FALLBACK_ERROR);
       setPending(false);
     }

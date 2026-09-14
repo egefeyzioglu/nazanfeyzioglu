@@ -5,6 +5,7 @@ import { type Metadata } from "next";
 import { Spectral, Space_Mono } from "next/font/google";
 
 import { CartProvider } from "src/app/_components/CartProvider";
+import PostHogIdentify from "src/app/_components/PostHogIdentify";
 import { env } from "src/env";
 
 export const metadata: Metadata = {
@@ -30,9 +31,10 @@ const spaceMono = Space_Mono({
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const body = (
+  const body = (identity: React.ReactNode = null) => (
     <html lang="en" className={`${spectral.variable} ${spaceMono.variable}`}>
       <body className="bg-paper font-spectral text-ink antialiased">
+        {identity}
         <CartProvider>{children}</CartProvider>
       </body>
     </html>
@@ -40,11 +42,11 @@ export default function RootLayout({
 
   // Until the Clerk keys are configured, render without the provider so the
   // public site keeps working; /admin shows a setup notice in that state.
-  if (!env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return body;
+  if (!env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return body();
 
   return (
     <ClerkProvider signInUrl="/sign-in" afterSignOutUrl="/">
-      {body}
+      {body(<PostHogIdentify />)}
     </ClerkProvider>
   );
 }
