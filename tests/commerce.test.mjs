@@ -196,7 +196,9 @@ function setup() {
     },
     webhooks: { constructEvent: () => state.event },
   };
-  const contentKeys = load("src/lib/content-keys.ts");
+  const orders = load("src/lib/orders.ts");
+  // content-keys imports its sibling relatively so the seed script can load it.
+  const contentKeys = load("src/lib/content-keys.ts", { "./orders": orders });
   const dependencies = {
     "server-only": {},
     "drizzle-orm": orm,
@@ -242,7 +244,7 @@ function setup() {
         SITE_URL: "https://example.com/",
       },
     },
-    "src/lib/orders": load("src/lib/orders.ts"),
+    "src/lib/orders": orders,
     "src/lib/prints": load("src/lib/prints.ts"),
     "src/server/db": { db },
     "src/server/db/schema": schema,
@@ -365,7 +367,7 @@ test("unpriced, digital-only, unavailable, missing and sold originals cannot che
   assert.equal((await sold.checkout("original")).status, 409);
 });
 
-test("print shipping remains a single 30 CAD rate; digital checkout has no shipping", async () => {
+test("print shipping defaults to a single 30 CAD rate; digital checkout has no shipping", async () => {
   const app = setup();
   await app.checkout("print");
   const print = app.state.sessions[0];
@@ -384,6 +386,25 @@ test("print shipping remains a single 30 CAD rate; digital checkout has no shipp
   await app.checkout("digital");
   assert.equal(app.state.sessions[1].shipping_options, undefined);
   assert.equal(app.state.sessions[1].shipping_address_collection, undefined);
+});
+
+test("print shipping charges the admin-set rate; a malformed rate falls back to the default", async () => {
+  const app = setup();
+  const shipping = (i) =>
+    app.state.sessions[i].shipping_options[0].shipping_rate_data.fixed_amount
+      .amount;
+  app.state.content["prints.shipping.price"] = "12.50";
+  await app.checkout("print");
+  assert.equal(shipping(0), 1250);
+  app.state.content["prints.shipping.price"] = "0";
+  await app.checkout("print");
+  assert.equal(shipping(1), 0);
+  app.state.content["prints.shipping.price"] = "free";
+  await app.checkout("print");
+  assert.equal(shipping(2), 3000);
+  app.state.content["prints.shipping.price"] = "9".repeat(400);
+  await app.checkout("print");
+  assert.equal(shipping(3), 3000);
 });
 
 test("original payment records fulfillment details once; excess sale is flagged", async () => {

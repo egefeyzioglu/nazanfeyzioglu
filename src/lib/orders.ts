@@ -59,8 +59,29 @@ export type ShippingDetails = {
 /** Everything on the site is priced in Canadian dollars. */
 export const CURRENCY = "cad";
 
-/** Flat shipping charge per print checkout, regardless of quantity. */
+/**
+ * Default flat shipping charge per print checkout, regardless of quantity.
+ * The live rate is edited in Admin → Pages → Prints and stored under
+ * PRINT_SHIPPING_KEY as a dollars string; see printShippingCents().
+ */
 export const PRINT_SHIPPING_CENTS = 3000;
+
+/** `site_content` key holding the print shipping rate in dollars. */
+export const PRINT_SHIPPING_KEY = "prints.shipping.price";
+
+/**
+ * Resolves the print shipping rate from site content, in cents. Falls back to
+ * PRINT_SHIPPING_CENTS when the stored value is missing or malformed so a bad
+ * row can never disable checkout.
+ */
+export function printShippingCents(content: Record<string, string>): number {
+  const cents = dollarsStringToCents(content[PRINT_SHIPPING_KEY] ?? "");
+  // A pathologically long digit string parses to Infinity or an unsafe
+  // integer; treat it like a malformed value rather than sending it to Stripe.
+  return cents !== null && Number.isSafeInteger(cents)
+    ? cents
+    : PRINT_SHIPPING_CENTS;
+}
 
 /**
  * Integer cents → plain dollars string for an admin form input, e.g.

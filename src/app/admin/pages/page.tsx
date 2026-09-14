@@ -219,21 +219,37 @@ export default function AdminPagesEditor() {
             <h2 className="text-[24px]">Print details & order confirmation</h2>
             <p className="text-stone mt-2 mb-6 text-[14px]">
               This copy is shared by all prints. Use Save above to publish
-              changes. Edit each print’s image, size and price under Prints.
-              Border wording does not change the 1-inch border used to calculate
-              paper sizes; edition wording does not change inventory limits.
+              changes. The shipping rate is charged once per print order at
+              checkout and shown on the Prints page. Edit each print’s image,
+              size and price under Prints. Border wording does not change the
+              1-inch border used to calculate paper sizes; edition wording does
+              not change inventory limits.
             </p>
             <div className="grid gap-5 md:grid-cols-2">
               {PRINT_COPY_FIELDS.map((field) => (
                 <Field key={`${resetKey}:${field.key}`} label={field.label}>
-                  <textarea
-                    className={inputCls}
-                    rows={field.multiline ? 3 : 1}
-                    defaultValue={edit.getInitial(field.key, field.default)}
-                    onChange={(event) =>
-                      edit.setDraft(field.key, event.target.value)
-                    }
-                  />
+                  {field.kind === "price" ? (
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      required
+                      className={inputCls}
+                      defaultValue={edit.getInitial(field.key, field.default)}
+                      onChange={(event) =>
+                        edit.setDraft(field.key, event.target.value)
+                      }
+                    />
+                  ) : (
+                    <textarea
+                      className={inputCls}
+                      rows={field.multiline ? 3 : 1}
+                      defaultValue={edit.getInitial(field.key, field.default)}
+                      onChange={(event) =>
+                        edit.setDraft(field.key, event.target.value)
+                      }
+                    />
+                  )}
                 </Field>
               ))}
             </div>
