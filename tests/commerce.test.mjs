@@ -197,9 +197,8 @@ function setup() {
     webhooks: { constructEvent: () => state.event },
   };
   const orders = load("src/lib/orders.ts");
-  const contentKeys = load("src/lib/content-keys.ts", {
-    "src/lib/orders": orders,
-  });
+  // content-keys imports its sibling relatively so the seed script can load it.
+  const contentKeys = load("src/lib/content-keys.ts", { "./orders": orders });
   const dependencies = {
     "server-only": {},
     "drizzle-orm": orm,
