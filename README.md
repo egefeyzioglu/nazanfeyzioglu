@@ -73,7 +73,7 @@ Run `node --test tests/commerce.test.mjs` for mocked checkout, availability, web
 Print sizes are stored as physical image width and height in inches, separately
 from the image file's pixel dimensions. The catalogue, product details, and
 checkout description are generated from those values. Overall paper dimensions
-add four inches per axis for the two-inch border on all sides.
+add two inches per axis for the one-inch border on all sides.
 
 Run `pnpm db:migrate` before deploying the structured print-size change.
 Migration `0002_print-dimensions.sql` imports recognized legacy inch sizes once,

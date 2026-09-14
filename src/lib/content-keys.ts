@@ -76,7 +76,7 @@ export const PRINT_COPY_FIELDS: ContentField[] = [
     key: "prints.details.border",
     label: "Border description",
     group: "Prints",
-    default: "2 in on all sides",
+    default: "1 in on all sides",
   },
   {
     key: "prints.details.signed",
@@ -107,7 +107,7 @@ export const PRINT_COPY_FIELDS: ContentField[] = [
     label: "Size explanation",
     group: "Prints",
     default:
-      "Image Size is the size of the printed artwork. Overall Paper Size includes the 2-inch white border on all sides.",
+      "Image Size is the size of the printed artwork. Overall Paper Size includes the 1-inch white border on all sides.",
     multiline: true,
   },
   {
