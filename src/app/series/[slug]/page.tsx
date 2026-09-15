@@ -5,6 +5,7 @@ import ArtImage from "src/app/_components/ArtImage";
 import BuyButton from "src/app/_components/BuyButton";
 import Sidebar from "src/app/_components/Sidebar";
 import { formatPrice } from "src/lib/orders";
+import { findMatchingPrint, printHref } from "src/lib/prints";
 import { getSeriesBySlug } from "src/server/queries";
 import { type works } from "src/server/db/schema";
 import { stripeConfigured } from "src/server/stripe";
@@ -68,6 +69,7 @@ export default async function SeriesPage({
               first={i === 0}
               slug={slug}
               checkoutEnabled={checkoutEnabled}
+              printId={findMatchingPrint(work.title, s.prints)?.id ?? null}
             />
           ))}
         </div>
@@ -93,11 +95,14 @@ function WorkRow({
   first,
   slug,
   checkoutEnabled,
+  printId,
 }: {
   work: Work;
   first: boolean;
   slug: string;
   checkoutEnabled: boolean;
+  /** Matching print on the Prints page, or null when the work has no print edition. */
+  printId: number | null;
 }) {
   const width = plateWidth(work);
 
@@ -158,8 +163,11 @@ function WorkRow({
                     Digital edition · {formatPrice(work.digitalPriceCents)}
                   </BuyButton>
                 ) : (
+                  // Without a direct digital checkout price, send the customer
+                  // to the print edition on the Prints page; fall back to
+                  // Contact only when no print exists for this work.
                   <Link
-                    href="/contact"
+                    href={printId === null ? "/contact" : printHref(printId)}
                     className="hover-clay border-clay-soft text-clay border-b pb-[3px]"
                   >
                     Digital edition

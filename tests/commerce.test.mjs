@@ -1111,3 +1111,21 @@ test("unpaid completion waits for async success and paid event replays settle on
     ),
   );
 });
+
+test("digital works link to their print edition by title, else fall back to Contact", () => {
+  const { findMatchingPrint, printHref, printAnchorId } = load(
+    "src/lib/prints.ts",
+  );
+  const prints = [
+    { id: 7, title: "Carnival 1" },
+    { id: 8, title: " carnival  2 " },
+    { id: 9, title: "Fun World" },
+  ];
+
+  assert.equal(findMatchingPrint("Carnival 1", prints)?.id, 7);
+  assert.equal(findMatchingPrint("CARNIVAL 2", prints)?.id, 8);
+  assert.equal(findMatchingPrint("Carnival 3", prints), null);
+  assert.equal(findMatchingPrint("Carnival 1", []), null);
+  assert.equal(printAnchorId(7), "print-7");
+  assert.equal(printHref(7), "/prints#print-7");
+});
