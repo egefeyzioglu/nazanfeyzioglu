@@ -13,7 +13,14 @@ export type ContentField = {
   key: string;
   label: string;
   /** Which admin section the field is edited under. */
-  group: "Home" | "About" | "Contact" | "Prints" | "Exhibitions" | "Sidebar";
+  group:
+    | "Home"
+    | "About"
+    | "Contact"
+    | "Prints"
+    | "Exhibitions"
+    | "Policies"
+    | "Sidebar";
   multiline?: boolean;
   /**
    * "price" fields hold a CAD amount as a `dollars[.cc]` string and are edited
@@ -173,6 +180,12 @@ export const PRINT_COPY_FIELDS: ContentField[] = [
     default: "Sold out",
   },
   {
+    key: "prints.modal.policiesLink",
+    label: "Shipping & returns link text",
+    group: "Prints",
+    default: "Shipping & returns",
+  },
+  {
     key: "prints.confirmation.received",
     label: "Order preparation message",
     group: "Prints",
@@ -189,8 +202,141 @@ export const PRINT_COPY_FIELDS: ContentField[] = [
   },
 ];
 
+/** Shop policies page (shipping, returns, damaged orders), editable from Admin → Pages → Policies. */
+export const POLICY_FIELDS: ContentField[] = [
+  {
+    key: "policies.heading",
+    label: "Heading",
+    group: "Policies",
+    default: "Shipping & returns",
+  },
+  {
+    key: "policies.shipping.heading",
+    label: "Shipping heading",
+    group: "Policies",
+    default: "Shipping",
+  },
+  {
+    key: "policies.shipping.intro",
+    label: "Shipping intro",
+    group: "Policies",
+    multiline: true,
+    default: "We currently ship within Canada only.",
+  },
+  {
+    key: "policies.shipping.originalsLabel",
+    label: "Originals label",
+    group: "Policies",
+    default: "Original Artworks",
+  },
+  {
+    key: "policies.shipping.originals",
+    label: "Originals shipping",
+    group: "Policies",
+    multiline: true,
+    default: "Complimentary shipping is included within Canada.",
+  },
+  {
+    key: "policies.shipping.printsLabel",
+    label: "Prints label",
+    group: "Policies",
+    default: "Fine Art Prints",
+  },
+  {
+    key: "policies.shipping.prints",
+    label: "Prints shipping",
+    group: "Policies",
+    multiline: true,
+    default: [
+      "A flat shipping rate of CAD $30 applies to all fine art print orders within Canada.",
+      "Fine art prints are carefully packaged and shipped rolled for protection.",
+    ].join("\n\n"),
+  },
+  {
+    key: "policies.shipping.notes",
+    label: "Shipping notes",
+    group: "Policies",
+    multiline: true,
+    default: [
+      "Please note that the preparation time shown on individual product pages is separate from the carrier's delivery time.",
+      "International shipping is not available at this time.",
+    ].join("\n\n"),
+  },
+  {
+    key: "policies.returns.heading",
+    label: "Returns heading",
+    group: "Policies",
+    default: "Returns & Exchanges",
+  },
+  {
+    key: "policies.returns.body",
+    label: "Returns policy",
+    group: "Policies",
+    multiline: true,
+    default: [
+      "All sales of original artworks and fine art prints are final.",
+      "Due to the nature of original artwork and signed, limited-edition fine art prints, we do not accept returns or exchanges.",
+      "Please review all artwork details, dimensions and product information carefully before placing your order.",
+    ].join("\n\n"),
+  },
+  {
+    key: "policies.damaged.heading",
+    label: "Damaged orders heading",
+    group: "Policies",
+    default: "Damaged or Incorrect Orders",
+  },
+  {
+    key: "policies.damaged.intro",
+    label: "Damaged orders intro",
+    group: "Policies",
+    multiline: true,
+    default: [
+      "If your order arrives damaged, or if you receive an incorrect item, please contact us within 3 days of delivery.",
+      "Please include your order number and clear photographs of:",
+    ].join("\n\n"),
+  },
+  {
+    key: "policies.damaged.checklist",
+    label: "Damaged orders checklist (one item per paragraph)",
+    group: "Policies",
+    multiline: true,
+    default: [
+      "the artwork or print,",
+      "the damage,",
+      "the shipping packaging, and",
+      "the shipping label.",
+    ].join("\n\n"),
+  },
+  {
+    key: "policies.damaged.outro",
+    label: "Damaged orders resolution",
+    group: "Policies",
+    multiline: true,
+    default: [
+      "Please keep the artwork and all original packaging until the issue has been resolved.",
+      "Once the information has been reviewed, we will work with you to determine the most appropriate solution. Depending on the circumstances, this may include a replacement, refund, or another suitable resolution.",
+      "For limited-edition prints, replacement is subject to availability within the edition. Original artworks are unique and cannot be replaced with an identical work.",
+    ].join("\n\n"),
+  },
+  {
+    key: "policies.important.heading",
+    label: "Important heading",
+    group: "Policies",
+    default: "Important",
+  },
+  {
+    key: "policies.important.body",
+    label: "Important note",
+    group: "Policies",
+    multiline: true,
+    default:
+      "We are unable to offer refunds or exchanges for change of mind, incorrect size selection, or differences in colour appearance resulting from individual screen or display settings.",
+  },
+];
+
 export const CONTENT_FIELDS: ContentField[] = [
   ...PRINT_COPY_FIELDS,
+  ...POLICY_FIELDS,
   {
     key: "home.eyebrow",
     label: "Home rail eyebrow",
@@ -323,6 +469,12 @@ export const CONTENT_FIELDS: ContentField[] = [
     label: "Nav link — Contact",
     group: "Sidebar",
     default: "Contact",
+  },
+  {
+    key: "nav.policies",
+    label: "Nav link — Policies",
+    group: "Sidebar",
+    default: "Shipping & returns",
   },
   {
     key: "sidebar.location",

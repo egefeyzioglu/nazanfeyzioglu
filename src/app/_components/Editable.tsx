@@ -258,28 +258,29 @@ export function EditableText({
 /**
  * A multi-paragraph editable region. Paragraphs are separated by blank lines
  * in the stored value; Enter starts a new paragraph while editing.
- * `renderParagraph` keeps the public page's per-paragraph markup.
+ * `renderParagraph` keeps the public page's per-paragraph markup. Pass `as`
+ * (e.g. "ul" with `<li>` paragraphs) to wrap the paragraphs in a container on
+ * the public page as well as in the editor; by default they render bare.
  */
 export function EditableParagraphs({
   k,
   value,
+  as: Tag,
   className,
   renderParagraph,
 }: {
   k: string;
   value: string;
+  as?: React.ElementType;
   className?: string;
   renderParagraph: (text: React.ReactNode, index: number) => React.ReactNode;
 }) {
   const edit = useContext(EditContext);
   if (!edit) {
-    return (
-      <>
-        {paragraphs(value).map((paragraph, index) =>
-          renderParagraph(renderLinks(paragraph), index),
-        )}
-      </>
+    const rendered = paragraphs(value).map((paragraph, index) =>
+      renderParagraph(renderLinks(paragraph), index),
     );
+    return Tag ? <Tag className={className}>{rendered}</Tag> : <>{rendered}</>;
   }
   return (
     <EditableRegion
@@ -287,7 +288,7 @@ export function EditableParagraphs({
       edit={edit}
       k={k}
       value={value}
-      Tag="div"
+      Tag={Tag ?? "div"}
       className={className}
       serialize={serializeParagraphs}
       renderContent={(text) =>

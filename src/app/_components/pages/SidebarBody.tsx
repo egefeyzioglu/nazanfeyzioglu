@@ -4,7 +4,13 @@ import Link from "next/link";
 
 import { EditableText } from "src/app/_components/Editable";
 
-export type NavKey = "series" | "prints" | "about" | "exhibitions" | "contact";
+export type NavKey =
+  | "series"
+  | "prints"
+  | "about"
+  | "exhibitions"
+  | "contact"
+  | "policies";
 
 const NAV: { key: NavKey; label: string; href: string }[] = [
   { key: "series", label: "Series", href: "/" },
@@ -12,6 +18,7 @@ const NAV: { key: NavKey; label: string; href: string }[] = [
   { key: "about", label: "About", href: "/about" },
   { key: "exhibitions", label: "Exhibitions", href: "/exhibitions" },
   { key: "contact", label: "Contact", href: "/contact" },
+  { key: "policies", label: "Shipping & returns", href: "/policies" },
 ];
 
 export default function SidebarBody({

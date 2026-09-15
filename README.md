@@ -32,9 +32,11 @@ dashboard so everything stays native to Vercel:
 
 ## CMS / admin panel
 
-All site content — series, works, prints, exhibitions, and page text — lives in the database and is edited at `/admin`. Public pages render dynamically, so edits show up immediately.
+All site content — series, works, prints, exhibitions, page text, and the shop policies — lives in the database and is edited at `/admin`. Public pages render dynamically, so edits show up immediately.
 
 Page text is edited in place at `/admin/pages`: each tab renders the real page layout and the copy regions are directly editable (WYSIWYG), while the page structure itself stays fixed. Artwork, prints, and exhibition entries are managed in their own sections.
+
+The shop policies (shipping, final-sale returns, damaged or incorrect orders) live at `/policies`, linked from the sidebar navigation, the print purchase dialog, and each original's price line so buyers can read them before checkout. The copy is edited under **Admin → Pages → Policies**; defaults come from `src/lib/content-keys.ts`, so no migration or reseed is needed to add the page to an existing database.
 
 ### Enabling admin access
 
