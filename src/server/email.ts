@@ -4,9 +4,12 @@ import { Resend } from "resend";
 
 import { env } from "src/env";
 import {
+  carrierLabel,
   formatPrice,
+  trackingUrl,
   type OrderItemType,
   type ShippingDetails,
+  type TrackingCarrier,
 } from "src/lib/orders";
 
 /**
@@ -49,6 +52,18 @@ export type OrderEmailData = {
 /** The two messages sent for an order, tracked separately. */
 export type OrderEmailKind = "confirmation" | "notification";
 
+export type ShippingEmailData = {
+  orderId: number;
+  stripeCheckoutSessionId: string;
+  itemType: OrderItemType;
+  itemTitle: string;
+  customerEmail: string;
+  customerName: string | null;
+  shippingAddress: ShippingDetails | null;
+  trackingCarrier: TrackingCarrier | null;
+  trackingNumber: string | null;
+};
+
 /**
  * Sends whichever of the customer's order confirmation and the seller's
  * new-order notification are still owed for a recorded order. Never throws:
@@ -80,14 +95,21 @@ export async function sendOrderEmails(
       );
       return true;
     }
-    return deliver("confirmation", order, {
-      to: order.customerEmail,
-      ...(sellerEmail && { replyTo: sellerEmail }),
-      subject: order.oversold
-        ? `About your order — ${describeItem(order)}`
-        : `Order confirmation — ${describeItem(order)}`,
-      ...renderCustomerEmail(order, content),
-    });
+    return deliver(
+      "confirmation",
+      order.orderId,
+      {
+        to: order.customerEmail,
+        ...(sellerEmail && { replyTo: sellerEmail }),
+        subject: order.oversold
+          ? `About your order — ${describeItem(order)}`
+          : `Order confirmation — ${describeItem(order)}`,
+        ...renderCustomerEmail(order, content),
+      },
+      {
+        idempotencyKey: `order-confirmation/${order.stripeCheckoutSessionId}`,
+      },
+    );
   };
 
   const notification = async (): Promise<boolean> => {
@@ -100,12 +122,19 @@ export async function sendOrderEmails(
       );
       return false;
     }
-    return deliver("notification", order, {
-      to: sellerEmail,
-      ...(order.customerEmail && { replyTo: order.customerEmail }),
-      subject: `${order.oversold ? "OVERSOLD — " : ""}New order #${order.orderId}: ${describeItem(order)}`,
-      ...renderSellerEmail(order),
-    });
+    return deliver(
+      "notification",
+      order.orderId,
+      {
+        to: sellerEmail,
+        ...(order.customerEmail && { replyTo: order.customerEmail }),
+        subject: `${order.oversold ? "OVERSOLD — " : ""}New order #${order.orderId}: ${describeItem(order)}`,
+        ...renderSellerEmail(order),
+      },
+      {
+        idempotencyKey: `order-notification/${order.stripeCheckoutSessionId}`,
+      },
+    );
   };
 
   const [confirmed, notified] = await Promise.all([
@@ -113,6 +142,24 @@ export async function sendOrderEmails(
     notification(),
   ]);
   return { confirmation: confirmed, notification: notified };
+}
+
+/**
+ * Sends the shipping confirmation. Resolves true when Resend accepted it;
+ * never throws (failures are logged). Returns false when email is not configured.
+ */
+export async function sendShippingEmail(
+  order: ShippingEmailData,
+  content: Record<string, string>,
+): Promise<boolean> {
+  if (!emailConfigured()) return false;
+  const replyTo = env.ORDER_NOTIFICATION_EMAIL ?? content["contact.email"];
+  return deliver("shipping confirmation", order.orderId, {
+    to: order.customerEmail,
+    ...(replyTo && { replyTo }),
+    subject: `Your order has shipped — ${describeItem(order)}`,
+    ...renderShippingEmail(order),
+  });
 }
 
 type Message = {
@@ -124,29 +171,27 @@ type Message = {
 };
 
 async function deliver(
-  kind: OrderEmailKind,
-  order: OrderEmailData,
+  kind: string,
+  orderId: number,
   message: Message,
+  options?: { idempotencyKey?: string },
 ): Promise<boolean> {
   const from = env.ORDER_EMAIL_FROM;
   if (!from) return false;
   try {
     const { error } = await getResend().emails.send(
       { from, ...message },
-      { idempotencyKey: `order-${kind}/${order.stripeCheckoutSessionId}` },
+      options,
     );
     if (error) {
       console.error(
-        `Resend rejected the order ${kind} for order ${order.orderId}: ${error.name}: ${error.message}`,
+        `Resend rejected the order ${kind} for order ${orderId}: ${error.name}: ${error.message}`,
       );
       return false;
     }
     return true;
   } catch (err) {
-    console.error(
-      `Failed to send the order ${kind} for order ${order.orderId}`,
-      err,
-    );
+    console.error(`Failed to send the order ${kind} for order ${orderId}`, err);
     return false;
   }
 }
@@ -313,6 +358,67 @@ function renderSellerEmail(
             `<p><a href="${escapeHtml(adminUrl)}">Manage fulfillment in the admin panel</a></p>`,
           ]
         : []),
+    ].join("\n"),
+  );
+  return { html, text };
+}
+
+function renderShippingEmail(
+  order: ShippingEmailData,
+): Pick<Message, "html" | "text"> {
+  const greeting = order.customerName
+    ? `Dear ${order.customerName},`
+    : "Hello,";
+  const item = describeItem(order);
+  const intro = `Good news: your order for ${item} is on its way.`;
+  let number = order.trackingNumber?.trim() ?? null;
+  if (number === "") number = null;
+  const carrier = order.trackingCarrier
+    ? carrierLabel(order.trackingCarrier)
+    : null;
+  const url = trackingUrl(order.trackingCarrier, number);
+  const shippingLines = order.shippingAddress
+    ? formatShipping(order.shippingAddress)
+    : [];
+  const outro = `Order reference: #${order.orderId}. Simply reply to this email if you have any questions.`;
+
+  const trackingText = number
+    ? [
+        `Tracking number: ${number}`,
+        ...(carrier ? [`Courier: ${carrier}`] : []),
+        ...(url ? [`Track your shipment: ${url}`] : []),
+      ]
+    : ["The courier did not provide a tracking number for this shipment."];
+
+  const text = [
+    greeting,
+    "",
+    intro,
+    "",
+    ...trackingText,
+    ...(shippingLines.length ? ["", "Shipping to:", ...shippingLines] : []),
+    "",
+    outro,
+    "",
+    "Nazan Feyzioğlu",
+  ].join("\n");
+
+  const html = layout(
+    "On its way",
+    [
+      `<p>${escapeHtml(greeting)}</p>`,
+      `<p>${escapeHtml(intro)}</p>`,
+      number
+        ? `<p>${escapeHtml(`Tracking number: ${number}`)}${carrier ? `<br>${escapeHtml(`Courier: ${carrier}`)}` : ""}</p>`
+        : `<p>${escapeHtml("The courier did not provide a tracking number for this shipment.")}</p>`,
+      ...(url
+        ? [`<p><a href="${escapeHtml(url)}">Track your shipment</a></p>`]
+        : []),
+      ...(shippingLines.length
+        ? [addressBlock("Shipping to", shippingLines)]
+        : []),
+      `<p>${escapeHtml(outro)}</p>`,
+      `<p>Nazan Feyzioğlu</p>`,
     ].join("\n"),
   );
   return { html, text };

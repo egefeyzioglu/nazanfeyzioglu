@@ -12,6 +12,7 @@ import {
   type OrderItemType,
   type PaymentStatus,
   type ShippingDetails,
+  type TrackingCarrier,
 } from "../../lib/orders";
 
 export { EXHIBITION_CATEGORIES, type ExhibitionCategory };
@@ -205,6 +206,10 @@ export const orders = createTable(
       .$type<FulfillmentStatus>()
       .notNull()
       .default("pending"),
+    /** Courier selected by the admin when a physical order is shipped. */
+    trackingCarrier: d.varchar({ length: 32 }).$type<TrackingCarrier>(),
+    /** Courier tracking number entered by the admin, when one is available. */
+    trackingNumber: d.varchar({ length: 128 }),
     /**
      * When each order email was settled: accepted by Resend, skipped because
      * Resend is not configured, or (for the confirmation) impossible because
@@ -216,6 +221,8 @@ export const orders = createTable(
      */
     confirmationEmailSentAt: d.timestamp({ withTimezone: true }),
     notificationEmailSentAt: d.timestamp({ withTimezone: true }),
+    /** When Resend accepted the customer shipping confirmation email. */
+    shippedEmailSentAt: d.timestamp({ withTimezone: true }),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
   }),
@@ -238,6 +245,10 @@ export const orders = createTable(
     check(
       "order_fulfillment_status_valid",
       sql`"fulfillmentStatus" in ('pending', 'fulfilled', 'oversold')`,
+    ),
+    check(
+      "order_tracking_carrier_valid",
+      sql`"trackingCarrier" is null or "trackingCarrier" in ('canada_post', 'ups', 'fedex', 'purolator', 'dhl', 'usps', 'other')`,
     ),
     // At most one of printId/workId — not exactly one, because both FKs are
     // set null when the referenced item is deleted from the CMS.

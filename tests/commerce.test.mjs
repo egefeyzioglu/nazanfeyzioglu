@@ -22,6 +22,7 @@ function load(path, dependencies = {}) {
     Error,
     Buffer,
     URL,
+    Date,
     crypto,
     require: (id) =>
       Object.hasOwn(dependencies, id) ? dependencies[id] : require(id),
@@ -87,8 +88,12 @@ function setup() {
       "customerName",
       "shippingAddress",
       "fulfillmentStatus",
+      "trackingCarrier",
+      "trackingNumber",
       "confirmationEmailSentAt",
       "notificationEmailSentAt",
+      "shippedEmailSentAt",
+      "createdAt",
     ]),
     works: fields(["id", "title"]),
     prints: fields(["id", "title", "editionSize"]),
@@ -108,8 +113,16 @@ function setup() {
         conditions.every((condition) => condition(row)),
     sql: (strings, ...values) => ({ strings, values }),
   };
+  const wherePredicate = (where) => {
+    if (!where) return () => true;
+    return where.length >= 2 ? where(schema.orders, orm) : where;
+  };
   const db = {
     query: {
+      orders: {
+        findFirst: async (query = {}) =>
+          state.rows.find(wherePredicate(query.where)) ?? null,
+      },
       works: { findFirst: async () => state.work },
       prints: { findFirst: async () => state.print },
     },
@@ -159,6 +172,10 @@ function setup() {
               id: state.rows.length + 1,
               paymentStatus: "paid",
               fulfillmentStatus: "pending",
+              trackingCarrier: null,
+              trackingNumber: null,
+              shippedEmailSentAt: null,
+              createdAt: new Date(),
               ...values,
             };
             state.rows.push(row);
@@ -176,12 +193,14 @@ function setup() {
           const result = Promise.resolve();
           result.returning = async (projection) =>
             matched.map((row) =>
-              Object.fromEntries(
-                Object.entries(projection).map(([key, field]) => [
-                  key,
-                  row[field],
-                ]),
-              ),
+              projection
+                ? Object.fromEntries(
+                    Object.entries(projection).map(([key, field]) => [
+                      key,
+                      row[field],
+                    ]),
+                  )
+                : { ...row },
             );
           return result;
         },
@@ -278,6 +297,8 @@ function setup() {
     getSoldPrintQuantities: async () => new Map(),
   };
   dependencies["src/server/email"] = load("src/server/email.ts", dependencies);
+  const fulfillment = load("src/server/fulfillment.ts", dependencies);
+  dependencies["src/server/fulfillment"] = fulfillment;
   const checkout = load("src/app/api/checkout/route.ts", dependencies);
   const webhook = load("src/app/api/stripe/webhook/route.ts", dependencies);
   return {
@@ -337,6 +358,13 @@ function setup() {
         text: async () => "test",
       });
     },
+    fulfill: (id, tracking = {}) =>
+      fulfillment.fulfillOrder({
+        id,
+        trackingCarrier: tracking.trackingCarrier ?? null,
+        trackingNumber: tracking.trackingNumber ?? null,
+      }),
+    resendShipping: (id) => fulfillment.resendShippingEmail(id),
   };
 }
 
@@ -595,6 +623,158 @@ test("print confirmations carry the CMS preparation copy; oversold orders warn t
   assert.equal(app.state.rows[2].fulfillmentStatus, "oversold");
   assert.match(app.state.emails[5].subject, /^OVERSOLD — New order #3/);
   assert.match(app.state.emails[5].text, /Refund it in the Stripe Dashboard/);
+});
+
+test("fulfilling a paid print order sends shipping tracking to the buyer", async () => {
+  const app = setup();
+  await app.pay("print");
+  app.state.emails.length = 0;
+
+  const result = await app.fulfill(1, {
+    trackingCarrier: "canada_post",
+    trackingNumber: "CP 123",
+  });
+  assert.equal(result.shippingEmail, "sent");
+  assert.equal(app.state.emails.length, 1);
+
+  const row = app.state.rows[0];
+  assert.equal(row.fulfillmentStatus, "fulfilled");
+  assert.equal(row.trackingCarrier, "canada_post");
+  assert.equal(row.trackingNumber, "CP 123");
+  assert.ok(row.shippedEmailSentAt instanceof Date);
+
+  const email = app.state.emails[0];
+  const url =
+    "https://www.canadapost-postescanada.ca/track-reperage/en#/search?searchFor=CP%20123";
+  assert.equal(email.to, "buyer@example.com");
+  assert.match(email.subject, /^Your order has shipped/);
+  assert.match(email.text, /CP 123/);
+  assert.match(email.text, /Canada Post/);
+  assert.match(email.text, /https:\/\/www\.canadapost-postescanada\.ca/);
+  assert.ok(email.html.includes(`<a href="${url}">`));
+  assert.equal(email.idempotencyKey, undefined);
+
+  // A double-submit finds the order already fulfilled and sends nothing.
+  const repeat = await app.fulfill(1, {
+    trackingCarrier: "canada_post",
+    trackingNumber: "CP 123",
+  });
+  assert.equal(repeat.shippingEmail, "not_applicable");
+  assert.equal(app.state.emails.length, 1);
+  // Nor does a retry once the email is on record.
+  const retry = await app.resendShipping(1);
+  assert.equal(retry.shippingEmail, "already_sent");
+  assert.equal(app.state.emails.length, 1);
+  assert.equal(await app.fulfill(99, {}), null);
+
+  // Re-fulfilling after "Mark pending" (e.g. a corrected tracking number)
+  // is a fresh shipment notice.
+  row.fulfillmentStatus = "pending";
+  const again = await app.fulfill(1, {
+    trackingCarrier: "ups",
+    trackingNumber: "1Z",
+  });
+  assert.equal(again.shippingEmail, "sent");
+  assert.equal(app.state.emails.length, 2);
+  assert.match(app.state.emails[1].text, /1Z/);
+});
+
+test("oversold orders cannot be marked fulfilled", async () => {
+  const app = setup();
+  app.state.print.editionSize = 0;
+  await app.pay("print");
+  app.state.emails.length = 0;
+  assert.equal(app.state.rows[0].fulfillmentStatus, "oversold");
+  const result = await app.fulfill(1, { trackingCarrier: "ups" });
+  assert.equal(result.shippingEmail, "not_applicable");
+  assert.equal(app.state.rows[0].fulfillmentStatus, "oversold");
+  assert.equal(app.state.emails.length, 0);
+});
+
+test("shipping emails handle blank tracking and unlinked couriers", async () => {
+  const blank = setup();
+  await blank.pay("print");
+  blank.state.emails.length = 0;
+  const blankResult = await blank.fulfill(1, {
+    trackingCarrier: "canada_post",
+    trackingNumber: "   ",
+  });
+  assert.equal(blankResult.shippingEmail, "sent");
+  assert.equal(blank.state.rows[0].trackingCarrier, "canada_post");
+  assert.equal(blank.state.rows[0].trackingNumber, null);
+  assert.match(
+    blank.state.emails[0].text,
+    /courier did not provide a tracking number/,
+  );
+
+  const other = setup();
+  await other.pay("print");
+  other.state.emails.length = 0;
+  const otherResult = await other.fulfill(1, {
+    trackingCarrier: "other",
+    trackingNumber: "LOCAL-1",
+  });
+  assert.equal(otherResult.shippingEmail, "sent");
+  assert.match(other.state.emails[0].text, /LOCAL-1/);
+  assert.match(other.state.emails[0].text, /Other courier/);
+  assert.doesNotMatch(other.state.emails[0].text, /Track your shipment:/);
+  assert.doesNotMatch(other.state.emails[0].html, /<a href=/);
+});
+
+test("shipping fulfillment skips ineligible orders and retries failed email", async () => {
+  const digital = setup();
+  digital.state.work.digital = true;
+  await digital.pay("digital");
+  digital.state.emails.length = 0;
+  const digitalResult = await digital.fulfill(1, {
+    trackingCarrier: null,
+    trackingNumber: null,
+  });
+  assert.equal(digitalResult.shippingEmail, "not_applicable");
+  assert.equal(digital.state.emails.length, 0);
+
+  const anonymous = setup();
+  await anonymous.pay("original", "cs_anon", {
+    customer_details: { email: null, name: null },
+  });
+  anonymous.state.emails.length = 0;
+  const anonymousResult = await anonymous.fulfill(1, {
+    trackingCarrier: "ups",
+    trackingNumber: "1Z",
+  });
+  assert.equal(anonymousResult.shippingEmail, "no_customer_email");
+  assert.equal(anonymous.state.emails.length, 0);
+
+  const failed = setup();
+  await failed.pay("print");
+  failed.state.emails.length = 0;
+  failed.state.emailFailure = new Error("network down");
+  const failedResult = await failed.fulfill(1, {
+    trackingCarrier: "fedex",
+    trackingNumber: "FX1",
+  });
+  assert.equal(failedResult.shippingEmail, "failed");
+  assert.equal(failed.state.rows[0].fulfillmentStatus, "fulfilled");
+  assert.equal(failed.state.rows[0].shippedEmailSentAt, null);
+  assert.equal(failed.state.emails.length, 0);
+
+  failed.state.emailFailure = null;
+  const resendResult = await failed.resendShipping(1);
+  assert.equal(resendResult.shippingEmail, "sent");
+  assert.ok(failed.state.rows[0].shippedEmailSentAt instanceof Date);
+  assert.equal(failed.state.emails.length, 1);
+});
+
+test("tracking carrier helpers label couriers and build encoded links", () => {
+  const { carrierLabel, trackingUrl } = load("src/lib/orders.ts");
+  assert.equal(carrierLabel("canada_post"), "Canada Post");
+  assert.equal(trackingUrl("ups", null), null);
+  assert.equal(trackingUrl("ups", "   "), null);
+  assert.equal(trackingUrl("other", "LOCAL 1"), null);
+  assert.equal(
+    trackingUrl("ups", "1Z 999"),
+    "https://www.ups.com/track?tracknum=1Z%20999",
+  );
 });
 
 test("failed delivery records the order but asks Stripe to retry; unconfigured email acks", async () => {
