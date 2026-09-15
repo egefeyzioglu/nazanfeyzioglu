@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import Stripe from "stripe";
 
 const require = createRequire(import.meta.url);
 // Exercise the real route handlers with in-memory database and Stripe boundaries.
@@ -29,8 +30,10 @@ function load(path, dependencies = {}) {
   return exports;
 }
 
-function setup() {
+function setup({ verifySignatures = false } = {}) {
   const state = {
+    stripeConfigured: true,
+    retrievedSessions: [],
     rows: [],
     sessions: [],
     locks: [],
@@ -122,10 +125,28 @@ function setup() {
               : [table === schema.works ? state.work : state.print]
                   .filter(Boolean)
                   .filter(predicate);
-          if (projection.sold)
-            return Promise.resolve([
-              { sold: rows.reduce((n, row) => n + row.quantity, 0) },
-            ]);
+          if (projection.sold) {
+            const sum = (group) =>
+              group.reduce((n, row) => n + row[projection.sold.values[0]], 0);
+            const result = Promise.resolve([{ sold: sum(rows) }]);
+            result.groupBy = async (field) => {
+              const groups = new Map();
+              for (const row of rows) {
+                const group = groups.get(row[field]) ?? [];
+                group.push(row);
+                groups.set(row[field], group);
+              }
+              return [...groups.values()].map((group) =>
+                Object.fromEntries(
+                  Object.entries(projection).map(([key, column]) => [
+                    key,
+                    key === "sold" ? sum(group) : group[0][column],
+                  ]),
+                ),
+              );
+            };
+            return result;
+          }
           return Promise.resolve(
             rows.map((row) =>
               Object.fromEntries(
@@ -195,10 +216,15 @@ function setup() {
           state.sessions.push(params);
           return { url: "https://checkout.stripe.com/test" };
         },
-        retrieve: async () => state.retrieveSession(),
+        retrieve: async (id) => {
+          state.retrievedSessions.push(id);
+          return state.retrieveSession();
+        },
       },
     },
-    webhooks: { constructEvent: () => state.event },
+    webhooks: verifySignatures
+      ? new Stripe("sk_test_local_only").webhooks
+      : { constructEvent: () => state.event },
   };
   const orders = load("src/lib/orders.ts");
   // content-keys imports its sibling relatively so the seed script can load it.
@@ -254,7 +280,7 @@ function setup() {
     "src/server/db/schema": schema,
     "src/server/stripe": {
       getStripe: () => stripe,
-      stripeConfigured: () => true,
+      stripeConfigured: () => state.stripeConfigured,
     },
     "src/server/observability": {
       deploymentEnvironment: () => "development",
@@ -273,16 +299,33 @@ function setup() {
     },
   };
   const inventory = load("src/server/orders.ts", dependencies);
-  dependencies["src/server/orders"] = {
-    ...inventory,
-    getSoldPrintQuantities: async () => new Map(),
-  };
+  dependencies["src/server/orders"] = inventory;
   dependencies["src/server/email"] = load("src/server/email.ts", dependencies);
   const checkout = load("src/app/api/checkout/route.ts", dependencies);
   const webhook = load("src/app/api/stripe/webhook/route.ts", dependencies);
+  const dispatch = (payload = "test", signature = "test") =>
+    webhook.POST({
+      headers: new Headers(
+        signature === null ? {} : { "stripe-signature": signature },
+      ),
+      text: async () => payload,
+    });
+  const dispatchEvent = () => {
+    if (!verifySignatures) return dispatch();
+    const payload = JSON.stringify(state.event);
+    return dispatch(
+      payload,
+      stripe.webhooks.generateTestHeaderString({
+        payload,
+        secret: dependencies["src/env"].env.STRIPE_WEBHOOK_SECRET,
+      }),
+    );
+  };
   return {
     state,
     inventory,
+    dispatch,
+    dispatchEvent,
     env: dependencies["src/env"].env,
     checkout: (itemType, extra = {}) =>
       checkout.POST({
@@ -314,10 +357,7 @@ function setup() {
         type: "checkout.session.completed",
         data: { object: { id, payment_status: "paid" } },
       };
-      return webhook.POST({
-        headers: new Headers({ "stripe-signature": "test" }),
-        text: async () => "test",
-      });
+      return dispatchEvent();
     },
     refund: async (id, amount) => {
       state.event = {
@@ -332,10 +372,7 @@ function setup() {
           },
         },
       };
-      return webhook.POST({
-        headers: new Headers({ "stripe-signature": "test" }),
-        text: async () => "test",
-      });
+      return dispatchEvent();
     },
   };
 }
@@ -799,5 +836,274 @@ test("sentry test route is open outside production and token-gated in production
   assert.equal(
     sentryTestAllowed({ environment: "production", token, provided: token }),
     true,
+  );
+});
+
+// Signature fixtures are generated and verified locally by the Stripe SDK.
+// Session retrieval remains mocked, even when verification is real.
+test("a correctly signed paid webhook records the order", async () => {
+  const app = setup({ verifySignatures: true });
+  assert.equal((await app.pay("print")).status, 200);
+  assert.equal(app.state.rows.length, 1);
+  assert.equal(app.state.emails.length, 2);
+  assert.deepEqual(app.state.retrievedSessions, ["cs_1"]);
+});
+
+test("invalid or missing signatures reject paid events before any order side effects", async () => {
+  const payload = JSON.stringify({
+    id: "evt_signature",
+    livemode: false,
+    type: "checkout.session.completed",
+    data: { object: { id: "cs_signature", payment_status: "paid" } },
+  });
+  const header = Stripe.webhooks.generateTestHeaderString({
+    payload,
+    secret: "test",
+  });
+  for (const [body, signature] of [
+    [payload.replace("cs_signature", "cs_tampered"), header],
+    [
+      payload,
+      Stripe.webhooks.generateTestHeaderString({ payload, secret: "wrong" }),
+    ],
+    [payload, "not-a-signature"],
+    [payload, null],
+  ]) {
+    const app = setup({ verifySignatures: true });
+    assert.equal((await app.dispatch(body, signature)).status, 400);
+    assert.deepEqual(app.state.retrievedSessions, []);
+    assert.deepEqual(app.state.rows, []);
+    assert.deepEqual(app.state.emails, []);
+    assert.deepEqual(app.state.analytics, []);
+    assert.equal(app.state.reports.at(-1).stage, "signature");
+  }
+});
+
+test("missing Stripe configuration rejects checkout and webhook without side effects", async () => {
+  const app = setup();
+  app.state.stripeConfigured = false;
+  assert.equal((await app.checkout("print")).status, 503);
+  assert.equal((await app.dispatch()).status, 503);
+  app.state.stripeConfigured = true;
+  app.env.STRIPE_WEBHOOK_SECRET = undefined;
+  assert.equal((await app.dispatch()).status, 503);
+  assert.deepEqual(app.state.sessions, []);
+  assert.deepEqual(app.state.retrievedSessions, []);
+  assert.deepEqual(app.state.rows, []);
+  assert.deepEqual(app.state.emails, []);
+  assert.deepEqual(app.state.analytics, []);
+  assert.ok(app.state.reports.every((report) => report.stage === "config"));
+});
+
+test("print inventory sums quantities by requested print and excludes full refunds", async () => {
+  const app = setup();
+  app.state.rows.push(
+    { printId: 1, quantity: 2, paymentStatus: "paid" },
+    { printId: 1, quantity: 3, paymentStatus: "paid" },
+    { printId: 1, quantity: 7, paymentStatus: "refunded" },
+    { printId: 2, quantity: 4, paymentStatus: "paid" },
+    { printId: 3, quantity: 9, paymentStatus: "paid" },
+    { printId: null, quantity: 6, paymentStatus: "paid" },
+  );
+  assert.deepEqual(
+    Array.from(
+      await app.inventory.getSoldPrintQuantities([1, 2, 4]),
+      ([id, sold]) => [id, sold],
+    ),
+    [
+      [1, 5],
+      [2, 4],
+    ],
+  );
+  assert.equal((await app.inventory.getSoldPrintQuantities([])).size, 0);
+  assert.equal((await app.inventory.getSoldPrintQuantities([4])).size, 0);
+  for (const [edition, sold, expected] of [
+    [3, 0, 3],
+    [3, 2, 1],
+    [3, 3, 0],
+    [3, 5, 0],
+    [0, 0, 0],
+    [null, 0, null],
+    [null, 1000, null],
+  ]) {
+    assert.equal(app.inventory.remainingCopies(edition, sold), expected);
+  }
+});
+
+test("print checkout limits quantity to remaining stock or ten for open editions", async () => {
+  for (const [editionSize, sold, maximum] of [
+    [5, 2, 3],
+    [20, 2, 10],
+    [null, 100, 10],
+    [3, 2, null],
+  ]) {
+    const app = setup();
+    app.state.print.editionSize = editionSize;
+    app.state.rows.push({ printId: 1, quantity: sold, paymentStatus: "paid" });
+    assert.equal(
+      (await app.checkout("print", { quantity: 999, price: 1 })).status,
+      200,
+    );
+    const line = app.state.sessions[0].line_items[0];
+    assert.equal(line.quantity, 1);
+    assert.equal(line.price_data.unit_amount, 10000);
+    if (maximum === null) {
+      assert.equal(line.adjustable_quantity, undefined);
+    } else {
+      assert.equal(line.adjustable_quantity.enabled, true);
+      assert.equal(line.adjustable_quantity.minimum, 1);
+      assert.equal(line.adjustable_quantity.maximum, maximum);
+    }
+  }
+  for (const sold of [3, 4]) {
+    const app = setup();
+    app.state.rows.push({ printId: 1, quantity: sold, paymentStatus: "paid" });
+    assert.equal((await app.checkout("print")).status, 409);
+    assert.equal(app.state.sessions.length, 0);
+  }
+});
+
+function printSession(quantity) {
+  return {
+    amount_total: quantity * 10000,
+    amount_subtotal: quantity * 10000,
+    line_items: { data: [{ quantity, price: { unit_amount: 10000 } }] },
+  };
+}
+
+test("sequential multi-copy print orders fill the edition exactly then flag excess", async () => {
+  const app = setup();
+  app.state.print.editionSize = 5;
+  assert.equal(
+    (await app.pay("print", "cs_first", printSession(2))).status,
+    200,
+  );
+  assert.equal(
+    (await app.pay("print", "cs_exact", printSession(3))).status,
+    200,
+  );
+  assert.equal(
+    (await app.pay("print", "cs_excess", printSession(2))).status,
+    200,
+  );
+  assert.deepEqual(
+    app.state.rows.map((row) => [row.quantity, row.fulfillmentStatus]),
+    [
+      [2, "pending"],
+      [3, "pending"],
+      [2, "oversold"],
+    ],
+  );
+  assert.equal((await app.inventory.getSoldPrintQuantities([1])).get(1), 7);
+  assert.equal((await app.checkout("print")).status, 409);
+  assert.match(app.state.emails.at(-1).subject, /^OVERSOLD/);
+  assert.equal(
+    (await app.pay("print", "cs_excess", printSession(2))).status,
+    200,
+  );
+  assert.equal(app.state.rows.length, 3);
+  assert.equal(app.state.emails.length, 6);
+});
+
+test("partial print refunds keep stock consumed; full refunds and their replay restore it once", async () => {
+  const app = setup();
+  assert.equal(
+    (await app.pay("print", "cs_print", printSession(3))).status,
+    200,
+  );
+  assert.equal((await app.checkout("print")).status, 409);
+  const refund = async (amount) => {
+    app.state.event = {
+      id: amount === 30000 ? "evt_full_print" : "evt_partial_print",
+      livemode: false,
+      type: "charge.refunded",
+      data: {
+        object: {
+          payment_intent: "pi_cs_print",
+          amount: 30000,
+          amount_refunded: amount,
+          currency: "cad",
+        },
+      },
+    };
+    return app.dispatchEvent();
+  };
+  assert.equal((await refund(10000)).status, 200);
+  assert.equal(app.state.rows[0].paymentStatus, "paid");
+  assert.equal((await app.inventory.getSoldPrintQuantities([1])).get(1), 3);
+  assert.equal((await app.checkout("print")).status, 409);
+  assert.equal(
+    app.state.analytics.filter((event) => event.event === "order_refunded")
+      .length,
+    0,
+  );
+  for (let delivery = 0; delivery < 2; delivery++) {
+    assert.equal((await refund(30000)).status, 200);
+    assert.equal(app.state.rows[0].paymentStatus, "refunded");
+    assert.equal((await app.inventory.getSoldPrintQuantities([1])).size, 0);
+    assert.equal((await app.checkout("print")).status, 200);
+    assert.equal(
+      app.state.sessions.at(-1).line_items[0].adjustable_quantity.maximum,
+      3,
+    );
+  }
+  assert.equal(
+    (await app.pay("print", "cs_print", printSession(3))).status,
+    200,
+  );
+  assert.equal(app.state.rows.length, 1);
+  assert.equal(app.state.rows[0].paymentStatus, "refunded");
+  assert.equal(app.state.emails.length, 2);
+  const events = app.state.analytics.filter(
+    (event) => event.event === "order_refunded",
+  );
+  assert.ok(events.length > 0);
+  assert.ok(
+    events.every((event) => event.properties.$insert_id === "evt_full_print"),
+  );
+});
+
+test("unpaid completion waits for async success and paid event replays settle once", async () => {
+  const app = setup();
+  app.state.event = {
+    id: "evt_unpaid",
+    livemode: false,
+    type: "checkout.session.completed",
+    data: { object: { id: "cs_delayed", payment_status: "unpaid" } },
+  };
+  assert.equal((await app.dispatchEvent()).status, 200);
+  assert.deepEqual(app.state.retrievedSessions, []);
+  assert.deepEqual(app.state.rows, []);
+  assert.deepEqual(app.state.emails, []);
+  assert.deepEqual(app.state.analytics, []);
+  app.state.session = {
+    id: "cs_delayed",
+    metadata: { itemType: "print", itemId: "1" },
+    payment_intent: "pi_cs_delayed",
+    currency: "cad",
+    customer_details: { email: "buyer@example.com", name: "Buyer" },
+    ...printSession(2),
+  };
+  app.state.event = {
+    id: "evt_async",
+    livemode: false,
+    type: "checkout.session.async_payment_succeeded",
+    data: { object: { id: "cs_delayed", payment_status: "paid" } },
+  };
+  assert.equal((await app.dispatchEvent()).status, 200);
+  assert.equal((await app.dispatchEvent()).status, 200);
+  assert.equal(
+    (await app.pay("print", "cs_delayed", printSession(2))).status,
+    200,
+  );
+  assert.equal(app.state.rows.length, 1);
+  assert.equal(app.state.rows[0].quantity, 2);
+  assert.equal(app.state.emails.length, 2);
+  assert.equal((await app.inventory.getSoldPrintQuantities([1])).get(1), 2);
+  assert.ok(app.state.analytics.length > 0);
+  assert.ok(
+    app.state.analytics.every(
+      (event) => event.properties.$insert_id === "cs_delayed",
+    ),
   );
 });

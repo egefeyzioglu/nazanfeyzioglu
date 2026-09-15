@@ -82,7 +82,9 @@ Each original checkout is for exactly one piece. Paid original orders appear in 
 
 Full refunds restore original availability unless it is manually marked unavailable. A fully refunded order that was never fulfilled (or was flagged oversold) shows **no action required** in Orders instead of pending, and its fulfillment controls are hidden; a refunded order that had already been fulfilled stays fulfilled. Digital purchases of the same work never consume original stock. No additional Stripe webhook subscriptions are required. Existing manual invoices are not imported.
 
-Run `node --test tests/commerce.test.mjs` for mocked checkout, availability, webhook and refund regression tests; use Stripe test mode for end-to-end validation after migration.
+Run `pnpm install --frozen-lockfile`, then `pnpm test` for the commerce regression suite. GitHub Actions runs the same suite on pushes and pull requests with Node 22 and the pnpm version pinned in `package.json`.
+
+Tests exercise the real checkout, webhook, and inventory helpers with in-memory database, email, and analytics boundaries. Signature tests use the Stripe SDK's local verification with signed fixtures; no live Stripe API calls, credentials, or database are required. Coverage includes paid and duplicate deliveries, full and partial refunds, print quantities and remaining copies, sold-out checkout, and sequential overselling. The database fake does not validate PostgreSQL SQL execution, constraints, or concurrent advisory locking; those need a separate database integration suite. Use Stripe test mode for end-to-end validation after migration.
 
 ### Layout
 
