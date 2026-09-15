@@ -34,7 +34,7 @@ const TABS: { key: NavKey; label: string }[] = [
 
 /** Format the amount passed, in dollars, in the format `%.2f`, in the browser's local (en-ca if not set) */
 function formatPriceForValue(dollars: string) {
-  const cents = Math.round(parseFloat(dollars) * 100);
+  const cents = Math.round(parseFloat(dollars.trim().replaceAll(',','')) * 100);
   return `${(cents / 100).toLocaleString("en-ca", {minimumFractionDigits: 2})}`;
 }
 
@@ -240,13 +240,10 @@ export default function AdminPagesEditor() {
                     <div className="relative">
                       <div className="absolute top-[0.5rem] left-[0.75rem]">$</div>
                       <input
-                        type="number"
-                        min={0}
-                        step="0.01"
                         required
                         className={clsx(inputCls, "ps-[1.5rem]")}
                         defaultValue={formatPriceForValue(edit.getInitial(field.key, field.default))}
-                        onChange={(event) => {
+                        onBlur={(event) => {
                             event.target.value = formatPriceForValue(event.target.value);
                             edit.setDraft(field.key, event.target.value);
                           }

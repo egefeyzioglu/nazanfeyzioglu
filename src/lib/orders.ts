@@ -102,7 +102,7 @@ export function centsToDollarsString(cents: number | null | undefined): string {
  * 1007.4999…, not 1007.5).
  */
 export function dollarsStringToCents(value: string): number | null {
-  const trimmed = value.trim();
+  const trimmed = value.trim().replaceAll(',','');
   if (trimmed === "") return null;
   const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(trimmed);
   if (!match) return null;
