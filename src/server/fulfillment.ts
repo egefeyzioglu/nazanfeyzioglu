@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { type TrackingCarrier } from "src/lib/orders";
 import {
@@ -48,11 +48,12 @@ export async function fulfillOrder(input: {
 }): Promise<FulfillmentResult | null> {
   const trimmed = input.trackingNumber?.trim() ?? "";
   const trackingNumber = trimmed === "" ? null : trimmed;
-  // Only a pending → fulfilled transition sends the email: a double-submit
-  // (or a stale tab) finds the order already fulfilled and does nothing, and
-  // an oversold order keeps its refund-required state. Re-fulfilling after
-  // "Mark pending" (say, with a corrected tracking number) is a fresh
-  // shipment notice, so the previous send is forgotten here.
+  // Only a paid, pending → fulfilled transition sends the email: a
+  // double-submit (or a stale tab) finds the order already fulfilled and does
+  // nothing, an oversold order keeps its refund-required state, and a
+  // refunded order is never shipped. Re-fulfilling after "Mark pending" (say,
+  // with a corrected tracking number) is a fresh shipment notice, so the
+  // previous send is forgotten here.
   const [order] = await db
     .update(orders)
     .set({
@@ -63,7 +64,11 @@ export async function fulfillOrder(input: {
       shippedEmailSentAt: null,
     })
     .where(
-      and(eq(orders.id, input.id), eq(orders.fulfillmentStatus, "pending")),
+      and(
+        eq(orders.id, input.id),
+        eq(orders.fulfillmentStatus, "pending"),
+        eq(orders.paymentStatus, "paid"),
+      ),
     )
     .returning();
   if (order) return sendShippingForOrder(order);
@@ -72,6 +77,22 @@ export async function fulfillOrder(input: {
     where: eq(orders.id, input.id),
   });
   return existing ? { order: existing, shippingEmail: "not_applicable" } : null;
+}
+
+/**
+ * Reverts a fulfilled order to pending (its courier details are kept so they
+ * are prefilled on re-fulfilment). Only `fulfilled` may go back to `pending`:
+ * an oversold order must stay flagged for its refund, and a refunded order
+ * that never shipped must not become fulfillable. Resolves the updated row,
+ * or null when the order does not exist or is not fulfilled.
+ */
+export async function revertFulfillment(id: number): Promise<OrderRow | null> {
+  const [order] = await db
+    .update(orders)
+    .set({ fulfillmentStatus: "pending" })
+    .where(and(eq(orders.id, id), eq(orders.fulfillmentStatus, "fulfilled")))
+    .returning();
+  return order ?? null;
 }
 
 /**
@@ -110,6 +131,7 @@ async function sendShippingForOrder(
   // Orders fulfilled before attempt ids existed get one on first send.
   const attemptId =
     order.shippingEmailAttemptId ?? (await assignAttemptId(order.id));
+  if (!attemptId) return { order, shippingEmail: "not_applicable" };
   const data: ShippingEmailData = {
     orderId: order.id,
     stripeCheckoutSessionId: order.stripeCheckoutSessionId,
@@ -133,27 +155,43 @@ async function sendShippingForOrder(
       shippingEmail: "failed",
     };
   }
-  const shippedEmailSentAt = new Date();
+  // Record the send against the attempt it belongs to. If the order was
+  // reverted to pending and re-fulfilled while Resend was being called, the
+  // row now carries a newer attempt id and this completion must not mark
+  // that newer notice as sent.
   const [updated] = await db
     .update(orders)
-    .set({ shippedEmailSentAt })
-    .where(eq(orders.id, order.id))
+    .set({ shippedEmailSentAt: new Date() })
+    .where(
+      and(
+        eq(orders.id, order.id),
+        eq(orders.fulfillmentStatus, "fulfilled"),
+        eq(orders.shippingEmailAttemptId, attemptId),
+      ),
+    )
     .returning();
-  return {
-    order: updated ?? {
-      ...order,
-      shippingEmailAttemptId: attemptId,
-      shippedEmailSentAt,
-    },
-    shippingEmail: "sent",
-  };
+  if (updated) return { order: updated, shippingEmail: "sent" };
+  const current = await db.query.orders.findFirst({
+    where: eq(orders.id, order.id),
+  });
+  return { order: current ?? order, shippingEmail: "not_applicable" };
 }
 
-async function assignAttemptId(orderId: number): Promise<string> {
-  const attemptId = crypto.randomUUID();
-  await db
+/**
+ * Assigns an attempt id to an order fulfilled before the column existed.
+ * Conditional on the id still being unset, so two concurrent retries end up
+ * sharing one id (and one Resend idempotency key) rather than each sending
+ * under their own. Resolves null only if the order has vanished meanwhile.
+ */
+async function assignAttemptId(orderId: number): Promise<string | null> {
+  const [assigned] = await db
     .update(orders)
-    .set({ shippingEmailAttemptId: attemptId })
-    .where(eq(orders.id, orderId));
-  return attemptId;
+    .set({ shippingEmailAttemptId: crypto.randomUUID() })
+    .where(and(eq(orders.id, orderId), isNull(orders.shippingEmailAttemptId)))
+    .returning({ attemptId: orders.shippingEmailAttemptId });
+  if (assigned?.attemptId) return assigned.attemptId;
+  const current = await db.query.orders.findFirst({
+    where: eq(orders.id, orderId),
+  });
+  return current?.shippingEmailAttemptId ?? null;
 }

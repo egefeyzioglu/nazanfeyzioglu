@@ -42,6 +42,8 @@ function setup() {
     emailFailure: null,
     /** When set, the mocked Resend client rejects sends to this address. */
     rejectTo: null,
+    /** When set, awaited by the mocked Resend client mid-send (once). */
+    onSend: null,
     /** CMS content overrides applied on top of the defaults. */
     content: {},
     event: null,
@@ -232,6 +234,11 @@ function setup() {
         emails = {
           send: async (payload, options) => {
             if (state.emailFailure instanceof Error) throw state.emailFailure;
+            if (state.onSend) {
+              const hook = state.onSend;
+              state.onSend = null;
+              await hook(payload);
+            }
             if (payload.to === state.rejectTo) {
               return {
                 data: null,
@@ -367,6 +374,7 @@ function setup() {
         trackingNumber: tracking.trackingNumber ?? null,
       }),
     resendShipping: (id) => fulfillment.resendShippingEmail(id),
+    revert: (id) => fulfillment.revertFulfillment(id),
   };
 }
 
@@ -689,16 +697,67 @@ test("fulfilling a paid print order sends shipping tracking to the buyer", async
   );
 });
 
-test("oversold orders cannot be marked fulfilled", async () => {
+test("only paid pending orders can be fulfilled; only fulfilled ones reverted", async () => {
+  const oversold = setup();
+  oversold.state.print.editionSize = 0;
+  await oversold.pay("print");
+  oversold.state.emails.length = 0;
+  assert.equal(oversold.state.rows[0].fulfillmentStatus, "oversold");
+  const result = await oversold.fulfill(1, { trackingCarrier: "ups" });
+  assert.equal(result.shippingEmail, "not_applicable");
+  assert.equal(oversold.state.rows[0].fulfillmentStatus, "oversold");
+  assert.equal(oversold.state.emails.length, 0);
+  // An oversold order cannot be laundered through "pending" either.
+  assert.equal(await oversold.revert(1), null);
+  assert.equal(oversold.state.rows[0].fulfillmentStatus, "oversold");
+
+  // A refunded order never ships.
+  const refunded = setup();
+  await refunded.pay("print");
+  await refunded.refund("cs_1", 190000);
+  refunded.state.emails.length = 0;
+  const refundedResult = await refunded.fulfill(1, { trackingCarrier: "ups" });
+  assert.equal(refundedResult.shippingEmail, "not_applicable");
+  assert.equal(refunded.state.rows[0].fulfillmentStatus, "pending");
+  assert.equal(refunded.state.emails.length, 0);
+
+  // Pending → pending is a no-op; fulfilled → pending keeps the courier details.
   const app = setup();
-  app.state.print.editionSize = 0;
+  await app.pay("print");
+  assert.equal(await app.revert(1), null);
+  await app.fulfill(1, { trackingCarrier: "ups", trackingNumber: "1Z" });
+  const reverted = await app.revert(1);
+  assert.equal(reverted.fulfillmentStatus, "pending");
+  assert.equal(reverted.trackingNumber, "1Z");
+  assert.equal(await app.revert(99), null);
+});
+
+test("a send that outlives a revert and re-fulfilment does not mark the new attempt sent", async () => {
+  const app = setup();
   await app.pay("print");
   app.state.emails.length = 0;
-  assert.equal(app.state.rows[0].fulfillmentStatus, "oversold");
-  const result = await app.fulfill(1, { trackingCarrier: "ups" });
-  assert.equal(result.shippingEmail, "not_applicable");
-  assert.equal(app.state.rows[0].fulfillmentStatus, "oversold");
-  assert.equal(app.state.emails.length, 0);
+  const row = app.state.rows[0];
+  let nested;
+  // While the first attempt's Resend call is in flight, the admin reverts
+  // the order and fulfils it again; that second attempt's delivery fails.
+  app.state.onSend = async () => {
+    await app.revert(1);
+    app.state.emailFailure = new Error("network down");
+    nested = await app.fulfill(1, { trackingCarrier: "fedex", trackingNumber: "FX" });
+    app.state.emailFailure = null;
+  };
+  const first = await app.fulfill(1, { trackingCarrier: "ups", trackingNumber: "1Z" });
+  assert.equal(nested.shippingEmail, "failed");
+  assert.equal(first.shippingEmail, "not_applicable");
+  assert.equal(app.state.emails.length, 1);
+  // The row reflects the newer attempt, still owed its email.
+  assert.equal(row.trackingNumber, "FX");
+  assert.equal(row.shippedEmailSentAt, null);
+  assert.equal(row.shippingEmailAttemptId, nested.order.shippingEmailAttemptId);
+  assert.notEqual(
+    app.state.emails[0].idempotencyKey,
+    `order-shipped/${row.shippingEmailAttemptId}`,
+  );
 });
 
 test("shipping emails handle blank tracking and unlinked couriers", async () => {
@@ -787,13 +846,19 @@ test("shipping fulfillment skips ineligible orders and retries failed email", as
     fulfillmentStatus: "fulfilled",
     shippingEmailAttemptId: null,
   });
-  const legacyResult = await legacy.resendShipping(1);
-  assert.equal(legacyResult.shippingEmail, "sent");
-  assert.ok(legacy.state.rows[0].shippingEmailAttemptId);
-  assert.equal(
-    legacy.state.emails[0].idempotencyKey,
-    `order-shipped/${legacy.state.rows[0].shippingEmailAttemptId}`,
-  );
+  // Two concurrent retries must share one id (and so one Resend
+  // idempotency key) rather than each minting its own.
+  const [legacyA, legacyB] = await Promise.all([
+    legacy.resendShipping(1),
+    legacy.resendShipping(1),
+  ]);
+  assert.equal(legacyA.shippingEmail, "sent");
+  assert.equal(legacyB.shippingEmail, "sent");
+  const legacyId = legacy.state.rows[0].shippingEmailAttemptId;
+  assert.ok(legacyId);
+  assert.equal(legacy.state.emails.length, 2);
+  assert.equal(legacy.state.emails[0].idempotencyKey, `order-shipped/${legacyId}`);
+  assert.equal(legacy.state.emails[1].idempotencyKey, `order-shipped/${legacyId}`);
 });
 
 test("tracking carrier helpers label couriers and build encoded links", () => {

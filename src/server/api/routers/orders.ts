@@ -1,12 +1,15 @@
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { captureServerEvent } from "src/lib/posthog-server";
 import { TRACKING_CARRIER_IDS } from "src/lib/orders";
 import { adminProcedure, createTRPCRouter } from "src/server/api/trpc";
-import { orders } from "src/server/db/schema";
-import { fulfillOrder, resendShippingEmail } from "src/server/fulfillment";
+import { db } from "src/server/db";
+import {
+  fulfillOrder,
+  resendShippingEmail,
+  revertFulfillment,
+} from "src/server/fulfillment";
 
 export const ordersRouter = createTRPCRouter({
   /** All orders, newest first. Money is managed in Stripe; this is fulfillment. */
@@ -47,12 +50,23 @@ export const ordersRouter = createTRPCRouter({
         return result;
       }
 
-      const [row] = await ctx.db
-        .update(orders)
-        .set({ fulfillmentStatus: input.fulfillmentStatus })
-        .where(eq(orders.id, input.id))
-        .returning();
-      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      const row = await revertFulfillment(input.id);
+      if (!row) {
+        // The UI only offers "Mark pending" on fulfilled orders; a direct
+        // call for anything else is rejected rather than silently applied.
+        const exists = await db.query.orders.findFirst({
+          where: (o, { eq }) => eq(o.id, input.id),
+          columns: { id: true },
+        });
+        throw new TRPCError(
+          exists
+            ? {
+                code: "CONFLICT",
+                message: "Only fulfilled orders can be marked pending",
+              }
+            : { code: "NOT_FOUND" },
+        );
+      }
       captureServerEvent(ctx.userId, "order_fulfillment_updated", {
         order_id: row.id,
         fulfillment_status: row.fulfillmentStatus,
