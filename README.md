@@ -141,7 +141,9 @@ curl -s https://<preview-host>/api/sentry-test | jq          # 200, event tagged
 curl -s -o /dev/null -w '%{http_code}\n' 'https://<preview-host>/api/sentry-test?mode=throw'   # 500, unhandled route error
 ```
 
-The route answers 404 unless `SENTRY_DSN` is set. On production it also
+The route answers 404 unless `SENTRY_DSN` is set for that Vercel environment
+(the body says so; Preview and Production variables are configured
+separately). On production it also
 requires `SENTRY_TEST_TOKEN` in the environment and the same value in an
 `x-sentry-test-token` request header. Both test events count towards the
 alert rules above, so run them on a preview deployment unless you want to

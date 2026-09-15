@@ -27,8 +27,15 @@ type Mode = (typeof MODES)[number];
  */
 export async function GET(req: Request) {
   const environment = deploymentEnvironment();
+  if (!env.SENTRY_DSN) {
+    return NextResponse.json(
+      {
+        error: `SENTRY_DSN is not set for the ${environment} environment; add it in Vercel and redeploy`,
+      },
+      { status: 404 },
+    );
+  }
   if (
-    !env.SENTRY_DSN ||
     !sentryTestAllowed({
       environment,
       token: env.SENTRY_TEST_TOKEN,
