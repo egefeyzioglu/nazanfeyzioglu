@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { type TrackingCarrier } from "src/lib/orders";
 import {
@@ -13,6 +13,24 @@ import { orders } from "src/server/db/schema";
 import { getContent } from "src/server/queries";
 
 type OrderRow = typeof orders.$inferSelect;
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Runs `fn` in a transaction holding a per-order advisory lock, so the three
+ * admin actions on an order's fulfillment (fulfil, revert, resend) are
+ * serialized. The lock is held across the Resend call: that is the point —
+ * a "Mark pending" arriving mid-send waits for the send to finish rather
+ * than racing it, so a stale notice can never go out. Same namespacing as
+ * the webhook's oversell lock (the database may host multiple projects).
+ */
+function withOrderLock<T>(id: number, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${"nazanfeyzioglu_order_fulfillment"}), ${id})`,
+    );
+    return fn(tx);
+  });
+}
 
 /**
  * What happened to the customer's shipping confirmation when an order was
@@ -54,29 +72,33 @@ export async function fulfillOrder(input: {
   // refunded order is never shipped. Re-fulfilling after "Mark pending" (say,
   // with a corrected tracking number) is a fresh shipment notice, so the
   // previous send is forgotten here.
-  const [order] = await db
-    .update(orders)
-    .set({
-      fulfillmentStatus: "fulfilled",
-      trackingCarrier: input.trackingCarrier,
-      trackingNumber,
-      shippingEmailAttemptId: crypto.randomUUID(),
-      shippedEmailSentAt: null,
-    })
-    .where(
-      and(
-        eq(orders.id, input.id),
-        eq(orders.fulfillmentStatus, "pending"),
-        eq(orders.paymentStatus, "paid"),
-      ),
-    )
-    .returning();
-  if (order) return sendShippingForOrder(order);
+  return withOrderLock(input.id, async (tx) => {
+    const [order] = await tx
+      .update(orders)
+      .set({
+        fulfillmentStatus: "fulfilled",
+        trackingCarrier: input.trackingCarrier,
+        trackingNumber,
+        shippingEmailAttemptId: crypto.randomUUID(),
+        shippedEmailSentAt: null,
+      })
+      .where(
+        and(
+          eq(orders.id, input.id),
+          eq(orders.fulfillmentStatus, "pending"),
+          eq(orders.paymentStatus, "paid"),
+        ),
+      )
+      .returning();
+    if (order) return sendShippingForOrder(tx, order);
 
-  const existing = await db.query.orders.findFirst({
-    where: eq(orders.id, input.id),
+    const existing = await tx.query.orders.findFirst({
+      where: eq(orders.id, input.id),
+    });
+    return existing
+      ? { order: existing, shippingEmail: "not_applicable" }
+      : null;
   });
-  return existing ? { order: existing, shippingEmail: "not_applicable" } : null;
 }
 
 /**
@@ -86,13 +108,15 @@ export async function fulfillOrder(input: {
  * that never shipped must not become fulfillable. Resolves the updated row,
  * or null when the order does not exist or is not fulfilled.
  */
-export async function revertFulfillment(id: number): Promise<OrderRow | null> {
-  const [order] = await db
-    .update(orders)
-    .set({ fulfillmentStatus: "pending" })
-    .where(and(eq(orders.id, id), eq(orders.fulfillmentStatus, "fulfilled")))
-    .returning();
-  return order ?? null;
+export function revertFulfillment(id: number): Promise<OrderRow | null> {
+  return withOrderLock(id, async (tx) => {
+    const [order] = await tx
+      .update(orders)
+      .set({ fulfillmentStatus: "pending" })
+      .where(and(eq(orders.id, id), eq(orders.fulfillmentStatus, "fulfilled")))
+      .returning();
+    return order ?? null;
+  });
 }
 
 /**
@@ -100,20 +124,26 @@ export async function revertFulfillment(id: number): Promise<OrderRow | null> {
  * whose email never went out — the first attempt failed or email was not
  * configured at the time. Resolves null when no such order exists.
  */
-export async function resendShippingEmail(
+export function resendShippingEmail(
   id: number,
 ): Promise<FulfillmentResult | null> {
-  const order = await db.query.orders.findFirst({
-    where: eq(orders.id, id),
+  return withOrderLock(id, async (tx) => {
+    // Read under the lock, so this is the current state and not a snapshot
+    // that a concurrent revert could have invalidated before the send.
+    const order = await tx.query.orders.findFirst({
+      where: eq(orders.id, id),
+    });
+    if (!order) return null;
+    if (order.fulfillmentStatus !== "fulfilled") {
+      return { order, shippingEmail: "not_applicable" };
+    }
+    return sendShippingForOrder(tx, order);
   });
-  if (!order) return null;
-  if (order.fulfillmentStatus !== "fulfilled") {
-    return { order, shippingEmail: "not_applicable" };
-  }
-  return sendShippingForOrder(order);
 }
 
+/** Sends the confirmation for `order`; the caller holds the order's lock. */
 async function sendShippingForOrder(
+  tx: Tx,
   order: OrderRow,
 ): Promise<FulfillmentResult> {
   if (order.itemType === "digital") {
@@ -130,7 +160,7 @@ async function sendShippingForOrder(
   }
   // Orders fulfilled before attempt ids existed get one on first send.
   const attemptId =
-    order.shippingEmailAttemptId ?? (await assignAttemptId(order.id));
+    order.shippingEmailAttemptId ?? (await assignAttemptId(tx, order.id));
   if (!attemptId) return { order, shippingEmail: "not_applicable" };
   const data: ShippingEmailData = {
     orderId: order.id,
@@ -155,11 +185,10 @@ async function sendShippingForOrder(
       shippingEmail: "failed",
     };
   }
-  // Record the send against the attempt it belongs to. If the order was
-  // reverted to pending and re-fulfilled while Resend was being called, the
-  // row now carries a newer attempt id and this completion must not mark
-  // that newer notice as sent.
-  const [updated] = await db
+  // Record the send against the attempt it belongs to. The lock rules out a
+  // revert-and-refulfil while Resend was being called, but the predicate
+  // keeps this completion from ever marking a different attempt as sent.
+  const [updated] = await tx
     .update(orders)
     .set({ shippedEmailSentAt: new Date() })
     .where(
@@ -171,7 +200,7 @@ async function sendShippingForOrder(
     )
     .returning();
   if (updated) return { order: updated, shippingEmail: "sent" };
-  const current = await db.query.orders.findFirst({
+  const current = await tx.query.orders.findFirst({
     where: eq(orders.id, order.id),
   });
   return { order: current ?? order, shippingEmail: "not_applicable" };
@@ -183,14 +212,17 @@ async function sendShippingForOrder(
  * sharing one id (and one Resend idempotency key) rather than each sending
  * under their own. Resolves null only if the order has vanished meanwhile.
  */
-async function assignAttemptId(orderId: number): Promise<string | null> {
-  const [assigned] = await db
+async function assignAttemptId(
+  tx: Tx,
+  orderId: number,
+): Promise<string | null> {
+  const [assigned] = await tx
     .update(orders)
     .set({ shippingEmailAttemptId: crypto.randomUUID() })
     .where(and(eq(orders.id, orderId), isNull(orders.shippingEmailAttemptId)))
     .returning({ attemptId: orders.shippingEmailAttemptId });
   if (assigned?.attemptId) return assigned.attemptId;
-  const current = await db.query.orders.findFirst({
+  const current = await tx.query.orders.findFirst({
     where: eq(orders.id, orderId),
   });
   return current?.shippingEmailAttemptId ?? null;

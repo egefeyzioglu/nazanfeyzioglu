@@ -724,12 +724,25 @@ test("only paid pending orders can be fulfilled; only fulfilled ones reverted", 
   // Pending → pending is a no-op; fulfilled → pending keeps the courier details.
   const app = setup();
   await app.pay("print");
+  app.state.locks.length = 0;
   assert.equal(await app.revert(1), null);
   await app.fulfill(1, { trackingCarrier: "ups", trackingNumber: "1Z" });
   const reverted = await app.revert(1);
   assert.equal(reverted.fulfillmentStatus, "pending");
   assert.equal(reverted.trackingNumber, "1Z");
   assert.equal(await app.revert(99), null);
+  await app.resendShipping(1);
+  // Every fulfillment action takes the per-order advisory lock, which is what
+  // keeps a resend from racing a concurrent revert.
+  assert.equal(app.state.locks.length, 5);
+  for (const lock of app.state.locks) {
+    assert.match(lock.strings.join("?"), /pg_advisory_xact_lock/);
+    assert.equal(lock.values[0], "nazanfeyzioglu_order_fulfillment");
+  }
+  assert.deepEqual(
+    app.state.locks.map((lock) => lock.values[1]),
+    [1, 1, 1, 99, 1],
+  );
 });
 
 test("a send that outlives a revert and re-fulfilment does not mark the new attempt sent", async () => {
@@ -747,6 +760,8 @@ test("a send that outlives a revert and re-fulfilment does not mark the new atte
     app.state.emailFailure = null;
   };
   const first = await app.fulfill(1, { trackingCarrier: "ups", trackingNumber: "1Z" });
+  // In Postgres the per-order advisory lock serializes these three calls
+  // (the mock does not), so the interleaving is defense in depth here.
   assert.equal(nested.shippingEmail, "failed");
   assert.equal(first.shippingEmail, "not_applicable");
   assert.equal(app.state.emails.length, 1);
