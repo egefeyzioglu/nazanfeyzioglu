@@ -42,7 +42,7 @@ export function printHref(printId: number) {
 }
 
 function normalizeTitle(title: string) {
-  return title.trim().toLocaleLowerCase().replace(/\s+/g, " ");
+  return title.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 /**
