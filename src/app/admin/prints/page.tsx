@@ -237,18 +237,6 @@ function PrintForm({
             onChange={(e) => setTitle(e.target.value)}
           />
         </Field>
-        <Field label="Image width (inches, excluding the border)">
-          <input
-            type="number"
-            min="0.000001"
-            step="any"
-            className={inputCls}
-            value={width}
-            required={height.trim() !== ""}
-            placeholder="24"
-            onChange={(e) => setWidth(e.target.value)}
-          />
-        </Field>
         <Field label="Image height (inches, excluding the border)">
           <input
             type="number"
@@ -259,6 +247,18 @@ function PrintForm({
             required={width.trim() !== ""}
             placeholder="36"
             onChange={(e) => setHeight(e.target.value)}
+          />
+        </Field>
+        <Field label="Image width (inches, excluding the border)">
+          <input
+            type="number"
+            min="0.000001"
+            step="any"
+            className={inputCls}
+            value={width}
+            required={height.trim() !== ""}
+            placeholder="24"
+            onChange={(e) => setWidth(e.target.value)}
           />
         </Field>
         <Field label="Edition">

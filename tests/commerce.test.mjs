@@ -431,7 +431,7 @@ test("print shipping defaults to a single 30 CAD rate; digital checkout has no s
   assert.equal(print.shipping_options.length, 1);
   assert.match(
     print.line_items[0].price_data.product_data.description,
-    /24 .* 18 in/,
+    /18 .* 24 in/,
   );
   assert.equal(
     print.shipping_options[0].shipping_rate_data.fixed_amount.amount,

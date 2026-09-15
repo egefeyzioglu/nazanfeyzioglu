@@ -317,7 +317,7 @@ function WorkForm({
             className={inputCls}
             value={medium}
             required
-            placeholder="Acrylic on cradled panel · 24 × 36 in · 2026"
+            placeholder="Acrylic on cradled panel · 36 × 24 in · 2026"
             onChange={(e) => setMedium(e.target.value)}
           />
         </Field>
