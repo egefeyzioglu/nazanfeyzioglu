@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { CONTENT_FIELDS } from "src/lib/content-keys";
-import { dollarsStringToCents } from "src/lib/orders";
+import { centsToDollarsString, dollarsStringToCents } from "src/lib/orders";
 import { captureServerEvent } from "src/lib/posthog-server";
 import { adminProcedure, createTRPCRouter } from "src/server/api/trpc";
 import { siteContent } from "src/server/db/schema";
@@ -37,16 +37,15 @@ export const contentRouter = createTRPCRouter({
         const field = FIELDS_BY_KEY.get(e.key);
         if (!field) throw new Error(`Unknown content key: ${e.key}`);
         if (field.kind !== "price") return e;
-        // Prices are stored trimmed so every reader parses the same string; a
-        // blank or malformed amount is rejected here rather than silently
-        // falling back to the default at checkout.
-        const value = e.value.trim();
-        if (dollarsStringToCents(value) === null) {
+        // The price string is normalized by being parsed to an integer number
+        // of cents then formatted again
+        const value = dollarsStringToCents(e.value);
+        if (value === null || !Number.isSafeInteger(value)) {
           throw new Error(
             `${field.label} must be a dollar amount such as 30 or 12.50`,
           );
         }
-        return { key: e.key, value };
+        return { key: e.key, value: centsToDollarsString(value) };
       });
       await ctx.db.transaction(async (tx) => {
         for (const e of entries) {

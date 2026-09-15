@@ -23,6 +23,8 @@ import { PRINT_COPY_FIELDS } from "src/lib/content-keys";
 import { groupExhibitions } from "src/lib/exhibitions";
 import { api } from "src/trpc/react";
 
+const clsx = (...clsx: (string | false | null | undefined)[]) => clsx.filter(Boolean).join(' ');
+
 const TABS: { key: NavKey; label: string }[] = [
   { key: "series", label: "Home" },
   { key: "about", label: "About" },
@@ -31,6 +33,12 @@ const TABS: { key: NavKey; label: string }[] = [
   { key: "exhibitions", label: "Exhibitions" },
   { key: "policies", label: "Policies" },
 ];
+
+/** Format the amount passed, in dollars, in the format `%.2f`, in the browser's local (en-ca if not set) */
+function formatPriceForValue(dollars: string) {
+  const cents = Math.round(parseFloat(dollars.trim().replaceAll(',','')) * 100);
+  return `${(cents / 100).toLocaleString("en-ca", {minimumFractionDigits: 2})}`;
+}
 
 /** Edits shared page copy with drafts preserved across tabs until saved or discarded. */
 export default function AdminPagesEditor() {
@@ -231,17 +239,19 @@ export default function AdminPagesEditor() {
               {PRINT_COPY_FIELDS.map((field) => (
                 <Field key={`${resetKey}:${field.key}`} label={field.label}>
                   {field.kind === "price" ? (
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      required
-                      className={inputCls}
-                      defaultValue={edit.getInitial(field.key, field.default)}
-                      onChange={(event) =>
-                        edit.setDraft(field.key, event.target.value)
-                      }
-                    />
+                    <div className="relative">
+                      <div className="absolute top-[0.5rem] left-[0.75rem]">$</div>
+                      <input
+                        required
+                        className={clsx(inputCls, "ps-[1.5rem]")}
+                        defaultValue={formatPriceForValue(edit.getInitial(field.key, field.default))}
+                        onBlur={(event) => {
+                            event.target.value = formatPriceForValue(event.target.value);
+                            edit.setDraft(field.key, event.target.value);
+                          }
+                        }
+                      />
+                    </div>
                   ) : (
                     <textarea
                       className={inputCls}
