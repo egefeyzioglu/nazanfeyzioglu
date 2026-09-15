@@ -40,7 +40,7 @@ export const contentRouter = createTRPCRouter({
         // The price string is normalized by being parsed to an integer number
         // of cents then formatted again
         const value = dollarsStringToCents(e.value);
-        if (value === null) {
+        if (value === null && !Number.isSafeInteger(value)) {
           throw new Error(
             `${field.label} must be a dollar amount such as 30 or 12.50`,
           );
