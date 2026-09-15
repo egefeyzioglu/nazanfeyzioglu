@@ -89,9 +89,10 @@ Tests exercise the real checkout, webhook, and inventory helpers with in-memory 
 ### Layout
 
 Print sizes are stored as physical image width and height in inches, separately
-from the image file's pixel dimensions. The catalogue, product details, and
-checkout description are generated from those values. Overall paper dimensions
-add two inches per axis for the one-inch border on all sides.
+from the image file's pixel dimensions and displayed as height × width. The
+catalogue, product details, and checkout description are generated from those
+values. Overall paper dimensions add two inches per axis for the one-inch
+border on all sides.
 
 Run `pnpm db:migrate` before deploying the structured print-size change.
 Migration `0002_print-dimensions.sql` imports recognized legacy inch sizes once,

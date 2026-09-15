@@ -54,7 +54,7 @@ export const works = createTable(
     image: d.text().notNull(),
     imageWidth: d.integer().notNull().default(1000),
     imageHeight: d.integer().notNull().default(1000),
-    /** Full medium / dimensions / year line, e.g. "Acrylic on cradled panel · 24 × 36 in · 2026". */
+    /** Full medium / dimensions / year line, e.g. "Acrylic on cradled panel · 36 × 24 in · 2026". */
     medium: d.text().notNull(),
     /**
      * Legacy display price, used until a numeric original checkout price is set.

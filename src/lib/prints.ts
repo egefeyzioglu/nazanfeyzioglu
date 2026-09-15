@@ -4,7 +4,7 @@ export type PrintDimensions = {
   imageHeightInches: number | null;
 };
 
-/** Formats image and paper sizes from physical dimensions, with a 1-inch border. */
+/** Formats image and paper sizes as height × width in inches, with a 1-inch border. */
 export function getPrintSizes({
   imageWidthInches: width,
   imageHeightInches: height,
@@ -21,8 +21,8 @@ export function getPrintSizes({
   }
 
   return {
-    image: `${width} × ${height} in`,
-    paper: `${Number((width + 2).toFixed(6))} × ${Number((height + 2).toFixed(6))} in`,
+    image: `${height} × ${width} in`,
+    paper: `${Number((height + 2).toFixed(6))} × ${Number((width + 2).toFixed(6))} in`,
   };
 }
 
