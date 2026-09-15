@@ -7,7 +7,11 @@ import PrintDetailModal from "src/app/_components/PrintDetailModal";
 import { EditableText } from "src/app/_components/Editable";
 import { formatPrice, printShippingCents } from "src/lib/orders";
 import { CONTENT_DEFAULTS } from "src/lib/content-keys";
-import { formatPrintSpec, type PrintDimensions } from "src/lib/prints";
+import {
+  formatPrintSpec,
+  printAnchorId,
+  type PrintDimensions,
+} from "src/lib/prints";
 
 export type PrintItem = PrintDimensions & {
   id: number;
@@ -81,7 +85,8 @@ export default function PrintsBody({
             {group.prints.map((print) => (
               <div
                 key={print.id}
-                className="border-line-soft grid grid-cols-[80px_minmax(0,1fr)] items-center gap-5 border-b py-[22px] md:grid-cols-[150px_minmax(0,1fr)_auto] md:gap-[30px]"
+                id={printAnchorId(print.id)}
+                className="border-line-soft grid scroll-mt-6 grid-cols-[80px_minmax(0,1fr)] items-center gap-5 border-b py-[22px] md:grid-cols-[150px_minmax(0,1fr)_auto] md:gap-[30px]"
               >
                 <button
                   type="button"

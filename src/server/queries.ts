@@ -27,10 +27,20 @@ export const getAllSeries = cache(() =>
   }),
 );
 
+/**
+ * A series with its works (flagged with `originalSold`) and its prints, so the
+ * page can point digital works at their print edition on the Prints page.
+ */
 export const getSeriesBySlug = cache(async (slug: string) => {
   const row = await db.query.series.findFirst({
     where: (s, { eq }) => eq(s.slug, slug),
-    with: { works: { orderBy: (w, { asc }) => [asc(w.position)] } },
+    with: {
+      works: { orderBy: (w, { asc }) => [asc(w.position)] },
+      prints: {
+        columns: { id: true, title: true },
+        orderBy: (p, { asc }) => [asc(p.position)],
+      },
+    },
   });
   if (!row) return row;
   const sold = await getSoldOriginalIds(row.works.map((w) => w.id));
