@@ -47,6 +47,21 @@ export const env = createEnv({
      */
     SITE_URL: z.string().url().optional(),
     /**
+     * Sentry DSN. Optional so monitoring can be enabled after deploy; when
+     * unset, webhook failures are only written to the server console.
+     */
+    SENTRY_DSN: z.string().url().optional(),
+    /**
+     * Shared secret that unlocks GET /api/sentry-test in production (sent as
+     * the x-sentry-test-token header). Outside production the route only
+     * requires SENTRY_DSN.
+     */
+    SENTRY_TEST_TOKEN: z.string().min(16).optional(),
+    /**
+     * Vercel deployment environment, injected automatically on Vercel.
+     */
+    VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
+    /**
      * Deployment host (e.g. "my-app-abc123.vercel.app") that Vercel injects
      * on both production and preview deployments.
      */
@@ -94,6 +109,9 @@ export const env = createEnv({
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     SITE_URL: process.env.SITE_URL,
+    SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_TEST_TOKEN: process.env.SENTRY_TEST_TOKEN,
+    VERCEL_ENV: process.env.VERCEL_ENV,
     VERCEL_URL: process.env.VERCEL_URL,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     ORDER_EMAIL_FROM: process.env.ORDER_EMAIL_FROM,

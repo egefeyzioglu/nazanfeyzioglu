@@ -105,7 +105,8 @@ function summarizeError(error: unknown): {
   // request-derived strings can never reach PostHog.
   const name = identifier(error.name) ?? identifier(error.constructor.name);
   const code =
-    identifier(readField(error, "code")) ?? identifier(readField(error, "type"));
+    identifier(readField(error, "code")) ??
+    identifier(readField(error, "type"));
   const status = readField(error, "statusCode");
   const parts = [name ?? "Error"];
   if (code) parts.push(code);

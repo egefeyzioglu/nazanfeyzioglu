@@ -19,6 +19,8 @@ function load(path, dependencies = {}) {
   vm.runInNewContext(outputText, {
     exports,
     console,
+    Error,
+    Buffer,
     URL,
     crypto,
     require: (id) =>
@@ -34,6 +36,7 @@ function setup() {
     locks: [],
     analytics: [],
     emails: [],
+    reports: [],
     /** When set, the mocked Resend client throws or returns this error. */
     emailFailure: null,
     /** When set, the mocked Resend client rejects sends to this address. */
@@ -42,6 +45,7 @@ function setup() {
     content: {},
     event: null,
     session: null,
+    retrieveSession: async () => state.session,
     work: {
       id: 1,
       title: "Painting",
@@ -191,7 +195,7 @@ function setup() {
           state.sessions.push(params);
           return { url: "https://checkout.stripe.com/test" };
         },
-        retrieve: async () => state.session,
+        retrieve: async () => state.retrieveSession(),
       },
     },
     webhooks: { constructEvent: () => state.event },
@@ -252,6 +256,15 @@ function setup() {
       getStripe: () => stripe,
       stripeConfigured: () => true,
     },
+    "src/server/observability": {
+      deploymentEnvironment: () => "development",
+      reportWebhookFailure: (err, ctx, level = "error") =>
+        state.reports.push({
+          message: err instanceof Error ? err.message : String(err),
+          level,
+          ...ctx,
+        }),
+    },
     "src/lib/posthog-server": {
       captureServerEvent: (distinctId, event, properties) => {
         state.analytics.push({ distinctId, event, properties });
@@ -296,6 +309,8 @@ function setup() {
         ...sessionOverrides,
       };
       state.event = {
+        id: `evt_${id}`,
+        livemode: false,
         type: "checkout.session.completed",
         data: { object: { id, payment_status: "paid" } },
       };
@@ -306,6 +321,8 @@ function setup() {
     },
     refund: async (id, amount) => {
       state.event = {
+        id: `evt_refund_${id}`,
+        livemode: false,
         type: "charge.refunded",
         data: {
           object: {
@@ -635,4 +652,152 @@ test("failed delivery records the order but asks Stripe to retry; unconfigured e
   assert.equal(anonymous.state.emails[0].to, "nazanfeyzioglu@yahoo.com");
   assert.equal(anonymous.state.emails[0].replyTo, undefined);
   assert.match(anonymous.state.emails[0].text, /Customer: unknown/);
+});
+
+test("webhook handler failure is reported with event context and returns 500", async () => {
+  const app = setup();
+  app.state.retrieveSession = async () => {
+    throw new Error("Stripe retrieve failed");
+  };
+  const res = await app.pay("print", "cs_fails");
+  assert.equal(res.status, 500);
+  assert.deepEqual(app.state.reports.at(-1), {
+    message: "Stripe retrieve failed",
+    level: "error",
+    stage: "handler",
+    environment: "development",
+    livemode: false,
+    eventId: "evt_cs_fails",
+    eventType: "checkout.session.completed",
+    checkoutSessionId: "cs_fails",
+  });
+});
+
+test("owed order emails are reported as a warning alongside the retry", async () => {
+  const app = setup();
+  app.state.emailFailure = new Error("network down");
+  assert.equal((await app.pay("original")).status, 500);
+  const report = app.state.reports.at(-1);
+  assert.equal(report.message, "Order email delivery pending retry");
+  assert.equal(report.level, "warning");
+  assert.equal(report.stage, "persist");
+  assert.equal(report.checkoutSessionId, "cs_1");
+  assert.equal(report.itemType, "original");
+});
+
+test("refund for an unknown order is reported as a warning", async () => {
+  const app = setup();
+  const res = await app.refund("cs_missing", 190000);
+  assert.equal(res.status, 200);
+  assert.deepEqual(app.state.reports.at(-1), {
+    message: "Refund for unknown order",
+    level: "warning",
+    stage: "persist",
+    environment: "development",
+    livemode: false,
+    eventId: "evt_refund_cs_missing",
+    eventType: "charge.refunded",
+    paymentIntentId: "pi_cs_missing",
+  });
+});
+
+test("session without item metadata is acknowledged and reported", async () => {
+  const app = setup();
+  const res = await app.pay("print", "cs_no_metadata", {
+    metadata: { itemType: "gift-card", itemId: "1.5" },
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(app.state.reports.at(-1), {
+    message: "Checkout session has no item metadata",
+    level: "warning",
+    stage: "handler",
+    environment: "development",
+    livemode: false,
+    eventId: "evt_cs_no_metadata",
+    eventType: "checkout.session.completed",
+    checkoutSessionId: "cs_no_metadata",
+    paymentIntentId: "pi_cs_no_metadata",
+  });
+});
+
+test("webhook telemetry redacts secrets and customer emails and bounds length", () => {
+  const scrub = load("src/lib/telemetry-scrub.ts");
+  const { message, code } = scrub.describeError(
+    Object.assign(
+      new Error(
+        "buyer@example.com paid with sk_live_abc123 via postgres://user:pw@host/db " +
+          "x".repeat(400),
+      ),
+      { code: "resource_missing" },
+    ),
+  );
+  assert.equal(code, "resource_missing");
+  assert.doesNotMatch(message, /example\.com|sk_live|pw@host/);
+  assert.match(
+    message,
+    /\[email\] paid with \[redacted-key\] via \[redacted-dsn\]/,
+  );
+  assert.ok(message.length <= 301);
+  assert.equal(
+    scrub.scrubText("session cs_test_123 evt_1 pi_2"),
+    "session cs_test_123 evt_1 pi_2",
+  );
+
+  const event = scrub.scrubSentryEvent({
+    message: "whsec_secret",
+    request: {
+      data: "raw",
+      headers: { "stripe-signature": "t" },
+      url: "/x?token=abc#frag",
+    },
+    user: { email: "a@b.co" },
+    exception: { values: [{ value: "No such session for buyer@example.com" }] },
+    breadcrumbs: [{ message: "bearer abc.def" }, { message: "Basic Zm9v" }],
+  });
+  assert.deepEqual(event, {
+    message: "[redacted-key]",
+    request: { url: "/x" },
+    exception: { values: [{ value: "No such session for [email]" }] },
+    breadcrumbs: [
+      { message: "[redacted-auth]" },
+      { message: "[redacted-auth]" },
+    ],
+  });
+});
+
+test("sentry test route is open outside production and token-gated in production", () => {
+  const { sentryTestAllowed } = load("src/lib/sentry-test-guard.ts");
+  const token = "0123456789abcdef";
+  assert.equal(
+    sentryTestAllowed({
+      environment: "preview",
+      token: undefined,
+      provided: null,
+    }),
+    true,
+  );
+  assert.equal(
+    sentryTestAllowed({
+      environment: "production",
+      token: undefined,
+      provided: token,
+    }),
+    false,
+  );
+  assert.equal(
+    sentryTestAllowed({ environment: "production", token, provided: null }),
+    false,
+  );
+  assert.equal(
+    sentryTestAllowed({
+      environment: "production",
+      token,
+      provided: token + "x",
+    }),
+    false,
+  );
+  assert.equal(
+    sentryTestAllowed({ environment: "production", token, provided: token }),
+    true,
+  );
 });

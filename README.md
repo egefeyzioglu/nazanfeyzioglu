@@ -111,6 +111,68 @@ edits are preserved.
 - `src/app/admin/` — the admin panel UI (`/admin/pages` is the in-place page editor)
 - `src/server/uploadthing.ts` — admin-gated UploadThing file router
 
+## Monitoring (Sentry)
+
+Sentry is optional until configured. In Vercel, install the Sentry integration
+for the project so it injects the DSN and build-time source-map variables, or
+set `SENTRY_DSN` manually from the Sentry project settings. Events are tagged
+with `VERCEL_ENV` (`production`, `preview` or `development`) when Vercel
+provides it.
+
+The `/api/stripe/webhook` route reports every non-2xx or thrown path with
+`area=stripe-webhook`. Reports include the Stripe event id, event type,
+checkout session id, payment intent id, item type and item id when those are
+available. Payloads, secrets, signatures, headers and customer details are not
+logged or sent to Sentry. Sentry is the alerting channel for the webhook;
+PostHog separately receives only the error type and code of handler exceptions
+alongside the analytics events.
+
+Recommended Sentry alerts:
+
+- Issue alert for `area:stripe-webhook environment:production` when there is
+  more than 1 event in 1 hour, routed to email or Slack.
+- A separate new issue alert for `area:stripe-webhook environment:production`,
+  also routed to email or Slack.
+
+To check that events reach Sentry, call the smoke-test route. It reports a
+synthetic failure through the same code path as the webhook, waits for the
+SDK to flush, and returns a `testId` to search for in Sentry:
+
+```bash
+curl -s https://<preview-host>/api/sentry-test | jq          # 200, event tagged stripe_event_type:sentry.test
+curl -s -o /dev/null -w '%{http_code}\n' 'https://<preview-host>/api/sentry-test?mode=throw'   # 500, unhandled route error
+```
+
+The route answers 404 unless `SENTRY_DSN` is set for that Vercel environment
+(the body says so; Preview and Production variables are configured
+separately). On production it also
+requires `SENTRY_TEST_TOKEN` in the environment and the same value in an
+`x-sentry-test-token` request header. Both test events count towards the
+alert rules above, so run them on a preview deployment unless you want to
+confirm the production alert routing.
+
+To trigger test failures in a non-production environment with the Stripe CLI:
+
+```bash
+stripe trigger checkout.session.completed --override checkout_session:metadata.itemType=print --override checkout_session:metadata.itemId=abc      # metadata warning, 200
+stripe trigger checkout.session.completed --override checkout_session:metadata.itemType=print --override checkout_session:metadata.itemId=99999999999   # integer out of range -> handler error, 500
+```
+
+To test the signature path, temporarily set an incorrect
+`STRIPE_WEBHOOK_SECRET` in a non-production environment and send a Stripe CLI
+event.
+
+Failed delivery runbook:
+
+1. Open Stripe Dashboard → Developers → Webhooks → endpoint → event deliveries
+   to inspect delivery status and the response body.
+2. Resend from the event page, or run
+   `stripe events resend evt_… --webhook-endpoint we_… --live`.
+3. Replays are idempotent through the unique checkout session id.
+4. If Stripe disabled the endpoint after prolonged failures, re-enable it
+   manually.
+5. Verify the resulting order state in `/admin/orders`.
+
 ## Useful scripts
 
 - `pnpm db:studio` — browse the database in Drizzle Studio

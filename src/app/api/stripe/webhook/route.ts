@@ -12,6 +12,11 @@ import {
 import { db } from "src/server/db";
 import { orders, prints, works } from "src/server/db/schema";
 import {
+  deploymentEnvironment,
+  reportWebhookFailure,
+  type WebhookFailureContext,
+} from "src/server/observability";
+import {
   emailConfigured,
   type OrderEmailData,
   type OrderEmailKind,
@@ -26,7 +31,13 @@ import { getStripe, stripeConfigured } from "src/server/stripe";
  * reach the handler unauthenticated — the Stripe signature is the auth.
  */
 export async function POST(req: Request) {
+  const ctx: WebhookFailureContext = {
+    stage: "config",
+    environment: deploymentEnvironment(),
+  };
+
   if (!stripeConfigured() || !env.STRIPE_WEBHOOK_SECRET) {
+    reportWebhookFailure(new Error("Stripe webhook is not configured"), ctx);
     return NextResponse.json(
       { error: "Stripe webhook is not configured" },
       { status: 503 },
@@ -35,6 +46,11 @@ export async function POST(req: Request) {
 
   const signature = req.headers.get("stripe-signature");
   if (!signature) {
+    reportWebhookFailure(
+      new Error("Missing Stripe signature"),
+      { ...ctx, stage: "signature" },
+      "warning",
+    );
     return NextResponse.json({ error: "Missing signature" }, { status: 400 });
   }
 
@@ -47,8 +63,26 @@ export async function POST(req: Request) {
       signature,
       env.STRIPE_WEBHOOK_SECRET,
     );
-  } catch {
+  } catch (err) {
+    reportWebhookFailure(err, { ...ctx, stage: "signature" }, "warning");
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+  }
+
+  ctx.stage = "handler";
+  ctx.livemode = event.livemode;
+  ctx.eventId = event.id;
+  ctx.eventType = event.type;
+  if (
+    event.type === "checkout.session.completed" ||
+    event.type === "checkout.session.async_payment_succeeded"
+  ) {
+    ctx.checkoutSessionId = event.data.object.id;
+  }
+  if (
+    event.type === "charge.refunded" &&
+    typeof event.data.object.payment_intent === "string"
+  ) {
+    ctx.paymentIntentId = event.data.object.payment_intent;
   }
 
   try {
@@ -58,11 +92,20 @@ export async function POST(req: Request) {
         // A session can complete before a delayed payment method settles;
         // async_payment_succeeded covers that case later. Only record once paid.
         if (event.data.object.payment_status === "paid") {
-          const emailsSettled = await recordPaidCheckout(event.data.object.id);
+          const emailsSettled = await recordPaidCheckout(
+            event.data.object.id,
+            ctx,
+          );
           if (!emailsSettled) {
             // The order is safely recorded (idempotently), but an order email
             // could not be handed to Resend. Answer non-2xx so Stripe redelivers
             // the event with backoff; the retry sends only what is still owed.
+            // Reported so repeated delivery failures raise an alert.
+            reportWebhookFailure(
+              new Error("Order email delivery pending retry"),
+              { ...ctx, stage: "persist" },
+              "warning",
+            );
             return NextResponse.json(
               { error: "Order recorded; email delivery pending retry" },
               { status: 500 },
@@ -79,6 +122,7 @@ export async function POST(req: Request) {
           charge.amount_refunded >= charge.amount &&
           typeof charge.payment_intent === "string"
         ) {
+          ctx.stage = "persist";
           const refunded = await db
             .update(orders)
             .set({ paymentStatus: "refunded" })
@@ -92,6 +136,14 @@ export async function POST(req: Request) {
               currency: charge.currency,
               $insert_id: event.id,
             });
+          } else {
+            // Usually a charge from outside this integration, but also the
+            // symptom of a lost checkout.session.completed delivery.
+            reportWebhookFailure(
+              new Error("Refund for unknown order"),
+              ctx,
+              "warning",
+            );
           }
         }
         break;
@@ -101,7 +153,13 @@ export async function POST(req: Request) {
     }
   } catch (err) {
     captureServerException(err, `stripe_webhook:${event.id}`);
-    throw err;
+    reportWebhookFailure(err, ctx);
+    // An explicit 5xx keeps Stripe retrying without a second, context-free
+    // capture from Next's onRequestError hook.
+    return NextResponse.json(
+      { error: "Webhook handler failed" },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ received: true });
@@ -116,30 +174,50 @@ export async function POST(req: Request) {
  * caller can ask Stripe to retry; true otherwise (including when email is not
  * configured, which is not a retryable condition).
  */
-async function recordPaidCheckout(sessionId: string): Promise<boolean> {
+async function recordPaidCheckout(
+  sessionId: string,
+  ctx: WebhookFailureContext,
+): Promise<boolean> {
   const session = await getStripe().checkout.sessions.retrieve(sessionId, {
     expand: ["line_items"],
   });
+  ctx.paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id;
 
   const itemType = session.metadata?.itemType;
   const itemId = Number(session.metadata?.itemId);
-  if (
-    (itemType !== "print" &&
-      itemType !== "digital" &&
-      itemType !== "original") ||
-    !Number.isInteger(itemId)
-  ) {
+  const validItemType =
+    itemType === "print" || itemType === "digital" || itemType === "original";
+  const validItemId = Number.isInteger(itemId);
+  // Only validated values go into telemetry: metadata on a session this
+  // integration did not create is untrusted.
+  if (validItemType) ctx.itemType = itemType;
+  if (validItemId) ctx.itemId = itemId;
+  if (!validItemType || !validItemId) {
     // Not a session this integration created (or malformed metadata); ack it
     // rather than have Stripe retry forever.
-    console.warn(
-      `Ignoring checkout session without item metadata: ${sessionId}`,
+    reportWebhookFailure(
+      new Error("Checkout session has no item metadata"),
+      ctx,
+      "warning",
     );
     return true;
   }
 
   const lineItem = session.line_items?.data[0];
   const quantity = lineItem?.quantity ?? 1;
+  ctx.stage = "lookup";
   const item = await loadItem(itemType, itemId);
+  if (!item) {
+    reportWebhookFailure(
+      new Error("Ordered item no longer exists"),
+      ctx,
+      "warning",
+    );
+  }
+  ctx.stage = "persist";
 
   const values = {
     stripeCheckoutSessionId: session.id,
