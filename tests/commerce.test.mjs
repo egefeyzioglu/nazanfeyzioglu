@@ -92,6 +92,7 @@ function setup() {
       "trackingNumber",
       "confirmationEmailSentAt",
       "notificationEmailSentAt",
+      "shippingEmailAttemptId",
       "shippedEmailSentAt",
       "createdAt",
     ]),
@@ -174,6 +175,7 @@ function setup() {
               fulfillmentStatus: "pending",
               trackingCarrier: null,
               trackingNumber: null,
+              shippingEmailAttemptId: null,
               shippedEmailSentAt: null,
               createdAt: new Date(),
               ...values,
@@ -652,7 +654,9 @@ test("fulfilling a paid print order sends shipping tracking to the buyer", async
   assert.match(email.text, /Canada Post/);
   assert.match(email.text, /https:\/\/www\.canadapost-postescanada\.ca/);
   assert.ok(email.html.includes(`<a href="${url}">`));
-  assert.equal(email.idempotencyKey, undefined);
+  // The fulfillment's attempt id keys the send so retries cannot duplicate it.
+  assert.match(row.shippingEmailAttemptId, /^[0-9a-f-]{36}$/);
+  assert.equal(email.idempotencyKey, `order-shipped/${row.shippingEmailAttemptId}`);
 
   // A double-submit finds the order already fulfilled and sends nothing.
   const repeat = await app.fulfill(1, {
@@ -677,6 +681,12 @@ test("fulfilling a paid print order sends shipping tracking to the buyer", async
   assert.equal(again.shippingEmail, "sent");
   assert.equal(app.state.emails.length, 2);
   assert.match(app.state.emails[1].text, /1Z/);
+  // …under a fresh idempotency key, so Resend does not swallow it.
+  assert.notEqual(app.state.emails[1].idempotencyKey, email.idempotencyKey);
+  assert.equal(
+    app.state.emails[1].idempotencyKey,
+    `order-shipped/${row.shippingEmailAttemptId}`,
+  );
 });
 
 test("oversold orders cannot be marked fulfilled", async () => {
@@ -757,12 +767,33 @@ test("shipping fulfillment skips ineligible orders and retries failed email", as
   assert.equal(failed.state.rows[0].fulfillmentStatus, "fulfilled");
   assert.equal(failed.state.rows[0].shippedEmailSentAt, null);
   assert.equal(failed.state.emails.length, 0);
+  const attemptId = failed.state.rows[0].shippingEmailAttemptId;
+  assert.ok(attemptId);
 
+  // The retry reuses the attempt id: had the failure been a lost response to
+  // a message Resend did accept, the same idempotency key makes it a no-op.
   failed.state.emailFailure = null;
   const resendResult = await failed.resendShipping(1);
   assert.equal(resendResult.shippingEmail, "sent");
   assert.ok(failed.state.rows[0].shippedEmailSentAt instanceof Date);
   assert.equal(failed.state.emails.length, 1);
+  assert.equal(failed.state.emails[0].idempotencyKey, `order-shipped/${attemptId}`);
+
+  // Orders fulfilled before attempt ids existed get one on first send.
+  const legacy = setup();
+  await legacy.pay("print");
+  legacy.state.emails.length = 0;
+  Object.assign(legacy.state.rows[0], {
+    fulfillmentStatus: "fulfilled",
+    shippingEmailAttemptId: null,
+  });
+  const legacyResult = await legacy.resendShipping(1);
+  assert.equal(legacyResult.shippingEmail, "sent");
+  assert.ok(legacy.state.rows[0].shippingEmailAttemptId);
+  assert.equal(
+    legacy.state.emails[0].idempotencyKey,
+    `order-shipped/${legacy.state.rows[0].shippingEmailAttemptId}`,
+  );
 });
 
 test("tracking carrier helpers label couriers and build encoded links", () => {

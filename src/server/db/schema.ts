@@ -221,6 +221,13 @@ export const orders = createTable(
      */
     confirmationEmailSentAt: d.timestamp({ withTimezone: true }),
     notificationEmailSentAt: d.timestamp({ withTimezone: true }),
+    /**
+     * Identifies the shipping confirmation owed for the current fulfillment:
+     * minted on each pending → fulfilled transition and reused by retries as
+     * the Resend idempotency key, so a retry after a transport failure can
+     * never deliver the same notice twice.
+     */
+    shippingEmailAttemptId: d.varchar({ length: 36 }),
     /** When Resend accepted the customer shipping confirmation email. */
     shippedEmailSentAt: d.timestamp({ withTimezone: true }),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),

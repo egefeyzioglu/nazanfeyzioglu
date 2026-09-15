@@ -215,6 +215,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "shippingEmailAttemptId": {
+          "name": "shippingEmailAttemptId",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "shippedEmailSentAt": {
           "name": "shippedEmailSentAt",
           "type": "timestamp with time zone",

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { type TrackingCarrier } from "src/lib/orders";
 import {
@@ -59,6 +59,7 @@ export async function fulfillOrder(input: {
       fulfillmentStatus: "fulfilled",
       trackingCarrier: input.trackingCarrier,
       trackingNumber,
+      shippingEmailAttemptId: crypto.randomUUID(),
       shippedEmailSentAt: null,
     })
     .where(
@@ -103,6 +104,12 @@ async function sendShippingForOrder(
   if (!emailConfigured()) {
     return { order, shippingEmail: "not_configured" };
   }
+  if (order.shippedEmailSentAt) {
+    return { order, shippingEmail: "already_sent" };
+  }
+  // Orders fulfilled before attempt ids existed get one on first send.
+  const attemptId =
+    order.shippingEmailAttemptId ?? (await assignAttemptId(order.id));
   const data: ShippingEmailData = {
     orderId: order.id,
     stripeCheckoutSessionId: order.stripeCheckoutSessionId,
@@ -113,27 +120,40 @@ async function sendShippingForOrder(
     shippingAddress: order.shippingAddress,
     trackingCarrier: order.trackingCarrier,
     trackingNumber: order.trackingNumber,
+    attemptId,
   };
-  // Claim the send before calling Resend so two concurrent requests (two
-  // admins, or a stale tab retrying) cannot both email the buyer. A failed
-  // delivery releases the claim so the admin can retry.
-  const [claimed] = await db
-    .update(orders)
-    .set({ shippedEmailSentAt: new Date() })
-    .where(and(eq(orders.id, order.id), isNull(orders.shippedEmailSentAt)))
-    .returning();
-  if (!claimed) return { order, shippingEmail: "already_sent" };
-
+  // No claim is taken before the send: the attempt id makes the Resend call
+  // idempotent, so a retry after an uncertain failure (or two admins clicking
+  // at once) cannot deliver the notice twice, and the sent timestamp is only
+  // recorded once Resend has actually accepted the message.
   const accepted = await sendShippingEmail(data, await getContent());
-  if (accepted) return { order: claimed, shippingEmail: "sent" };
-
-  const [released] = await db
+  if (!accepted) {
+    return {
+      order: { ...order, shippingEmailAttemptId: attemptId },
+      shippingEmail: "failed",
+    };
+  }
+  const shippedEmailSentAt = new Date();
+  const [updated] = await db
     .update(orders)
-    .set({ shippedEmailSentAt: null })
+    .set({ shippedEmailSentAt })
     .where(eq(orders.id, order.id))
     .returning();
   return {
-    order: released ?? { ...claimed, shippedEmailSentAt: null },
-    shippingEmail: "failed",
+    order: updated ?? {
+      ...order,
+      shippingEmailAttemptId: attemptId,
+      shippedEmailSentAt,
+    },
+    shippingEmail: "sent",
   };
+}
+
+async function assignAttemptId(orderId: number): Promise<string> {
+  const attemptId = crypto.randomUUID();
+  await db
+    .update(orders)
+    .set({ shippingEmailAttemptId: attemptId })
+    .where(eq(orders.id, orderId));
+  return attemptId;
 }

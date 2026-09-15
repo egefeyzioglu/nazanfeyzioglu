@@ -62,6 +62,8 @@ export type ShippingEmailData = {
   shippingAddress: ShippingDetails | null;
   trackingCarrier: TrackingCarrier | null;
   trackingNumber: string | null;
+  /** Stable per-fulfillment id; see orders.shippingEmailAttemptId. */
+  attemptId: string;
 };
 
 /**
@@ -146,7 +148,9 @@ export async function sendOrderEmails(
 
 /**
  * Sends the shipping confirmation. Resolves true when Resend accepted it;
- * never throws (failures are logged). Returns false when email is not configured.
+ * never throws (failures are logged). Returns false when email is not
+ * configured. The attempt id is the idempotency key, so retrying after a
+ * failure that Resend had in fact accepted does not deliver a duplicate.
  */
 export async function sendShippingEmail(
   order: ShippingEmailData,
@@ -154,12 +158,17 @@ export async function sendShippingEmail(
 ): Promise<boolean> {
   if (!emailConfigured()) return false;
   const replyTo = env.ORDER_NOTIFICATION_EMAIL ?? content["contact.email"];
-  return deliver("shipping confirmation", order.orderId, {
-    to: order.customerEmail,
-    ...(replyTo && { replyTo }),
-    subject: `Your order has shipped — ${describeItem(order)}`,
-    ...renderShippingEmail(order),
-  });
+  return deliver(
+    "shipping confirmation",
+    order.orderId,
+    {
+      to: order.customerEmail,
+      ...(replyTo && { replyTo }),
+      subject: `Your order has shipped — ${describeItem(order)}`,
+      ...renderShippingEmail(order),
+    },
+    { idempotencyKey: `order-shipped/${order.attemptId}` },
+  );
 }
 
 type Message = {
