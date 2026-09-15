@@ -67,8 +67,9 @@ export const env = createEnv({
      */
     VERCEL_URL: z.string().optional(),
     /**
-     * Resend API key (re_…) for order emails: a confirmation to the buyer
-     * and a new-order notification to the seller. Optional so the site works
+     * Resend API key (re_…) for order emails: a confirmation to the buyer,
+     * shipping confirmations, and a new-order notification to the seller.
+     * Optional so the site works
      * before Resend is configured — orders are still recorded, just not
      * emailed.
      */

@@ -25,6 +25,7 @@ function load(path, dependencies = {}) {
     Error,
     Buffer,
     URL,
+    Date,
     crypto,
     require: (id) =>
       Object.hasOwn(dependencies, id) ? dependencies[id] : require(id),
@@ -47,6 +48,8 @@ function setup({ verifySignatures = false } = {}) {
     emailFailure: null,
     /** When set, the mocked Resend client rejects sends to this address. */
     rejectTo: null,
+    /** When set, awaited by the mocked Resend client mid-send (once). */
+    onSend: null,
     /** CMS content overrides applied on top of the defaults. */
     content: {},
     event: null,
@@ -93,8 +96,13 @@ function setup({ verifySignatures = false } = {}) {
       "customerName",
       "shippingAddress",
       "fulfillmentStatus",
+      "trackingCarrier",
+      "trackingNumber",
       "confirmationEmailSentAt",
       "notificationEmailSentAt",
+      "shippingEmailAttemptId",
+      "shippedEmailSentAt",
+      "createdAt",
     ]),
     works: fields(["id", "title"]),
     prints: fields(["id", "title", "editionSize"]),
@@ -114,8 +122,16 @@ function setup({ verifySignatures = false } = {}) {
         conditions.every((condition) => condition(row)),
     sql: (strings, ...values) => ({ strings, values }),
   };
+  const wherePredicate = (where) => {
+    if (!where) return () => true;
+    return where.length >= 2 ? where(schema.orders, orm) : where;
+  };
   const db = {
     query: {
+      orders: {
+        findFirst: async (query = {}) =>
+          state.rows.find(wherePredicate(query.where)) ?? null,
+      },
       works: { findFirst: async () => state.work },
       prints: { findFirst: async () => state.print },
     },
@@ -183,6 +199,11 @@ function setup({ verifySignatures = false } = {}) {
               id: state.rows.length + 1,
               paymentStatus: "paid",
               fulfillmentStatus: "pending",
+              trackingCarrier: null,
+              trackingNumber: null,
+              shippingEmailAttemptId: null,
+              shippedEmailSentAt: null,
+              createdAt: new Date(),
               ...values,
             };
             state.rows.push(row);
@@ -200,12 +221,14 @@ function setup({ verifySignatures = false } = {}) {
           const result = Promise.resolve();
           result.returning = async (projection) =>
             matched.map((row) =>
-              Object.fromEntries(
-                Object.entries(projection).map(([key, field]) => [
-                  key,
-                  row[field],
-                ]),
-              ),
+              projection
+                ? Object.fromEntries(
+                    Object.entries(projection).map(([key, field]) => [
+                      key,
+                      row[field],
+                    ]),
+                  )
+                : { ...row },
             );
           return result;
         },
@@ -240,6 +263,11 @@ function setup({ verifySignatures = false } = {}) {
         emails = {
           send: async (payload, options) => {
             if (state.emailFailure instanceof Error) throw state.emailFailure;
+            if (state.onSend) {
+              const hook = state.onSend;
+              state.onSend = null;
+              await hook(payload);
+            }
             if (payload.to === state.rejectTo) {
               return {
                 data: null,
@@ -304,6 +332,8 @@ function setup({ verifySignatures = false } = {}) {
   const inventory = load("src/server/orders.ts", dependencies);
   dependencies["src/server/orders"] = inventory;
   dependencies["src/server/email"] = load("src/server/email.ts", dependencies);
+  const fulfillment = load("src/server/fulfillment.ts", dependencies);
+  dependencies["src/server/fulfillment"] = fulfillment;
   const checkout = load("src/app/api/checkout/route.ts", dependencies);
   const webhook = load("src/app/api/stripe/webhook/route.ts", dependencies);
   const dispatch = (payload = "test", signature = "test") =>
@@ -377,6 +407,14 @@ function setup({ verifySignatures = false } = {}) {
       };
       return dispatchEvent();
     },
+    fulfill: (id, tracking = {}) =>
+      fulfillment.fulfillOrder({
+        id,
+        trackingCarrier: tracking.trackingCarrier ?? null,
+        trackingNumber: tracking.trackingNumber ?? null,
+      }),
+    resendShipping: (id) => fulfillment.resendShippingEmail(id),
+    revert: (id) => fulfillment.revertFulfillment(id),
   };
 }
 
@@ -635,6 +673,270 @@ test("print confirmations carry the CMS preparation copy; oversold orders warn t
   assert.equal(app.state.rows[2].fulfillmentStatus, "oversold");
   assert.match(app.state.emails[5].subject, /^OVERSOLD — New order #3/);
   assert.match(app.state.emails[5].text, /Refund it in the Stripe Dashboard/);
+});
+
+test("fulfilling a paid print order sends shipping tracking to the buyer", async () => {
+  const app = setup();
+  await app.pay("print");
+  app.state.emails.length = 0;
+
+  const result = await app.fulfill(1, {
+    trackingCarrier: "canada_post",
+    trackingNumber: "CP 123",
+  });
+  assert.equal(result.shippingEmail, "sent");
+  assert.equal(app.state.emails.length, 1);
+
+  const row = app.state.rows[0];
+  assert.equal(row.fulfillmentStatus, "fulfilled");
+  assert.equal(row.trackingCarrier, "canada_post");
+  assert.equal(row.trackingNumber, "CP 123");
+  assert.ok(row.shippedEmailSentAt instanceof Date);
+
+  const email = app.state.emails[0];
+  const url =
+    "https://www.canadapost-postescanada.ca/track-reperage/en#/search?searchFor=CP%20123";
+  assert.equal(email.to, "buyer@example.com");
+  assert.match(email.subject, /^Your order has shipped/);
+  assert.match(email.text, /CP 123/);
+  assert.match(email.text, /Canada Post/);
+  assert.match(email.text, /https:\/\/www\.canadapost-postescanada\.ca/);
+  assert.ok(email.html.includes(`<a href="${url}">`));
+  // The fulfillment's attempt id keys the send so retries cannot duplicate it.
+  assert.match(row.shippingEmailAttemptId, /^[0-9a-f-]{36}$/);
+  assert.equal(email.idempotencyKey, `order-shipped/${row.shippingEmailAttemptId}`);
+
+  // A double-submit finds the order already fulfilled and sends nothing.
+  const repeat = await app.fulfill(1, {
+    trackingCarrier: "canada_post",
+    trackingNumber: "CP 123",
+  });
+  assert.equal(repeat.shippingEmail, "not_applicable");
+  assert.equal(app.state.emails.length, 1);
+  // Nor does a retry once the email is on record.
+  const retry = await app.resendShipping(1);
+  assert.equal(retry.shippingEmail, "already_sent");
+  assert.equal(app.state.emails.length, 1);
+  assert.equal(await app.fulfill(99, {}), null);
+
+  // Re-fulfilling after "Mark pending" (e.g. a corrected tracking number)
+  // is a fresh shipment notice.
+  row.fulfillmentStatus = "pending";
+  const again = await app.fulfill(1, {
+    trackingCarrier: "ups",
+    trackingNumber: "1Z",
+  });
+  assert.equal(again.shippingEmail, "sent");
+  assert.equal(app.state.emails.length, 2);
+  assert.match(app.state.emails[1].text, /1Z/);
+  // …under a fresh idempotency key, so Resend does not swallow it.
+  assert.notEqual(app.state.emails[1].idempotencyKey, email.idempotencyKey);
+  assert.equal(
+    app.state.emails[1].idempotencyKey,
+    `order-shipped/${row.shippingEmailAttemptId}`,
+  );
+});
+
+test("only paid pending orders can be fulfilled; only fulfilled ones reverted", async () => {
+  const oversold = setup();
+  oversold.state.print.editionSize = 0;
+  await oversold.pay("print");
+  oversold.state.emails.length = 0;
+  assert.equal(oversold.state.rows[0].fulfillmentStatus, "oversold");
+  const result = await oversold.fulfill(1, { trackingCarrier: "ups" });
+  assert.equal(result.shippingEmail, "not_applicable");
+  assert.equal(oversold.state.rows[0].fulfillmentStatus, "oversold");
+  assert.equal(oversold.state.emails.length, 0);
+  // An oversold order cannot be laundered through "pending" either.
+  assert.equal(await oversold.revert(1), null);
+  assert.equal(oversold.state.rows[0].fulfillmentStatus, "oversold");
+
+  // A refunded order never ships.
+  const refunded = setup();
+  await refunded.pay("print");
+  await refunded.refund("cs_1", 190000);
+  refunded.state.emails.length = 0;
+  const refundedResult = await refunded.fulfill(1, { trackingCarrier: "ups" });
+  assert.equal(refundedResult.shippingEmail, "not_applicable");
+  assert.equal(refunded.state.rows[0].fulfillmentStatus, "pending");
+  assert.equal(refunded.state.emails.length, 0);
+
+  // Pending → pending is a no-op; fulfilled → pending keeps the courier details.
+  const app = setup();
+  await app.pay("print");
+  app.state.locks.length = 0;
+  assert.equal(await app.revert(1), null);
+  await app.fulfill(1, { trackingCarrier: "ups", trackingNumber: "1Z" });
+  const reverted = await app.revert(1);
+  assert.equal(reverted.fulfillmentStatus, "pending");
+  assert.equal(reverted.trackingNumber, "1Z");
+  assert.equal(await app.revert(99), null);
+  await app.resendShipping(1);
+  // Every fulfillment action takes the per-order advisory lock, which is what
+  // keeps a resend from racing a concurrent revert.
+  // (A fulfilment is two locked transactions: the committed transition,
+  // then the delivery, so a rollback of the latter cannot lose the attempt
+  // id that keys the Resend call.)
+  assert.equal(app.state.locks.length, 6);
+  for (const lock of app.state.locks) {
+    assert.match(lock.strings.join("?"), /pg_advisory_xact_lock/);
+    assert.equal(lock.values[0], "nazanfeyzioglu_order_fulfillment");
+  }
+  assert.deepEqual(
+    app.state.locks.map((lock) => lock.values[1]),
+    [1, 1, 1, 1, 99, 1],
+  );
+});
+
+test("a send that outlives a revert and re-fulfilment does not mark the new attempt sent", async () => {
+  const app = setup();
+  await app.pay("print");
+  app.state.emails.length = 0;
+  const row = app.state.rows[0];
+  let nested;
+  // While the first attempt's Resend call is in flight, the admin reverts
+  // the order and fulfils it again; that second attempt's delivery fails.
+  app.state.onSend = async () => {
+    await app.revert(1);
+    app.state.emailFailure = new Error("network down");
+    nested = await app.fulfill(1, { trackingCarrier: "fedex", trackingNumber: "FX" });
+    app.state.emailFailure = null;
+  };
+  const first = await app.fulfill(1, { trackingCarrier: "ups", trackingNumber: "1Z" });
+  // In Postgres the per-order advisory lock serializes these three calls
+  // (the mock does not), so the interleaving is defense in depth here.
+  assert.equal(nested.shippingEmail, "failed");
+  assert.equal(first.shippingEmail, "not_applicable");
+  assert.equal(app.state.emails.length, 1);
+  // The row reflects the newer attempt, still owed its email.
+  assert.equal(row.trackingNumber, "FX");
+  assert.equal(row.shippedEmailSentAt, null);
+  assert.equal(row.shippingEmailAttemptId, nested.order.shippingEmailAttemptId);
+  assert.notEqual(
+    app.state.emails[0].idempotencyKey,
+    `order-shipped/${row.shippingEmailAttemptId}`,
+  );
+});
+
+test("shipping emails handle blank tracking and unlinked couriers", async () => {
+  const blank = setup();
+  await blank.pay("print");
+  blank.state.emails.length = 0;
+  const blankResult = await blank.fulfill(1, {
+    trackingCarrier: "canada_post",
+    trackingNumber: "   ",
+  });
+  assert.equal(blankResult.shippingEmail, "sent");
+  assert.equal(blank.state.rows[0].trackingCarrier, "canada_post");
+  assert.equal(blank.state.rows[0].trackingNumber, null);
+  assert.match(
+    blank.state.emails[0].text,
+    /courier did not provide a tracking number/,
+  );
+
+  const other = setup();
+  await other.pay("print");
+  other.state.emails.length = 0;
+  const otherResult = await other.fulfill(1, {
+    trackingCarrier: "other",
+    trackingNumber: "LOCAL-1",
+  });
+  assert.equal(otherResult.shippingEmail, "sent");
+  assert.match(other.state.emails[0].text, /LOCAL-1/);
+  assert.match(other.state.emails[0].text, /Other courier/);
+  assert.doesNotMatch(other.state.emails[0].text, /Track your shipment:/);
+  assert.doesNotMatch(other.state.emails[0].html, /<a href=/);
+});
+
+test("shipping fulfillment skips ineligible orders and retries failed email", async () => {
+  const digital = setup();
+  digital.state.work.digital = true;
+  await digital.pay("digital");
+  digital.state.emails.length = 0;
+  const digitalResult = await digital.fulfill(1, {
+    trackingCarrier: null,
+    trackingNumber: null,
+  });
+  assert.equal(digitalResult.shippingEmail, "not_applicable");
+  assert.equal(digital.state.emails.length, 0);
+
+  const anonymous = setup();
+  await anonymous.pay("original", "cs_anon", {
+    customer_details: { email: null, name: null },
+  });
+  anonymous.state.emails.length = 0;
+  const anonymousResult = await anonymous.fulfill(1, {
+    trackingCarrier: "ups",
+    trackingNumber: "1Z",
+  });
+  assert.equal(anonymousResult.shippingEmail, "no_customer_email");
+  assert.equal(anonymous.state.emails.length, 0);
+
+  const failed = setup();
+  await failed.pay("print");
+  failed.state.emails.length = 0;
+  failed.state.emailFailure = new Error("network down");
+  const failedResult = await failed.fulfill(1, {
+    trackingCarrier: "fedex",
+    trackingNumber: "FX1",
+  });
+  assert.equal(failedResult.shippingEmail, "failed");
+  assert.equal(failed.state.rows[0].fulfillmentStatus, "fulfilled");
+  assert.equal(failed.state.rows[0].shippedEmailSentAt, null);
+  assert.equal(failed.state.emails.length, 0);
+  const attemptId = failed.state.rows[0].shippingEmailAttemptId;
+  assert.ok(attemptId);
+
+  // The retry reuses the attempt id: had the failure been a lost response to
+  // a message Resend did accept, the same idempotency key makes it a no-op.
+  failed.state.emailFailure = null;
+  const resendResult = await failed.resendShipping(1);
+  assert.equal(resendResult.shippingEmail, "sent");
+  assert.ok(failed.state.rows[0].shippedEmailSentAt instanceof Date);
+  assert.equal(failed.state.emails.length, 1);
+  assert.equal(failed.state.emails[0].idempotencyKey, `order-shipped/${attemptId}`);
+
+  // Orders fulfilled before attempt ids existed get one on first send.
+  const legacy = setup();
+  await legacy.pay("print");
+  legacy.state.emails.length = 0;
+  Object.assign(legacy.state.rows[0], {
+    fulfillmentStatus: "fulfilled",
+    shippingEmailAttemptId: null,
+  });
+  // Two concurrent retries must share one id (and so one Resend
+  // idempotency key) rather than each minting its own.
+  const [legacyA, legacyB] = await Promise.all([
+    legacy.resendShipping(1),
+    legacy.resendShipping(1),
+  ]);
+  // Serialized by the lock, one sends and the other either finds the email
+  // already recorded or (in this unserialized mock) sends under the same
+  // key, which Resend deduplicates.
+  const outcomes = [legacyA.shippingEmail, legacyB.shippingEmail];
+  assert.ok(outcomes.includes("sent"), outcomes.join());
+  assert.ok(
+    outcomes.every((o) => o === "sent" || o === "already_sent"),
+    outcomes.join(),
+  );
+  const legacyId = legacy.state.rows[0].shippingEmailAttemptId;
+  assert.ok(legacyId);
+  assert.ok(legacy.state.emails.length >= 1);
+  for (const sent of legacy.state.emails) {
+    assert.equal(sent.idempotencyKey, `order-shipped/${legacyId}`);
+  }
+});
+
+test("tracking carrier helpers label couriers and build encoded links", () => {
+  const { carrierLabel, trackingUrl } = load("src/lib/orders.ts");
+  assert.equal(carrierLabel("canada_post"), "Canada Post");
+  assert.equal(trackingUrl("ups", null), null);
+  assert.equal(trackingUrl("ups", "   "), null);
+  assert.equal(trackingUrl("other", "LOCAL 1"), null);
+  assert.equal(
+    trackingUrl("ups", "1Z 999"),
+    "https://www.ups.com/track?tracknum=1Z%20999",
+  );
 });
 
 test("failed delivery records the order but asks Stripe to retry; unconfigured email acks", async () => {

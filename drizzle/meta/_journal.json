@@ -43,6 +43,13 @@
       "when": 1789407078268,
       "tag": "0005_order-emails",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789498742068,
+      "tag": "0006_order-tracking",
+      "breakpoints": true
     }
   ]
 }

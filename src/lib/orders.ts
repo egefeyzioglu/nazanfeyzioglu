@@ -25,6 +25,70 @@ export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
 /** A stored fulfillment status, or `no_action` for refunded orders that never shipped. */
 export type EffectiveFulfillment = FulfillmentStatus | "no_action";
 
+export const TRACKING_CARRIERS = [
+  {
+    id: "canada_post",
+    label: "Canada Post",
+    trackingUrl: (n) =>
+      `https://www.canadapost-postescanada.ca/track-reperage/en#/search?searchFor=${encodeURIComponent(n)}`,
+  },
+  {
+    id: "ups",
+    label: "UPS",
+    trackingUrl: (n) =>
+      `https://www.ups.com/track?tracknum=${encodeURIComponent(n)}`,
+  },
+  {
+    id: "fedex",
+    label: "FedEx",
+    trackingUrl: (n) =>
+      `https://www.fedex.com/fedextrack/?trknbr=${encodeURIComponent(n)}`,
+  },
+  {
+    id: "purolator",
+    label: "Purolator",
+    trackingUrl: (n) =>
+      `https://www.purolator.com/en/shipping/tracker?pin=${encodeURIComponent(n)}`,
+  },
+  {
+    id: "dhl",
+    label: "DHL Express",
+    trackingUrl: (n) =>
+      `https://www.dhl.com/en/express/tracking.html?AWB=${encodeURIComponent(n)}`,
+  },
+  {
+    id: "usps",
+    label: "USPS",
+    trackingUrl: (n) =>
+      `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(n)}`,
+  },
+  { id: "other", label: "Other courier", trackingUrl: null },
+] as const satisfies readonly {
+  id: string;
+  label: string;
+  trackingUrl: ((n: string) => string) | null;
+}[];
+export type TrackingCarrier = (typeof TRACKING_CARRIERS)[number]["id"];
+export const TRACKING_CARRIER_IDS = TRACKING_CARRIERS.map((c) => c.id) as [
+  TrackingCarrier,
+  ...TrackingCarrier[],
+];
+
+export function carrierLabel(id: TrackingCarrier): string {
+  return TRACKING_CARRIERS.find((carrier) => carrier.id === id)?.label ?? id;
+}
+
+/** Courier tracking page for the shipment, or null when unknown carrier / no number. */
+export function trackingUrl(
+  carrier: TrackingCarrier | null,
+  trackingNumber: string | null,
+): string | null {
+  const number = trackingNumber?.trim();
+  if (!carrier || !number) return null;
+  const match = TRACKING_CARRIERS.find((option) => option.id === carrier);
+  return match?.trackingUrl?.(number) ?? null;
+}
+
 /**
  * What the admin should see and do about an order's fulfillment. A fully
  * refunded order that was never fulfilled (or was flagged oversold) needs no
