@@ -132,6 +132,21 @@ Recommended Sentry alerts:
 - A separate new issue alert for `area:stripe-webhook environment:production`,
   also routed to email or Slack.
 
+To check that events reach Sentry, call the smoke-test route. It reports a
+synthetic failure through the same code path as the webhook, waits for the
+SDK to flush, and returns a `testId` to search for in Sentry:
+
+```bash
+curl -s https://<preview-host>/api/sentry-test | jq          # 200, event tagged stripe_event_type:sentry.test
+curl -s -o /dev/null -w '%{http_code}\n' 'https://<preview-host>/api/sentry-test?mode=throw'   # 500, unhandled route error
+```
+
+The route answers 404 unless `SENTRY_DSN` is set. On production it also
+requires `SENTRY_TEST_TOKEN` in the environment and the same value in an
+`x-sentry-test-token` request header. Both test events count towards the
+alert rules above, so run them on a preview deployment unless you want to
+confirm the production alert routing.
+
 To trigger test failures in a non-production environment with the Stripe CLI:
 
 ```bash

@@ -20,6 +20,7 @@ function load(path, dependencies = {}) {
     exports,
     console,
     Error,
+    Buffer,
     URL,
     crypto,
     require: (id) =>
@@ -736,6 +737,46 @@ test("webhook telemetry redacts secrets and customer emails and bounds length", 
     message: "[redacted-key]",
     request: { url: "/x" },
     exception: { values: [{ value: "No such session for [email]" }] },
-    breadcrumbs: [{ message: "[redacted-auth]" }, { message: "[redacted-auth]" }],
+    breadcrumbs: [
+      { message: "[redacted-auth]" },
+      { message: "[redacted-auth]" },
+    ],
   });
+});
+
+test("sentry test route is open outside production and token-gated in production", () => {
+  const { sentryTestAllowed } = load("src/lib/sentry-test-guard.ts");
+  const token = "0123456789abcdef";
+  assert.equal(
+    sentryTestAllowed({
+      environment: "preview",
+      token: undefined,
+      provided: null,
+    }),
+    true,
+  );
+  assert.equal(
+    sentryTestAllowed({
+      environment: "production",
+      token: undefined,
+      provided: token,
+    }),
+    false,
+  );
+  assert.equal(
+    sentryTestAllowed({ environment: "production", token, provided: null }),
+    false,
+  );
+  assert.equal(
+    sentryTestAllowed({
+      environment: "production",
+      token,
+      provided: token + "x",
+    }),
+    false,
+  );
+  assert.equal(
+    sentryTestAllowed({ environment: "production", token, provided: token }),
+    true,
+  );
 });

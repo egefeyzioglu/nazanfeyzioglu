@@ -52,6 +52,12 @@ export const env = createEnv({
      */
     SENTRY_DSN: z.string().url().optional(),
     /**
+     * Shared secret that unlocks GET /api/sentry-test in production (sent as
+     * the x-sentry-test-token header). Outside production the route only
+     * requires SENTRY_DSN.
+     */
+    SENTRY_TEST_TOKEN: z.string().min(16).optional(),
+    /**
      * Vercel deployment environment, injected automatically on Vercel.
      */
     VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
@@ -104,6 +110,7 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     SITE_URL: process.env.SITE_URL,
     SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_TEST_TOKEN: process.env.SENTRY_TEST_TOKEN,
     VERCEL_ENV: process.env.VERCEL_ENV,
     VERCEL_URL: process.env.VERCEL_URL,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
