@@ -7,8 +7,10 @@ import ts from "typescript";
 import Stripe from "stripe";
 
 const require = createRequire(import.meta.url);
-// Exercise the real route handlers with in-memory database and Stripe boundaries.
-// These tests do not simulate PostgreSQL locking or contact payment services.
+/**
+ * Load real TypeScript modules with isolated database and service boundaries.
+ * These tests do not simulate PostgreSQL locking or contact payment services.
+ */
 function load(path, dependencies = {}) {
   const exports = {};
   const { outputText } = ts.transpileModule(readFileSync(path, "utf8"), {
@@ -30,6 +32,7 @@ function load(path, dependencies = {}) {
   return exports;
 }
 
+/** Create isolated commerce fixtures, optionally using local Stripe signature verification. */
 function setup({ verifySignatures = false } = {}) {
   const state = {
     stripeConfigured: true,
@@ -963,6 +966,7 @@ test("print checkout limits quantity to remaining stock or ten for open editions
   }
 });
 
+/** Build consistent Stripe line-item and amount fixtures for multi-copy print purchases. */
 function printSession(quantity) {
   return {
     amount_total: quantity * 10000,
