@@ -41,7 +41,7 @@ export default function SidebarBody({
     <aside className="border-line bg-paper z-10 flex flex-col justify-between border-b px-9 py-6 md:fixed md:top-0 md:left-0 md:h-screen md:w-[280px] md:border-r md:border-b-0 md:px-[38px] md:py-[46px]">
       <div>
         <div className="flex items-start justify-between gap-4">
-          <Link href="/" className="block">
+          <Link href="/" className="block flex-1">
             <div className="font-spectral text-[29px] leading-none font-light tracking-[-0.01em]">
               Nazan
               <br />
