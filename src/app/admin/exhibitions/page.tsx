@@ -70,7 +70,7 @@ export default function AdminExhibitionsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Content"
+        eyebrow="Website content"
         title="Exhibitions"
         description="Solo shows and art fairs. Order within each section sets how they appear on the site."
         actions={

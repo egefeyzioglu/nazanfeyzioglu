@@ -21,6 +21,7 @@ export default function AdminOriginalsPage() {
   return (
     <div>
       <PageHeader
+        eyebrow="Store management"
         title="Originals"
         description="One-of-a-kind works with free shipping within Canada. Set a price to enable checkout; leave it blank for inquiries. Manage purchases and fulfillment in Orders."
         actions={

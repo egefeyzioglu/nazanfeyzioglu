@@ -22,7 +22,7 @@ export function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className={labelCls}>{label}</span>
       {children}
     </label>
@@ -59,7 +59,9 @@ export function PageHeader({
         )}
       </div>
       {actions && (
-        <div className="flex flex-none items-center gap-3">{actions}</div>
+        <div className="flex max-w-full flex-wrap items-center gap-3">
+          {actions}
+        </div>
       )}
     </div>
   );
@@ -94,7 +96,7 @@ export function Button({
       onClick={onClick}
       onMouseDown={onMouseDown}
       disabled={disabled}
-      className={`cursor-pointer rounded-md px-4 py-2.5 font-mono text-[11px] tracking-[0.12em] uppercase transition disabled:cursor-default disabled:opacity-40 ${styles}`}
+      className={`min-h-11 cursor-pointer rounded-md px-4 py-2.5 font-mono text-[11px] tracking-[0.12em] uppercase transition disabled:cursor-default disabled:opacity-40 ${styles}`}
     >
       {children}
     </button>
@@ -114,7 +116,7 @@ export function RowControls({
   disabled?: boolean;
 }) {
   const base =
-    "grid h-7 w-7 cursor-pointer place-items-center rounded-md border border-line-2 bg-white font-mono text-[12px] text-stone transition disabled:cursor-default disabled:opacity-30";
+    "grid h-11 w-11 sm:h-9 sm:w-9 cursor-pointer place-items-center rounded-md border border-line-2 bg-white font-mono text-[12px] text-stone transition disabled:cursor-default disabled:opacity-30";
   const btn = `${base} hover:border-clay hover:text-clay`;
   const btnDanger = `${base} hover:border-red-700 hover:text-red-700`;
   return (
@@ -180,8 +182,8 @@ export function CollapsibleRowCard({
       <div
         className={`grid items-center gap-4 ${
           thumb
-            ? "grid-cols-[56px_minmax(0,1fr)_auto] p-3"
-            : "grid-cols-[minmax(0,1fr)_auto] p-4"
+            ? "grid-cols-[56px_minmax(0,1fr)] p-3 sm:grid-cols-[56px_minmax(0,1fr)_auto]"
+            : "grid-cols-[minmax(0,1fr)] p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
         }`}
       >
         {thumb}
@@ -191,13 +193,13 @@ export function CollapsibleRowCard({
             {subtitle}
           </div>
         </div>
-        <div className="flex items-center gap-3 pr-1">
+        <div className="col-span-full flex flex-wrap items-center justify-end gap-3 sm:col-span-1">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
             aria-controls={contentId}
-            className="hover-clay text-stone cursor-pointer font-mono text-[11px] tracking-[0.1em] uppercase"
+            className="hover-clay text-stone min-h-11 cursor-pointer px-2 font-mono text-[11px] tracking-[0.1em] uppercase"
           >
             {open ? "Close" : "Edit"}
           </button>
@@ -205,7 +207,7 @@ export function CollapsibleRowCard({
         </div>
       </div>
       {open && (
-        <div id={contentId} className="border-line-soft border-t p-6">
+        <div id={contentId} className="border-line-soft border-t p-4 sm:p-6">
           {children}
         </div>
       )}

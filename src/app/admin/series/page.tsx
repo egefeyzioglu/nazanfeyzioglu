@@ -78,8 +78,8 @@ export default function AdminSeriesPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Content"
-        title="Series"
+        eyebrow="Website content"
+        title="Series & artwork"
         description="Each series groups its own works and prints. Drag order sets how they appear on the home rail."
         actions={
           <Button variant="ghost" onClick={() => setShowForm((v) => !v)}>
@@ -147,7 +147,7 @@ export default function AdminSeriesPage() {
         {rows.map((s, i) => (
           <div
             key={s.id}
-            className={`hover:border-line-2 grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-5 p-3 transition ${cardCls}`}
+            className={`hover:border-line-2 grid grid-cols-[56px_minmax(0,1fr)] items-center gap-5 p-3 transition sm:grid-cols-[72px_minmax(0,1fr)_auto] ${cardCls}`}
           >
             <div className="border-line bg-panel overflow-hidden rounded-lg border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -169,10 +169,10 @@ export default function AdminSeriesPage() {
                 {s.statusNote ? ` · ${s.statusNote}` : ""}
               </div>
             </div>
-            <div className="flex items-center gap-3 pr-1">
+            <div className="col-span-full flex flex-wrap items-center justify-end gap-3 sm:col-span-1">
               <Link
                 href={`/admin/series/${s.id}`}
-                className="hover-clay text-stone font-mono text-[11px] tracking-[0.1em] uppercase"
+                className="hover-clay text-stone inline-flex min-h-11 items-center px-2 font-mono text-[11px] tracking-[0.1em] uppercase"
               >
                 Edit
               </Link>

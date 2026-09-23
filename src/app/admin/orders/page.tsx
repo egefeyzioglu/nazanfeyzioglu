@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Button } from "src/app/admin/_components/ui";
+import { Button, cardCls, PageHeader } from "src/app/admin/_components/ui";
 import FulfillDialog, {
   type FulfillDialogOrder,
 } from "src/app/admin/orders/FulfillDialog";
@@ -96,11 +96,11 @@ export default function AdminOrdersPage() {
 
   return (
     <div>
-      <h1 className="text-[28px] font-light">Orders</h1>
-      <p className="text-stone mt-2 font-mono text-[11px] leading-[1.8]">
-        Fulfillment is tracked here; receipts, refunds and payouts live in the
-        Stripe Dashboard.
-      </p>
+      <PageHeader
+        eyebrow="Store management"
+        title="Orders"
+        description="Manage fulfillment and shipping here. Receipts, refunds and payouts are available in the Stripe Dashboard."
+      />
 
       <div className="mt-6 flex flex-wrap gap-2" aria-label="Filter orders">
         {(
@@ -116,7 +116,7 @@ export default function AdminOrdersPage() {
             type="button"
             aria-pressed={filter === value}
             onClick={() => setFilter(value)}
-            className={`border-line rounded-full border px-3 py-2 font-mono text-[11px] ${filter === value ? "bg-ink text-paper" : "text-stone"}`}
+            className={`border-line min-h-11 rounded-full border px-3 py-2 font-mono text-[11px] ${filter === value ? "bg-ink text-paper" : "text-stone"}`}
           >
             {label} (
             {
@@ -158,7 +158,7 @@ export default function AdminOrdersPage() {
           return (
             <article
               key={order.id}
-              className="border-line border bg-white/40 p-5"
+              className={`${cardCls} min-w-0 p-4 break-words sm:p-5`}
             >
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>

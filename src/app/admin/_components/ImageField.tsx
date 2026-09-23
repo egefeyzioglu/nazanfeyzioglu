@@ -62,7 +62,7 @@ export default function ImageField({
   return (
     <div>
       <span className={labelCls}>{label}</span>
-      <div className="flex items-start gap-4">
+      <div className="flex flex-col items-start gap-4 sm:flex-row">
         <div className="border-line bg-panel w-[110px] flex-none overflow-hidden rounded-lg border">
           {value?.image ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -74,7 +74,7 @@ export default function ImageField({
           )}
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="w-full min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <input
               ref={fileRef}
@@ -97,7 +97,7 @@ export default function ImageField({
             </button>
             <span className="text-ash font-mono text-[10px]">or path:</span>
             <input
-              className={`${inputCls} max-w-[240px] flex-1`}
+              className={`${inputCls} max-w-[240px] min-w-[120px] flex-1`}
               placeholder="/design-assets/….jpg"
               value={manualPath}
               onChange={(e) => setManualPath(e.target.value)}

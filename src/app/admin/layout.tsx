@@ -71,8 +71,14 @@ export default async function AdminLayout({
   return (
     <TRPCReactProvider>
       <div className="bg-paper text-ink min-h-screen">
+        <a
+          href="#admin-content"
+          className="text-clay sr-only z-50 rounded-md bg-white p-3 focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+        >
+          Skip to content
+        </a>
         <header className="border-line bg-paper/85 sticky top-0 z-20 border-b backdrop-blur-md">
-          <div className="mx-auto flex max-w-[1040px] flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 py-3.5 md:px-10">
+          <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3.5 sm:px-6 lg:px-10">
             <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
               <Link
                 href="/admin"
@@ -85,7 +91,6 @@ export default async function AdminLayout({
                   Admin
                 </span>
               </Link>
-              <AdminNav />
             </div>
             <div className="flex items-center gap-4">
               <Link
@@ -104,9 +109,14 @@ export default async function AdminLayout({
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-[1040px] px-6 py-10 md:px-10">
-          {children}
-        </main>
+        <div className="mx-auto grid max-w-[1280px] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-10 lg:px-10 lg:py-10">
+          <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start">
+            <AdminNav />
+          </aside>
+          <main id="admin-content" className="min-w-0">
+            {children}
+          </main>
+        </div>
       </div>
     </TRPCReactProvider>
   );
