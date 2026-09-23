@@ -38,6 +38,7 @@ export const getSeriesBySlug = cache(async (slug: string) => {
       works: { orderBy: (w, { asc }) => [asc(w.position)] },
       prints: {
         columns: { id: true, title: true },
+        where: (p, { isNull }) => isNull(p.parentPrintId),
         orderBy: (p, { asc }) => [asc(p.position)],
       },
     },

@@ -23,12 +23,15 @@ import {
 import { api } from "src/trpc/react";
 import {
   formatPrintSpec,
+  groupPrintVariants,
   getPrintSizes,
   type PrintDimensions,
 } from "src/lib/prints";
 
 type PrintRow = PrintDimensions & {
   id: number;
+  parentPrintId?: number | null;
+  remaining?: number | null;
   title: string;
   image: string;
   imageWidth: number;
@@ -39,7 +42,10 @@ type PrintRow = PrintDimensions & {
   editionSize: number | null;
 };
 
-type PrintFormValues = Omit<PrintRow, "id" | "spec">;
+type PrintFormValues = Omit<
+  PrintRow,
+  "id" | "spec" | "parentPrintId" | "remaining"
+>;
 
 /** Manages print records and their order within each series. */
 export default function AdminPrintsPage() {
@@ -52,6 +58,7 @@ export default function AdminPrintsPage() {
   const del = api.prints.delete.useMutation({ onSuccess: invalidate });
   const reorder = api.prints.reorder.useMutation({ onSuccess: invalidate });
 
+  const [addingVariant, setAddingVariant] = useState<number | null>(null);
   const [addingFor, setAddingFor] = useState<number | null>(null);
 
   if (list.isLoading) {
@@ -73,9 +80,15 @@ export default function AdminPrintsPage() {
         description="Signed limited-edition prints, grouped by series. Create a series first to list prints under it."
       />
 
+      {del.error && (
+        <p role="alert" className="text-red-700">
+          {del.error.message}
+        </p>
+      )}
       <div className="flex flex-col gap-10">
         {(list.data ?? []).map((group) => {
-          const ids = group.prints.map((p) => p.id);
+          const families = groupPrintVariants(group.prints);
+          const ids = families.map((p) => p.id);
           return (
             <section key={group.id}>
               <div className="border-line flex items-baseline justify-between border-b pb-3">
@@ -109,48 +122,102 @@ export default function AdminPrintsPage() {
               )}
 
               <div className="mt-3 flex flex-col gap-3">
-                {group.prints.map((p, i) => (
-                  <PrintCard
-                    key={p.id}
-                    print={p}
-                    pending={update.isPending && update.variables?.id === p.id}
-                    error={
-                      update.variables?.id === p.id
-                        ? update.error?.message
-                        : undefined
-                    }
-                    onSave={(values) => update.mutate({ id: p.id, ...values })}
-                    controls={
-                      <RowControls
-                        onUp={
-                          i > 0
-                            ? () => {
-                                const next = movedIds(ids, i, -1);
-                                if (next)
-                                  reorder.mutate({
-                                    seriesId: group.id,
-                                    ids: next,
-                                  });
-                              }
+                {families.map((family, i) => (
+                  <div key={family.id} className="flex flex-col gap-2">
+                    {family.variants.map((p) => (
+                      <PrintCard
+                        key={p.id}
+                        print={p}
+                        pending={
+                          update.isPending && update.variables?.id === p.id
+                        }
+                        error={
+                          update.variables?.id === p.id
+                            ? update.error?.message
                             : undefined
                         }
-                        onDown={
-                          i < group.prints.length - 1
-                            ? () => {
-                                const next = movedIds(ids, i, 1);
-                                if (next)
-                                  reorder.mutate({
-                                    seriesId: group.id,
-                                    ids: next,
-                                  });
-                              }
-                            : undefined
+                        onSave={(values) =>
+                          update.mutate({ id: p.id, ...values })
                         }
-                        onDelete={() => del.mutate({ id: p.id })}
-                        disabled={reorder.isPending || del.isPending}
+                        controls={
+                          <RowControls
+                            onUp={
+                              p.parentPrintId === null && i > 0
+                                ? () => {
+                                    const next = movedIds(ids, i, -1);
+                                    if (next)
+                                      reorder.mutate({
+                                        seriesId: group.id,
+                                        ids: next,
+                                      });
+                                  }
+                                : undefined
+                            }
+                            onDown={
+                              p.parentPrintId === null &&
+                              i < families.length - 1
+                                ? () => {
+                                    const next = movedIds(ids, i, 1);
+                                    if (next)
+                                      reorder.mutate({
+                                        seriesId: group.id,
+                                        ids: next,
+                                      });
+                                  }
+                                : undefined
+                            }
+                            onDelete={() => del.mutate({ id: p.id })}
+                            disabled={reorder.isPending || del.isPending}
+                          />
+                        }
                       />
-                    }
-                  />
+                    ))}
+                    <div className="ml-5 border-l border-stone-300 pl-4">
+                      <Button
+                        variant="ghost"
+                        onClick={() =>
+                          setAddingVariant(
+                            addingVariant === family.id ? null : family.id,
+                          )
+                        }
+                      >
+                        {addingVariant === family.id
+                          ? "Cancel"
+                          : "+ Add size variant"}
+                      </Button>
+                      {addingVariant === family.id && (
+                        <div className={`mt-3 p-5 ${cardCls}`}>
+                          <p className="mb-4 text-sm">
+                            Add a different size with its own price and edition
+                            stock.
+                          </p>
+                          <PrintForm
+                            key={`variant-${family.id}`}
+                            initial={{
+                              ...family,
+                              imageWidthInches: null,
+                              imageHeightInches: null,
+                              priceCents: null,
+                              editionSize: null,
+                            }}
+                            pending={create.isPending}
+                            error={create.error?.message}
+                            submitLabel="Add size variant"
+                            onSubmit={(values) =>
+                              create.mutate(
+                                {
+                                  ...values,
+                                  seriesId: group.id,
+                                  parentPrintId: family.id,
+                                },
+                                { onSuccess: () => setAddingVariant(null) },
+                              )
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ))}
                 {group.prints.length === 0 && (
                   <p className="text-ash font-mono text-[10.5px]">
@@ -339,10 +406,10 @@ function PrintCard({
           />
         </div>
       }
-      title={print.title}
+      title={`${print.parentPrintId ? "Size variant · " : ""}${print.title}`}
       subtitle={`${formatPrintSpec(print)} · ${print.edition} · ${
         print.priceCents === null ? "$ —" : formatPrice(print.priceCents)
-      }${print.editionSize !== null ? ` · limit ${print.editionSize}` : ""}`}
+      }${print.editionSize !== null ? ` · ${print.remaining ?? print.editionSize} of ${print.editionSize} available` : ""}`}
       controls={controls}
     >
       <PrintForm

@@ -704,7 +704,10 @@ test("fulfilling a paid print order sends shipping tracking to the buyer", async
   assert.ok(email.html.includes(`<a href="${url}">`));
   // The fulfillment's attempt id keys the send so retries cannot duplicate it.
   assert.match(row.shippingEmailAttemptId, /^[0-9a-f-]{36}$/);
-  assert.equal(email.idempotencyKey, `order-shipped/${row.shippingEmailAttemptId}`);
+  assert.equal(
+    email.idempotencyKey,
+    `order-shipped/${row.shippingEmailAttemptId}`,
+  );
 
   // A double-submit finds the order already fulfilled and sends nothing.
   const repeat = await app.fulfill(1, {
@@ -799,10 +802,16 @@ test("a send that outlives a revert and re-fulfilment does not mark the new atte
   app.state.onSend = async () => {
     await app.revert(1);
     app.state.emailFailure = new Error("network down");
-    nested = await app.fulfill(1, { trackingCarrier: "fedex", trackingNumber: "FX" });
+    nested = await app.fulfill(1, {
+      trackingCarrier: "fedex",
+      trackingNumber: "FX",
+    });
     app.state.emailFailure = null;
   };
-  const first = await app.fulfill(1, { trackingCarrier: "ups", trackingNumber: "1Z" });
+  const first = await app.fulfill(1, {
+    trackingCarrier: "ups",
+    trackingNumber: "1Z",
+  });
   // In Postgres the per-order advisory lock serializes these three calls
   // (the mock does not), so the interleaving is defense in depth here.
   assert.equal(nested.shippingEmail, "failed");
@@ -894,7 +903,10 @@ test("shipping fulfillment skips ineligible orders and retries failed email", as
   assert.equal(resendResult.shippingEmail, "sent");
   assert.ok(failed.state.rows[0].shippedEmailSentAt instanceof Date);
   assert.equal(failed.state.emails.length, 1);
-  assert.equal(failed.state.emails[0].idempotencyKey, `order-shipped/${attemptId}`);
+  assert.equal(
+    failed.state.emails[0].idempotencyKey,
+    `order-shipped/${attemptId}`,
+  );
 
   // Orders fulfilled before attempt ids existed get one on first send.
   const legacy = setup();
@@ -1415,9 +1427,8 @@ test("unpaid completion waits for async success and paid event replays settle on
 });
 
 test("digital works link to their print edition by title, else fall back to Contact", () => {
-  const { findMatchingPrint, printHref, printAnchorId } = load(
-    "src/lib/prints.ts",
-  );
+  const { findMatchingPrint, printHref, printAnchorId } =
+    load("src/lib/prints.ts");
   const prints = [
     { id: 7, title: "Carnival 1" },
     { id: 8, title: " carnival  2 " },
@@ -1430,4 +1441,227 @@ test("digital works link to their print edition by title, else fall back to Cont
   assert.equal(findMatchingPrint("Carnival 1", []), null);
   assert.equal(printAnchorId(7), "print-7");
   assert.equal(printHref(7), "/prints#print-7");
+});
+
+test("size variants group under one print while preserving inventory IDs and ordering", () => {
+  const { groupPrintVariants } = load("src/lib/prints.ts");
+  const grouped = groupPrintVariants([
+    { id: 3, parentPrintId: 1, remaining: 0 },
+    { id: 2, parentPrintId: null, remaining: 5 },
+    { id: 1, parentPrintId: null, remaining: 2 },
+  ]);
+  assert.equal(
+    JSON.stringify(grouped.map((p) => [p.id, p.variants.map((v) => v.id)])),
+    "[[2,[2]],[1,[1,3]]]",
+  );
+  assert.equal(grouped[1].variants[0].remaining, 2);
+  assert.equal(grouped[1].variants[1].remaining, 0);
+});
+
+test("variant purchases and refunds consume only the selected size and snapshot its size", async () => {
+  const app = setup();
+  const firstSize = { ...app.state.print };
+  app.state.print = {
+    ...firstSize,
+    id: 2,
+    parentPrintId: 1,
+    imageWidthInches: 12,
+    imageHeightInches: 9,
+    editionSize: 1,
+    priceCents: 5000,
+  };
+  assert.equal((await app.checkout("print", { id: 2 })).status, 200);
+  const product = app.state.sessions[0].line_items[0].price_data.product_data;
+  assert.match(product.name, /9 .* 12 in/);
+  assert.equal(
+    app.state.sessions[0].line_items[0].price_data.unit_amount,
+    5000,
+  );
+  const snapshot = product.name;
+  const paid = {
+    metadata: { itemType: "print", itemId: "2" },
+    line_items: {
+      data: [
+        { quantity: 1, description: snapshot, price: { unit_amount: 5000 } },
+      ],
+    },
+  };
+  app.state.print.title = "Renamed after checkout";
+  assert.equal((await app.pay("print", "cs_variant", paid)).status, 200);
+  assert.equal(app.state.rows[0].printId, 2);
+  assert.equal(app.state.rows[0].itemTitle, snapshot);
+  assert.ok(app.state.emails.every((email) => email.text.includes(snapshot)));
+  assert.equal((await app.checkout("print", { id: 2 })).status, 409);
+  app.state.print = firstSize;
+  assert.equal((await app.checkout("print")).status, 200);
+  assert.equal(
+    app.state.sessions.at(-1).line_items[0].adjustable_quantity.maximum,
+    3,
+  );
+  assert.equal((await app.refund("cs_variant", 190000)).status, 200);
+  assert.equal((await app.inventory.getSoldPrintQuantities([1, 2])).size, 0);
+});
+
+function variantAdmin(rows) {
+  const prints = {
+    id: "id",
+    parentPrintId: "parentPrintId",
+    seriesId: "seriesId",
+    position: "position",
+  };
+  const eq = (key, value) => (row) => row[key] === value;
+  const procedure = {
+    input(schema) {
+      return {
+        mutation(handler) {
+          return (input) =>
+            handler({
+              ctx: { db, userId: "admin" },
+              input: schema.parse(input),
+            });
+        },
+      };
+    },
+    query(handler) {
+      return handler;
+    },
+  };
+  const db = {
+    query: { prints: { findFirst: async ({ where }) => rows.find(where) } },
+    select(projection) {
+      return {
+        from() {
+          return {
+            where(predicate) {
+              const result = Promise.resolve(
+                projection?.max ? [{ max: 0 }] : rows.filter(predicate),
+              );
+              result.for = async () => rows.filter(predicate);
+              return result;
+            },
+          };
+        },
+      };
+    },
+    insert() {
+      return {
+        values(value) {
+          return {
+            returning: async () => {
+              const row = {
+                id: rows.length + 1,
+                parentPrintId: null,
+                ...value,
+              };
+              rows.push(row);
+              return [row];
+            },
+          };
+        },
+      };
+    },
+    update() {
+      return {
+        set(value) {
+          return {
+            where(predicate) {
+              return {
+                returning: async () => {
+                  const row = rows.find(predicate);
+                  Object.assign(row, value);
+                  return [row];
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+    transaction: (run) => run(db),
+  };
+  const { printsRouter } = load("src/server/api/routers/prints.ts", {
+    "drizzle-orm": {
+      eq,
+      and:
+        (...predicates) =>
+        (row) =>
+          predicates.every((p) => p(row)),
+      or:
+        (...predicates) =>
+        (row) =>
+          predicates.some((p) => p(row)),
+      sql: () => ({}),
+    },
+    "src/server/api/trpc": {
+      adminProcedure: procedure,
+      createTRPCRouter: (routes) => routes,
+      uniqueIds: require("zod").z.array(require("zod").z.number()),
+    },
+    "src/server/db/schema": { prints },
+    "src/lib/prints": load("src/lib/prints.ts"),
+    "src/lib/posthog-server": { captureServerEvent() {} },
+    "src/server/orders": {},
+  });
+  return printsRouter;
+}
+
+test("admin validates size variants on creation and edits", async () => {
+  const base = {
+    id: 1,
+    parentPrintId: null,
+    seriesId: 1,
+    title: "Print",
+    image: "/art.jpg",
+    imageWidth: 100,
+    imageHeight: 100,
+    imageWidthInches: 24,
+    imageHeightInches: 18,
+    edition: "Edition of 10",
+    priceCents: 10000,
+    editionSize: 10,
+  };
+  const rows = [{ ...base }];
+  const api = variantAdmin(rows);
+  const variant = {
+    ...base,
+    parentPrintId: 1,
+    imageWidthInches: 12,
+    imageHeightInches: 9,
+  };
+  await assert.rejects(
+    api.create({ ...variant, parentPrintId: 999 }),
+    /Choose a print/,
+  );
+  await assert.rejects(
+    api.create({ ...variant, seriesId: 2 }),
+    /Choose a print/,
+  );
+  await assert.rejects(
+    api.create({ ...base, parentPrintId: 1 }),
+    /different size/,
+  );
+  await assert.rejects(
+    api.create({ ...variant, imageWidthInches: null, imageHeightInches: null }),
+    /both dimensions/,
+  );
+  const created = await api.create(variant);
+  assert.equal(created.id, 2);
+  assert.equal(created.parentPrintId, 1);
+  await assert.rejects(
+    api.create({ ...variant, parentPrintId: 2 }),
+    /Choose a print/,
+  );
+  await assert.rejects(api.update({ ...base, id: 2 }), /different size/);
+  await assert.rejects(
+    api.update({ ...base, imageWidthInches: 12, imageHeightInches: 9 }),
+    /different size/,
+  );
+  await assert.rejects(
+    api.update({ ...base, imageWidthInches: null, imageHeightInches: null }),
+    /both dimensions/,
+  );
+  await assert.rejects(api.delete({ id: 1 }), /Delete the additional sizes/);
+  await api.update({ ...variant, id: 2, editionSize: 5 });
+  assert.equal(rows[1].editionSize, 5);
+  assert.equal(rows[0].editionSize, 10);
 });

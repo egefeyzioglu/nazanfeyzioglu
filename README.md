@@ -58,6 +58,21 @@ Print shipping is a flat **30 CAD per checkout within Canada**, regardless of qu
 
 Prices are set per print (and per digital edition on a work) in the admin panel; items without a price show no buy button. A print's optional **edition size** caps how many copies can be sold — if two buyers race past the check, the later order is flagged **oversold** in `/admin/orders` for a manual refund. Fulfillment (shipping a print, emailing a digital file) is tracked in `/admin/orders`; money — receipts, refunds, payouts — is managed in the Stripe Dashboard.
 
+### Print size variants
+
+In **Admin > Prints**, use **Add size variant** beneath a print. Enter the new
+image dimensions, price, edition description, and edition size. Each size has
+its own inventory ID: purchases, full refunds, and oversold checks affect only
+that size. Existing print IDs and sales remain unchanged. The catalogue groups
+sizes into one entry; the detail dialog offers size choices with individual
+prices and availability. Orders and emails retain the size selected at checkout.
+
+Run `pnpm db:migrate` before deploying this change. Migration `0007_print-variants`
+adds the optional parent print link and widens order titles for size snapshots.
+Remove additional sizes before deleting their parent print. Deleting a size
+preserves existing order snapshots but removes its inventory record; edit its
+edition limit to its sold count to stop new sales while retaining its history.
+
 ### Order emails (Resend)
 
 When the webhook records a paid order it sends two emails through [Resend](https://resend.com): an **order confirmation** to the buyer (item, total, shipping address, and the print preparation copy from **Admin → Pages → Prints**) and a **new-order notification** to the seller (customer details, ship-to address, a link to `/admin/orders`, and an **OVERSOLD** flag when a refund is needed). When an admin clicks **Mark fulfilled** for a physical order, the buyer receives a shipping confirmation with the tracking number and courier tracking link when those details are provided. Until Resend is configured, orders are still recorded but nothing is emailed.
