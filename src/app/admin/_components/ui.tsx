@@ -123,7 +123,7 @@ export function RowControls({
         type="button"
         className={btn}
         onClick={onUp}
-        disabled={disabled ?? !onUp}
+        disabled={disabled || !onUp}
         aria-label="Move up"
       >
         ↑
@@ -132,7 +132,7 @@ export function RowControls({
         type="button"
         className={btn}
         onClick={onDown}
-        disabled={disabled ?? !onDown}
+        disabled={disabled || !onDown}
         aria-label="Move down"
       >
         ↓
