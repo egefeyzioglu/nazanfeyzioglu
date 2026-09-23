@@ -40,9 +40,9 @@ export default function SiteActivity() {
       <div className="border-line mb-6 border-b pb-5">
         <h2 className="font-spectral text-[26px] font-light">Site activity</h2>
         <p className="text-stone mt-3 max-w-[640px] font-mono text-[11px] leading-relaxed">
-          Public-site views and the checkout funnel for the last 30 days, from PostHog.
-          Visits from the admin panel and from admin accounts are left out.
-          Numbers refresh every few minutes.
+          Public-site views and the checkout funnel for the last 30 days, from
+          PostHog. Visits from the admin panel and from admin accounts are left
+          out. Numbers refresh every few minutes.
         </p>
       </div>
 

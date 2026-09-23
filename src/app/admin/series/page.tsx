@@ -26,6 +26,7 @@ function slugify(title: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/** Creates and orders portfolio series and links to their artwork editors. */
 export default function AdminSeriesPage() {
   const utils = api.useUtils();
   const invalidate = () => utils.series.list.invalidate();

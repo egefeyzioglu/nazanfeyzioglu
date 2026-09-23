@@ -14,6 +14,7 @@ export const inputCls =
 export const labelCls =
   "mb-1.5 block font-mono text-[10px] tracking-[0.18em] text-stone uppercase";
 
+/** Associates a visible field label with the form control supplied as children. */
 export function Field({
   label,
   children,
@@ -67,6 +68,7 @@ export function PageHeader({
   );
 }
 
+/** Shared admin action with visual variants, pending-state disabling and touch sizing. */
 export function Button({
   children,
   onClick,

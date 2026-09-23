@@ -29,6 +29,7 @@ type ExhibitionRow = {
 
 type FormValues = Omit<ExhibitionRow, "id">;
 
+/** Creates, edits and reorders exhibition entries within their categories. */
 export default function AdminExhibitionsPage() {
   const utils = api.useUtils();
   const invalidate = () => utils.exhibitions.list.invalidate();

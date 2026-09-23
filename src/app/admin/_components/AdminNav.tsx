@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { adminSections } from "./navigation";
 
+/** Groups admin destinations and collapses navigation on smaller screens. */
 export default function AdminNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -15,6 +16,7 @@ export default function AdminNav() {
       (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
     );
 
+  /** Marks the current destination and closes the mobile menu on selection. */
   function navLink(label: string, href: string) {
     const active =
       pathname === href ||

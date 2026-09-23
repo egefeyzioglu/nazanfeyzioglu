@@ -16,6 +16,7 @@ import {
 } from "src/lib/orders";
 import { api } from "src/trpc/react";
 
+/** Lists original artwork by series for checkout pricing and availability management. */
 export default function AdminOriginalsPage() {
   const list = api.works.originals.useQuery();
   return (

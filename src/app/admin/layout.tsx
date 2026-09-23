@@ -35,6 +35,7 @@ function Notice({
   );
 }
 
+/** Enforces admin access before rendering the shared navigation and workspace shell. */
 export default async function AdminLayout({
   children,
 }: {

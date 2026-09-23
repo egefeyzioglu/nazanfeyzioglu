@@ -5,6 +5,7 @@ import SiteActivity from "./_components/SiteActivity";
 import { adminSections } from "./_components/navigation";
 import { PageHeader } from "./_components/ui";
 
+/** Introduces the store and content workspaces with links to their common tasks. */
 export default function AdminIndexPage() {
   return (
     <div>
