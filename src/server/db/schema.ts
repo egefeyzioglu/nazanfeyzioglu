@@ -1,5 +1,10 @@
 import { relations, sql } from "drizzle-orm";
-import { check, index, pgTableCreator } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  pgTableCreator,
+  type AnyPgColumn,
+} from "drizzle-orm/pg-core";
 
 // Relative import so drizzle-kit and the tsx-run seed script resolve it
 // without tsconfig path aliases.
@@ -95,6 +100,10 @@ export const prints = createTable(
   "print",
   (d) => ({
     id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+    /** Additional sizes share a catalogue entry but retain independent inventory IDs. */
+    parentPrintId: d
+      .integer()
+      .references((): AnyPgColumn => prints.id, { onDelete: "restrict" }),
     seriesId: d
       .integer()
       .notNull()
@@ -127,6 +136,8 @@ export const prints = createTable(
   }),
   (t) => [
     index("print_series_idx").on(t.seriesId),
+    index("print_parent_idx").on(t.parentPrintId),
+    check("print_not_own_parent", sql`"parentPrintId" <> id`),
     check("print_price_cents_positive", sql`"priceCents" > 0`),
     check("print_edition_size_positive", sql`"editionSize" > 0`),
     check(
@@ -201,7 +212,7 @@ export const orders = createTable(
     printId: d.integer().references(() => prints.id, { onDelete: "set null" }),
     workId: d.integer().references(() => works.id, { onDelete: "set null" }),
     /** Snapshot of the item title at purchase time; survives item deletion. */
-    itemTitle: d.varchar({ length: 256 }).notNull(),
+    itemTitle: d.text().notNull(),
     quantity: d.integer().notNull(),
     /** Per-unit price in cents at purchase time. */
     unitAmount: d.integer().notNull(),

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { formatPrintSpec } from "src/lib/prints";
+import { formatPrintSpec, getPrintSizes } from "src/lib/prints";
 import type Stripe from "stripe";
 import { z } from "zod";
 
@@ -147,6 +147,7 @@ async function printLineItem(id: number, origin: string): Promise<ItemResult> {
     return { error: "This edition is sold out", status: 409 };
   }
   const maxQuantity = Math.min(MAX_PRINT_QUANTITY, remaining ?? Infinity);
+  const sizes = getPrintSizes(print);
   // The rate is admin-editable; read it per checkout so a change applies to
   // the next session without a deploy.
   const shippingCents = printShippingCents(await getContent());
@@ -167,7 +168,7 @@ async function printLineItem(id: number, origin: string): Promise<ItemResult> {
         currency: CURRENCY,
         unit_amount: print.priceCents,
         product_data: {
-          name: print.title,
+          name: `${print.title}${sizes ? ` — ${sizes.image}` : ""}`,
           description: `${formatPrintSpec(print)} · ${print.edition}`,
           images: [absoluteImageUrl(print.image, origin)],
         },

@@ -57,3 +57,15 @@ export function findMatchingPrint<T extends { title: string }>(
   const wanted = normalizeTitle(workTitle);
   return prints.find((p) => normalizeTitle(p.title) === wanted) ?? null;
 }
+
+/** Group independent inventory records into a single catalogue entry. */
+export function groupPrintVariants<
+  T extends { id: number; parentPrintId?: number | null },
+>(prints: readonly T[]) {
+  return prints
+    .filter((p) => p.parentPrintId == null)
+    .map((p) => ({
+      ...p,
+      variants: [p, ...prints.filter((v) => v.parentPrintId === p.id)],
+    }));
+}

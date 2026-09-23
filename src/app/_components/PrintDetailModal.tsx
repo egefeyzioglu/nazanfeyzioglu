@@ -2,7 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+
+import { getPrintSizes } from "src/lib/prints";
 
 import BuyButton from "src/app/_components/BuyButton";
 import PrintDetails from "src/app/_components/PrintDetails";
@@ -12,7 +14,7 @@ import { CONTENT_DEFAULTS } from "src/lib/content-keys";
 
 /** Shows a selected print and purchase actions in a modal that restores focus on close. */
 export default function PrintDetailModal({
-  print,
+  print: cataloguePrint,
   content,
   checkoutEnabled,
   onClose,
@@ -22,6 +24,13 @@ export default function PrintDetailModal({
   checkoutEnabled: boolean;
   onClose: () => void;
 }) {
+  const variants = cataloguePrint.variants ?? [cataloguePrint];
+  const [selectedId, setSelectedId] = useState(
+    () =>
+      variants.find((v) => v.remaining !== 0 && v.priceCents !== null)?.id ??
+      cataloguePrint.id,
+  );
+  const print = variants.find((v) => v.id === selectedId) ?? cataloguePrint;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const copy = (key: string) =>
@@ -91,7 +100,37 @@ export default function PrintDetailModal({
           >
             {print.title}
           </h2>
-          <div className="border-line mt-6 border-b pb-6">
+          {variants.length > 1 && (
+            <fieldset className="mt-6">
+              <legend className="text-ash font-mono text-[10px] tracking-[0.14em] uppercase">
+                Image size
+              </legend>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {variants.map((variant) => (
+                  <label
+                    key={variant.id}
+                    className={`cursor-pointer border px-4 py-3 text-[14px] ${variant.id === print.id ? "border-ink bg-ink text-paper" : "border-line"}`}
+                  >
+                    <input
+                      type="radio"
+                      name={`print-size-${cataloguePrint.id}`}
+                      value={variant.id}
+                      checked={variant.id === print.id}
+                      onChange={() => setSelectedId(variant.id)}
+                      className="mr-2 accent-current"
+                    />
+                    {getPrintSizes(variant)?.image ?? "Size to be confirmed"}
+                    {variant.remaining === 0 && (
+                      <span className="ml-2 text-[11px]">
+                        ({copy("soldOut")})
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <div aria-live="polite" className="border-line mt-6 border-b pb-6">
             <p className="text-[28px]">
               {print.priceCents === null
                 ? copy("priceOnRequest")
@@ -128,6 +167,7 @@ export default function PrintDetailModal({
             ) : checkoutEnabled && print.priceCents !== null ? (
               <>
                 <BuyButton
+                  key={print.id}
                   itemType="print"
                   id={print.id}
                   cancelPath="/prints"

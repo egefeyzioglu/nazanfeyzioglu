@@ -228,7 +228,11 @@ async function recordPaidCheckout(
     itemType,
     printId: itemType === "print" ? item?.id : null,
     workId: itemType !== "print" ? item?.id : null,
-    itemTitle: item?.title ?? lineItem?.description ?? "Unknown item",
+    itemTitle:
+      (itemType === "print" ? lineItem?.description : undefined) ??
+      item?.title ??
+      lineItem?.description ??
+      "Unknown item",
     quantity,
     unitAmount:
       lineItem?.price?.unit_amount ??
