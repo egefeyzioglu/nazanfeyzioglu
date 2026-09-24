@@ -153,7 +153,7 @@ function Overview({ data }: { data: AnalyticsOverview }) {
               <tbody>
                 {data.topPages.map((page) => (
                   <tr key={page.path} className="border-line-soft border-t">
-                    <td className="text-ink max-w-0 truncate py-2 pr-4">
+                    <td className="text-ink w-full max-w-0 truncate py-2 pr-4">
                       {page.path}
                     </td>
                     <td className="text-stone py-2 text-right tabular-nums">
