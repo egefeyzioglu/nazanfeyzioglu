@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV = [
+  { label: "Overview", href: "/admin" },
   { label: "Series", href: "/admin/series" },
   { label: "Originals", href: "/admin/originals" },
   { label: "Prints", href: "/admin/prints" },
@@ -17,8 +18,10 @@ export default function AdminNav() {
   return (
     <nav className="flex flex-wrap items-center gap-1">
       {NAV.map((item) => {
+        // "/admin" is the overview itself, not a prefix of every section.
         const active =
-          pathname === item.href || pathname.startsWith(`${item.href}/`);
+          pathname === item.href ||
+          (item.href !== "/admin" && pathname.startsWith(`${item.href}/`));
         return (
           <Link
             key={item.href}

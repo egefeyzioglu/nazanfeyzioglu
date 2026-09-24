@@ -85,6 +85,21 @@ export const env = createEnv({
      * edited in the admin panel.
      */
     ORDER_NOTIFICATION_EMAIL: z.string().email().optional(),
+    /**
+     * PostHog personal API key (phx_…) with the query:read scope, used by
+     * the admin Overview page to read views and the checkout funnel. Optional:
+     * without it (and POSTHOG_PROJECT_ID) the Overview shows a setup notice.
+     * Never exposed to the browser.
+     */
+    POSTHOG_PERSONAL_API_KEY: z.string().optional(),
+    /** Numeric PostHog project id (Settings → Project → Project ID). */
+    POSTHOG_PROJECT_ID: z.string().regex(/^\d+$/).optional(),
+    /**
+     * PostHog app host for the query API (e.g. "https://us.posthog.com").
+     * Derived from NEXT_PUBLIC_POSTHOG_HOST for PostHog Cloud; only needed
+     * for self-hosted instances.
+     */
+    POSTHOG_API_HOST: z.string().url().optional(),
   },
 
   /**
@@ -117,6 +132,9 @@ export const env = createEnv({
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     ORDER_EMAIL_FROM: process.env.ORDER_EMAIL_FROM,
     ORDER_NOTIFICATION_EMAIL: process.env.ORDER_NOTIFICATION_EMAIL,
+    POSTHOG_PERSONAL_API_KEY: process.env.POSTHOG_PERSONAL_API_KEY,
+    POSTHOG_PROJECT_ID: process.env.POSTHOG_PROJECT_ID,
+    POSTHOG_API_HOST: process.env.POSTHOG_API_HOST,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },
