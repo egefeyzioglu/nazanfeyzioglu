@@ -200,11 +200,14 @@ PostHog is optional: set `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` and
 
 Browser traffic is reverse-proxied so ad blockers, which match
 `*.posthog.com`, do not drop it: the SDK sends events to `/ingest` on this
-site's own origin and loads its assets from `/ingest/static`, and rewrites
-in `next.config.js` forward those to the ingestion and assets hosts derived
-from `NEXT_PUBLIC_POSTHOG_HOST` (see `src/lib/posthog-proxy.js`). The
-server-side client talks to PostHog directly. To check the proxy on a
-deployment:
+site's own origin and loads its bundle and remote configuration from
+`/ingest/static` and `/ingest/array`, and rewrites in `next.config.js`
+forward those to the ingestion and assets hosts derived from
+`NEXT_PUBLIC_POSTHOG_HOST` (see `src/lib/posthog-proxy.js`). Because those
+requests are same-origin they carry the site's cookies, so
+`src/middleware.ts` drops the `Cookie` and `Authorization` headers on
+`/ingest` before the proxy forwards them. The server-side client talks to
+PostHog directly. To check the proxy on a deployment:
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' https://<host>/ingest/static/array.js   # 200, the SDK bundle

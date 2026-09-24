@@ -48,8 +48,10 @@ export function posthogHosts(host) {
 }
 
 /**
- * Next.js rewrites that forward INGEST_PATH to PostHog. Static assets have
- * their own upstream, so that rule must come first.
+ * Next.js rewrites that forward INGEST_PATH to PostHog. The SDK bundle
+ * (/static) and the remote SDK configuration (/array/<token>/config.js) are
+ * served by the assets host with cache headers the ingestion host would
+ * strip, so those rules must come before the catch-all.
  *
  * @param {string | undefined} host NEXT_PUBLIC_POSTHOG_HOST
  * @returns {{ source: string; destination: string }[]}
@@ -61,6 +63,10 @@ export function posthogRewrites(host) {
     {
       source: `${INGEST_PATH}/static/:path*`,
       destination: `${hosts.assets}/static/:path*`,
+    },
+    {
+      source: `${INGEST_PATH}/array/:path*`,
+      destination: `${hosts.assets}/array/:path*`,
     },
     {
       source: `${INGEST_PATH}/:path*`,

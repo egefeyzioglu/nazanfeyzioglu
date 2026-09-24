@@ -40,11 +40,15 @@ test("rejects missing or malformed hosts", () => {
   assert.equal(posthogHosts("ftp://us.i.posthog.com"), null);
 });
 
-test("rewrites forward static assets before the catch-all", () => {
+test("rewrites send assets and remote config to the assets host before the catch-all", () => {
   assert.deepEqual(posthogRewrites("https://us.i.posthog.com"), [
     {
       source: `${INGEST_PATH}/static/:path*`,
       destination: "https://us-assets.i.posthog.com/static/:path*",
+    },
+    {
+      source: `${INGEST_PATH}/array/:path*`,
+      destination: "https://us-assets.i.posthog.com/array/:path*",
     },
     {
       source: `${INGEST_PATH}/:path*`,
