@@ -75,7 +75,7 @@ export default function AdminPrintsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Content"
+        eyebrow="Store management"
         title="Prints"
         description="Signed limited-edition prints, grouped by series. Create a series first to list prints under it."
       />
