@@ -181,11 +181,13 @@ export async function runHogQL(
   return rows;
 }
 
+/** Coerces a PostHog cell (number or numeric string) to a finite number, else 0. */
 function num(value: unknown): number {
   const n = typeof value === "string" ? Number(value) : value;
   return typeof n === "number" && Number.isFinite(n) ? n : 0;
 }
 
+/** Coerces a PostHog cell to a string; objects and nulls become "". */
 function str(value: unknown): string {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") {
@@ -199,6 +201,7 @@ function dayString(value: unknown): string {
   return str(value).slice(0, 10);
 }
 
+/** Rows of the `totals` query → window-wide page views and unique visitors. */
 export function parseTotals(rows: unknown[][]): {
   views: number;
   visitors: number;
@@ -207,6 +210,7 @@ export function parseTotals(rows: unknown[][]): {
   return { views: num(row?.[0]), visitors: num(row?.[1]) };
 }
 
+/** Rows of the `daily` query → one entry per day that had page views. */
 export function parseDaily(rows: unknown[][]): DailyViews[] {
   return rows.map(([day, views, visitors]) => ({
     day: dayString(day),
@@ -215,6 +219,7 @@ export function parseDaily(rows: unknown[][]): DailyViews[] {
   }));
 }
 
+/** Rows of the `topPages` query → paths with their view counts, most viewed first. */
 export function parseTopPages(rows: unknown[][]): TopPage[] {
   return rows.map(([path, views]) => ({ path: str(path), views: num(views) }));
 }

@@ -10,6 +10,7 @@ import { api } from "src/trpc/react";
 
 const numberFormat = new Intl.NumberFormat("en-CA");
 
+/** Thousands-separated integer for display. */
 function formatCount(value: number): string {
   return numberFormat.format(value);
 }
@@ -59,6 +60,7 @@ export default function AdminOverviewPage() {
   );
 }
 
+/** Shown until the PostHog read-side variables are configured. */
 function SetupNotice({ missing }: { missing: string[] }) {
   return (
     <Notice title="Analytics not configured yet">
@@ -76,6 +78,7 @@ function SetupNotice({ missing }: { missing: string[] }) {
   );
 }
 
+/** Card with a title and a short explanatory paragraph. */
 function Notice({
   title,
   children,
@@ -93,6 +96,7 @@ function Notice({
   );
 }
 
+/** The populated dashboard: KPI tiles, daily bars, funnel and top pages. */
 function Overview({ data }: { data: AnalyticsOverview }) {
   const fetchedAt = new Date(data.fetchedAt);
   return (
@@ -178,6 +182,7 @@ function Overview({ data }: { data: AnalyticsOverview }) {
   );
 }
 
+/** Card heading with an optional right-aligned hint. */
 function SectionTitle({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -191,6 +196,7 @@ function SectionTitle({ title, hint }: { title: string; hint?: string }) {
   );
 }
 
+/** One KPI: an uppercase label above a large number. */
 function StatTile({ label, value }: { label: string; value: number }) {
   return (
     <div className={`${cardCls} p-5`}>

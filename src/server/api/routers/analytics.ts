@@ -47,6 +47,7 @@ export function readAnalyticsConfig(source: {
   };
 }
 
+/** The environment values the analytics config is resolved from. */
 function envSource() {
   return {
     POSTHOG_PERSONAL_API_KEY: env.POSTHOG_PERSONAL_API_KEY,
