@@ -191,6 +191,26 @@ Failed delivery runbook:
    manually.
 5. Verify the resulting order state in `/admin/orders`.
 
+## Analytics (PostHog)
+
+PostHog is optional: set `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` and
+`NEXT_PUBLIC_POSTHOG_HOST` (the ingestion host for your region, e.g.
+`https://us.i.posthog.com`) for the environment being built. Both are
+`NEXT_PUBLIC_` variables, so they are inlined at build time.
+
+Browser traffic is reverse-proxied so ad blockers, which match
+`*.posthog.com`, do not drop it: the SDK sends events to `/ingest` on this
+site's own origin and loads its assets from `/ingest/static`, and rewrites
+in `next.config.js` forward those to the ingestion and assets hosts derived
+from `NEXT_PUBLIC_POSTHOG_HOST` (see `src/lib/posthog-proxy.js`). The
+server-side client talks to PostHog directly. To check the proxy on a
+deployment:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://<host>/ingest/static/array.js   # 200, the SDK bundle
+curl -s -o /dev/null -w '%{http_code}\n' 'https://<host>/ingest/e/?ip=1'          # 400 or 401 from PostHog (no body sent)
+```
+
 ## Useful scripts
 
 - `pnpm db:studio` — browse the database in Drizzle Studio
