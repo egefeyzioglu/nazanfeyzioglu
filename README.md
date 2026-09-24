@@ -129,6 +129,32 @@ edits are preserved.
 - `src/app/admin/` — the admin panel UI (`/admin/pages` is the in-place page editor)
 - `src/server/uploadthing.ts` — admin-gated UploadThing file router
 
+## Analytics (PostHog)
+
+Browser and server events go to PostHog when `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`
+and `NEXT_PUBLIC_POSTHOG_HOST` are set. The admin panel's **Overview** page
+(`/admin`) reads a few numbers back for the last 30 days: page views, unique
+visitors, the most viewed pages and the checkout funnel (`checkout_started` →
+`checkout_session_created` → `checkout_completed`, plus `order_refunded`).
+Visits to `/admin` and visits by signed-in admin accounts are excluded.
+
+To enable it:
+
+1. In PostHog, open **Settings → Personal API keys** and create a key scoped
+   to this project with only the `query:read` scope. Put it in `.env` as
+   `POSTHOG_PERSONAL_API_KEY`.
+2. Copy the numeric **Project ID** from **Settings → Project** into
+   `POSTHOG_PROJECT_ID`.
+3. Redeploy. Until both are set the Overview page shows a setup notice.
+
+The key is only used server-side and is never sent to the browser. Results are
+cached for five minutes to stay within PostHog's query rate limit, so the page
+lags real time by a few minutes on top of PostHog's own ingestion delay. Queries
+go to the PostHog app host (`us.posthog.com`, derived from the ingestion host;
+set `POSTHOG_API_HOST` for a self-hosted instance), not through any ingestion
+proxy. Revenue and order details stay in Stripe and the Orders page; the
+funnel shows counts of people, not money.
+
 ## Monitoring (Sentry)
 
 Sentry is optional until configured. In Vercel, install the Sentry integration

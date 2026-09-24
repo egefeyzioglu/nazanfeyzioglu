@@ -1,3 +1,4 @@
+import { analyticsRouter } from "src/server/api/routers/analytics";
 import { contentRouter } from "src/server/api/routers/content";
 import { exhibitionsRouter } from "src/server/api/routers/exhibitions";
 import { ordersRouter } from "src/server/api/routers/orders";
@@ -16,6 +17,7 @@ export const appRouter = createTRPCRouter({
   exhibitions: exhibitionsRouter,
   content: contentRouter,
   orders: ordersRouter,
+  analytics: analyticsRouter,
 });
 
 export type AppRouter = typeof appRouter;
