@@ -16,11 +16,13 @@ import {
 } from "src/lib/orders";
 import { api } from "src/trpc/react";
 
+/** Lists original artwork by series for checkout pricing and availability management. */
 export default function AdminOriginalsPage() {
   const list = api.works.originals.useQuery();
   return (
     <div>
       <PageHeader
+        eyebrow="Store management"
         title="Originals"
         description="One-of-a-kind works with free shipping within Canada. Set a price to enable checkout; leave it blank for inquiries. Manage purchases and fulfillment in Orders."
         actions={
@@ -94,7 +96,7 @@ function OriginalRow({
     },
   });
   return (
-    <article className="border-line rounded-xl border bg-white p-5">
+    <article className="border-line border-t py-5">
       <div className="flex items-start gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

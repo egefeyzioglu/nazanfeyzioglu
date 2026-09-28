@@ -12,11 +12,7 @@ if (!posthogToken || !hosts) {
     : !posthogHost
       ? "NEXT_PUBLIC_POSTHOG_HOST is not set, so PostHog analytics are disabled"
       : "NEXT_PUBLIC_POSTHOG_HOST is not an http(s) URL, so PostHog analytics are disabled";
-  if (process.env.NODE_ENV === "development") {
-    throw new Error(
-      `${message}. Add it to .env.local (see .env.example) to enable analytics.`,
-    );
-  }
+
   // NEXT_PUBLIC_* values are inlined at build time, so on Vercel the variable
   // must be set for the environment being built (preview and production).
   console.warn(`[posthog] ${message}`);

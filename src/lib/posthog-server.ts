@@ -6,19 +6,14 @@ import { PostHog } from "posthog-node";
 const token = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
 const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 
-// Configuration is validated once at module load, so a missing variable is
-// noticed when a route first imports this helper — never after a Stripe
-// session or database write has already happened.
+// Warn once at module load. Missing optional analytics credentials must not
+// prevent local development or application routes from loading.
 if (!token || !host) {
   const variable = !token
     ? "NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN"
     : "NEXT_PUBLIC_POSTHOG_HOST";
   const message = `${variable} is not set, so server-side PostHog events are not sent`;
-  if (process.env.NODE_ENV === "development") {
-    throw new Error(
-      `${message}. Add it to .env.local (see .env.example) to enable analytics.`,
-    );
-  }
+
   console.warn(`[posthog] ${message}`);
 }
 

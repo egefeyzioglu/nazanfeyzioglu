@@ -29,6 +29,7 @@ type ExhibitionRow = {
 
 type FormValues = Omit<ExhibitionRow, "id">;
 
+/** Creates, edits and reorders exhibition entries within their categories. */
 export default function AdminExhibitionsPage() {
   const utils = api.useUtils();
   const invalidate = () => utils.exhibitions.list.invalidate();
@@ -70,7 +71,7 @@ export default function AdminExhibitionsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Content"
+        eyebrow="Website content"
         title="Exhibitions"
         description="Solo shows and art fairs. Order within each section sets how they appear on the site."
         actions={

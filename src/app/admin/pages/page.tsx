@@ -23,7 +23,8 @@ import { PRINT_COPY_FIELDS } from "src/lib/content-keys";
 import { groupExhibitions } from "src/lib/exhibitions";
 import { api } from "src/trpc/react";
 
-const clsx = (...clsx: (string | false | null | undefined)[]) => clsx.filter(Boolean).join(' ');
+const clsx = (...clsx: (string | false | null | undefined)[]) =>
+  clsx.filter(Boolean).join(" ");
 
 const TABS: { key: NavKey; label: string }[] = [
   { key: "series", label: "Home" },
@@ -36,8 +37,10 @@ const TABS: { key: NavKey; label: string }[] = [
 
 /** Format the amount passed, in dollars, in the format `%.2f`, in the browser's local (en-ca if not set) */
 function formatPriceForValue(dollars: string) {
-  const cents = Math.round(parseFloat(dollars.trim().replaceAll(',','')) * 100);
-  return `${(cents / 100).toLocaleString("en-ca", {minimumFractionDigits: 2})}`;
+  const cents = Math.round(
+    parseFloat(dollars.trim().replaceAll(",", "")) * 100,
+  );
+  return `${(cents / 100).toLocaleString("en-ca", { minimumFractionDigits: 2 })}`;
 }
 
 /** Edits shared page copy with drafts preserved across tabs until saved or discarded. */
@@ -162,8 +165,8 @@ export default function AdminPagesEditor() {
   return (
     <div>
       <PageHeader
-        eyebrow="Content"
-        title="Pages"
+        eyebrow="Website content"
+        title="Pages & copy"
         description="Click any text with a dashed outline to edit it in place. In longer passages, Enter starts a new paragraph. Select body copy and choose Add link to attach a web or email URL. Artwork, prints and exhibition entries are managed in their own sections."
         actions={
           <>
@@ -240,16 +243,21 @@ export default function AdminPagesEditor() {
                 <Field key={`${resetKey}:${field.key}`} label={field.label}>
                   {field.kind === "price" ? (
                     <div className="relative">
-                      <div className="absolute top-[0.5rem] left-[0.75rem]">$</div>
+                      <div className="absolute top-[0.5rem] left-[0.75rem]">
+                        $
+                      </div>
                       <input
                         required
                         className={clsx(inputCls, "ps-[1.5rem]")}
-                        defaultValue={formatPriceForValue(edit.getInitial(field.key, field.default))}
+                        defaultValue={formatPriceForValue(
+                          edit.getInitial(field.key, field.default),
+                        )}
                         onBlur={(event) => {
-                            event.target.value = formatPriceForValue(event.target.value);
-                            edit.setDraft(field.key, event.target.value);
-                          }
-                        }
+                          event.target.value = formatPriceForValue(
+                            event.target.value,
+                          );
+                          edit.setDraft(field.key, event.target.value);
+                        }}
                       />
                     </div>
                   ) : (

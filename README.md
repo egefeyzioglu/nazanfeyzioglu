@@ -222,7 +222,9 @@ Failed delivery runbook:
 PostHog is optional: set `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` and
 `NEXT_PUBLIC_POSTHOG_HOST` (the ingestion host for your region, e.g.
 `https://us.i.posthog.com`) for the environment being built. Both are
-`NEXT_PUBLIC_` variables, so they are inlined at build time.
+`NEXT_PUBLIC_` variables, so they are inlined at build time. Missing values
+produce a warning and disable analytics without blocking local development
+or admin pages.
 
 Browser traffic is reverse-proxied so ad blockers, which match
 `*.posthog.com`, do not drop it: the SDK sends events to `/ingest` on this
