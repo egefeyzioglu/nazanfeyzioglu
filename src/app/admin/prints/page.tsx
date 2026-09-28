@@ -139,6 +139,66 @@ export default function AdminPrintsPage() {
                         onSave={(values) =>
                           update.mutate({ id: p.id, ...values })
                         }
+                        variantAction={
+                          p.id === family.id ? (
+                            <div className="border-line mt-6 border-t pt-3">
+                              <button
+                                type="button"
+                                aria-expanded={addingVariant === family.id}
+                                aria-controls={`size-variant-${family.id}`}
+                                className="hover-clay text-stone min-h-11 cursor-pointer font-mono text-[11px] underline underline-offset-4"
+                                onClick={() =>
+                                  setAddingVariant(
+                                    addingVariant === family.id
+                                      ? null
+                                      : family.id,
+                                  )
+                                }
+                              >
+                                {addingVariant === family.id
+                                  ? "Cancel"
+                                  : "+ Add size variant"}
+                              </button>
+                              {addingVariant === family.id && (
+                                <div
+                                  id={`size-variant-${family.id}`}
+                                  className="mt-3"
+                                >
+                                  <p className="mb-4 text-sm">
+                                    Add a different size with its own price and
+                                    edition stock.
+                                  </p>
+                                  <PrintForm
+                                    key={`variant-${family.id}`}
+                                    initial={{
+                                      ...family,
+                                      imageWidthInches: null,
+                                      imageHeightInches: null,
+                                      priceCents: null,
+                                      editionSize: null,
+                                    }}
+                                    pending={create.isPending}
+                                    error={create.error?.message}
+                                    submitLabel="Add size variant"
+                                    onSubmit={(values) =>
+                                      create.mutate(
+                                        {
+                                          ...values,
+                                          seriesId: group.id,
+                                          parentPrintId: family.id,
+                                        },
+                                        {
+                                          onSuccess: () =>
+                                            setAddingVariant(null),
+                                        },
+                                      )
+                                    }
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ) : undefined
+                        }
                         controls={
                           <RowControls
                             onUp={
@@ -172,51 +232,6 @@ export default function AdminPrintsPage() {
                         }
                       />
                     ))}
-                    <div className="ml-5 border-l border-stone-300 pl-4">
-                      <Button
-                        variant="ghost"
-                        onClick={() =>
-                          setAddingVariant(
-                            addingVariant === family.id ? null : family.id,
-                          )
-                        }
-                      >
-                        {addingVariant === family.id
-                          ? "Cancel"
-                          : "+ Add size variant"}
-                      </Button>
-                      {addingVariant === family.id && (
-                        <div className={`mt-3 p-5 ${cardCls}`}>
-                          <p className="mb-4 text-sm">
-                            Add a different size with its own price and edition
-                            stock.
-                          </p>
-                          <PrintForm
-                            key={`variant-${family.id}`}
-                            initial={{
-                              ...family,
-                              imageWidthInches: null,
-                              imageHeightInches: null,
-                              priceCents: null,
-                              editionSize: null,
-                            }}
-                            pending={create.isPending}
-                            error={create.error?.message}
-                            submitLabel="Add size variant"
-                            onSubmit={(values) =>
-                              create.mutate(
-                                {
-                                  ...values,
-                                  seriesId: group.id,
-                                  parentPrintId: family.id,
-                                },
-                                { onSuccess: () => setAddingVariant(null) },
-                              )
-                            }
-                          />
-                        </div>
-                      )}
-                    </div>
                   </div>
                 ))}
                 {group.prints.length === 0 && (
@@ -387,12 +402,14 @@ function PrintCard({
   pending,
   error,
   controls,
+  variantAction,
 }: {
   print: PrintRow;
   onSave: (values: PrintFormValues) => void;
   pending: boolean;
   error?: string;
   controls: React.ReactNode;
+  variantAction?: React.ReactNode;
 }) {
   return (
     <CollapsibleRowCard
@@ -420,6 +437,7 @@ function PrintCard({
         error={error}
         submitLabel="Save print"
       />
+      {variantAction}
     </CollapsibleRowCard>
   );
 }
