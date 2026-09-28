@@ -1,6 +1,5 @@
 "use client";
 
-import { cardCls } from "src/app/admin/_components/ui";
 import type {
   AnalyticsOverview,
   DailyViews,
@@ -81,7 +80,7 @@ function SetupNotice({ missing }: { missing: string[] }) {
   );
 }
 
-/** Card with a title and a short explanatory paragraph. */
+/** Inline notice with a title and a short explanatory paragraph. */
 function Notice({
   title,
   children,
@@ -90,7 +89,7 @@ function Notice({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`${cardCls} max-w-[640px] p-6`}>
+    <div className="border-line max-w-[640px] border-l-2 pl-5">
       <h2 className="font-spectral text-[20px] italic">{title}</h2>
       <p className="text-stone mt-3 font-mono text-[11px] leading-[1.9]">
         {children}
@@ -99,7 +98,7 @@ function Notice({
   );
 }
 
-/** The populated dashboard: KPI tiles, daily bars, funnel and top pages. */
+/** The populated dashboard: KPI totals, daily bars, funnel and top pages. */
 function Overview({ data }: { data: AnalyticsOverview }) {
   const fetchedAt = new Date(data.fetchedAt);
   return (
@@ -117,7 +116,7 @@ function Overview({ data }: { data: AnalyticsOverview }) {
         />
       </div>
 
-      <section className={`${cardCls} p-6`}>
+      <section className="border-line min-w-0 border-t pt-6">
         <SectionTitle
           title="Daily page views"
           hint={`${data.windowDays} days · hover a bar for the day`}
@@ -126,7 +125,7 @@ function Overview({ data }: { data: AnalyticsOverview }) {
       </section>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <section className={`${cardCls} p-6`}>
+        <section className="border-line min-w-0 border-t pt-6">
           <SectionTitle
             title="Checkout funnel"
             hint="people reaching each step"
@@ -139,7 +138,7 @@ function Overview({ data }: { data: AnalyticsOverview }) {
           </p>
         </section>
 
-        <section className={`${cardCls} p-6`}>
+        <section className="border-line min-w-0 border-t pt-6">
           <SectionTitle title="Most viewed pages" hint="by page views" />
           {data.topPages.length === 0 ? (
             <p className="text-stone font-mono text-[11px]">
@@ -185,7 +184,7 @@ function Overview({ data }: { data: AnalyticsOverview }) {
   );
 }
 
-/** Card heading with an optional right-aligned hint. */
+/** Section heading with an optional right-aligned hint. */
 function SectionTitle({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -202,7 +201,7 @@ function SectionTitle({ title, hint }: { title: string; hint?: string }) {
 /** One KPI: an uppercase label above a large number. */
 function StatTile({ label, value }: { label: string; value: number }) {
   return (
-    <div className={`${cardCls} p-5`}>
+    <div className="min-w-0 py-3">
       <div className="text-stone font-mono text-[10px] tracking-[0.18em] uppercase">
         {label}
       </div>

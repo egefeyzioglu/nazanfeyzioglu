@@ -14,22 +14,19 @@ export default function AdminIndexPage() {
         title="Overview"
         description="Manage the store or update your website. Choose a workspace to get started."
       />
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-10 md:grid-cols-2 md:gap-12">
         {adminSections.map((section) => (
-          <section
-            key={section.label}
-            className="border-line rounded-xl border bg-white p-5 sm:p-6"
-          >
+          <section key={section.label}>
             <h2 className="font-spectral text-[25px]">{section.label}</h2>
             <p className="text-stone mt-2 font-mono text-[11px] leading-relaxed">
               {section.description}
             </p>
-            <div className="mt-6 space-y-2">
+            <div className="border-line divide-line mt-6 divide-y border-y">
               {section.items.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="border-line hover:border-clay focus-visible:outline-clay block rounded-lg border p-4 transition-colors"
+                  className="hover:bg-clay/5 focus-visible:outline-clay block py-4 transition-colors"
                 >
                   <div className="text-clay flex items-center justify-between gap-3 text-[16px]">
                     {item.label}

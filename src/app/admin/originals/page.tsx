@@ -96,7 +96,7 @@ function OriginalRow({
     },
   });
   return (
-    <article className="border-line rounded-xl border bg-white p-5">
+    <article className="border-line border-t py-5">
       <div className="flex items-start gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

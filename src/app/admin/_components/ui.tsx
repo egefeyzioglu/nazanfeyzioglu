@@ -4,9 +4,8 @@ import { useId, useState } from "react";
 
 /** Shared admin form styling and small controls. */
 
-/** Floating white surface used for forms, list rows and cards. */
-export const cardCls =
-  "rounded-xl border border-line bg-white shadow-[0_1px_2px_rgba(28,26,23,0.04),0_18px_36px_-28px_rgba(28,26,23,0.32)]";
+/** Simple divider used for admin forms and list rows without nested surfaces. */
+export const cardCls = "border-t border-line";
 
 export const inputCls =
   "w-full rounded-md border border-line-2 bg-paper px-3 py-2.5 font-mono text-[12px] text-ink outline-none transition placeholder:text-ash-2 focus:border-clay focus:ring-2 focus:ring-clay/15";
