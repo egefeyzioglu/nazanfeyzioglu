@@ -35,6 +35,14 @@ const soldElsewhereFitsEdition = (p: {
 const soldElsewhereMessage =
   "Copies sold elsewhere need an edition size and cannot exceed it";
 
+/** Copies allocated beyond a limited edition by online and offline sales. */
+const overAllocation = (
+  editionSize: number | null,
+  sold: number,
+  soldElsewhere: number,
+) =>
+  editionSize === null ? 0 : Math.max(0, sold + soldElsewhere - editionSize);
+
 export const printsRouter = createTRPCRouter({
   /**
    * All series (in rail order) with their prints, for the grouped admin view.
@@ -158,6 +166,28 @@ export const printsRouter = createTRPCRouter({
             values,
             siblings.filter((p) => p.id !== id),
           );
+        // Reject edits that allocate more copies than the edition holds once
+        // online sales are counted. Only a worsening is rejected, so a print
+        // already oversold online stays editable and can be corrected.
+        const sold = (await getSoldPrintQuantities([id])).get(id) ?? 0;
+        const before = overAllocation(
+          existing.editionSize,
+          sold,
+          existing.soldElsewhere,
+        );
+        const after = overAllocation(
+          values.editionSize === undefined
+            ? existing.editionSize
+            : values.editionSize,
+          sold,
+          values.soldElsewhere ?? existing.soldElsewhere,
+        );
+        if (after > before) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `${sold} ${sold === 1 ? "copy has" : "copies have"} sold online, so the edition size must cover those plus the copies sold elsewhere.`,
+          });
+        }
         const [updated] = await tx
           .update(prints)
           .set({ ...values, spec: formatPrintSpec(values) })

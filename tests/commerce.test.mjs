@@ -1553,7 +1553,7 @@ test("variant purchases and refunds consume only the selected size and snapshot 
   assert.equal((await app.inventory.getSoldPrintQuantities([1, 2])).size, 0);
 });
 
-function variantAdmin(rows) {
+function variantAdmin(rows, soldOnline = new Map()) {
   const prints = {
     id: "id",
     parentPrintId: "parentPrintId",
@@ -1651,7 +1651,14 @@ function variantAdmin(rows) {
     "src/server/db/schema": { prints },
     "src/lib/prints": load("src/lib/prints.ts"),
     "src/lib/posthog-server": { captureServerEvent() {} },
-    "src/server/orders": {},
+    "src/server/orders": {
+      getSoldPrintQuantities: async (ids) =>
+        new Map(
+          ids.flatMap((id) =>
+            soldOnline.has(id) ? [[id, soldOnline.get(id)]] : [],
+          ),
+        ),
+    },
   });
   return printsRouter;
 }
@@ -1670,6 +1677,7 @@ test("admin validates size variants on creation and edits", async () => {
     edition: "Edition of 10",
     priceCents: 10000,
     editionSize: 10,
+    soldElsewhere: 0,
   };
   const rows = [{ ...base }];
   const api = variantAdmin(rows);
@@ -1715,4 +1723,56 @@ test("admin validates size variants on creation and edits", async () => {
   await api.update({ ...variant, id: 2, editionSize: 5 });
   assert.equal(rows[1].editionSize, 5);
   assert.equal(rows[0].editionSize, 10);
+});
+
+test("admin edits cannot allocate more copies than the edition after online sales", async () => {
+  const print = {
+    id: 1,
+    parentPrintId: null,
+    seriesId: 1,
+    title: "Print",
+    image: "/art.jpg",
+    imageWidth: 100,
+    imageHeight: 100,
+    imageWidthInches: 24,
+    imageHeightInches: 18,
+    edition: "Edition of 20",
+    priceCents: 10000,
+    editionSize: 20,
+    soldElsewhere: 0,
+  };
+  const rows = [{ ...print }];
+  const api = variantAdmin(rows, new Map([[1, 15]]));
+  await assert.rejects(
+    api.update({ ...print, soldElsewhere: 6 }),
+    /15 copies have sold online/,
+  );
+  await assert.rejects(
+    api.update({ ...print, editionSize: 14 }),
+    /edition size must cover/,
+  );
+  await assert.rejects(
+    async () => api.update({ ...print, soldElsewhere: 21 }),
+    /cannot exceed/,
+  );
+  await api.update({ ...print, soldElsewhere: 5 });
+  assert.equal(rows[0].soldElsewhere, 5);
+  assert.equal(rows[0].editionSize, 20);
+
+  // A print already oversold online stays editable and can be reduced.
+  const oversold = [{ ...print, editionSize: 10, soldElsewhere: 3 }];
+  const oversoldApi = variantAdmin(oversold, new Map([[1, 12]]));
+  await oversoldApi.update({
+    ...print,
+    editionSize: 10,
+    soldElsewhere: 3,
+    title: "Renamed",
+  });
+  assert.equal(oversold[0].title, "Renamed");
+  await oversoldApi.update({ ...print, editionSize: 10, soldElsewhere: 0 });
+  assert.equal(oversold[0].soldElsewhere, 0);
+  await assert.rejects(
+    oversoldApi.update({ ...print, editionSize: 9, soldElsewhere: 0 }),
+    /12 copies have sold online/,
+  );
 });
