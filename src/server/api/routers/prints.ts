@@ -22,7 +22,18 @@ const printFields = {
   edition: z.string().min(1),
   priceCents: z.number().int().positive().nullish(),
   editionSize: z.number().int().positive().nullish(),
+  soldElsewhere: z.number().int().nonnegative().optional(),
 };
+
+/** Offline sales only count against a limited edition, and cannot exceed it. */
+const soldElsewhereFitsEdition = (p: {
+  editionSize?: number | null;
+  soldElsewhere?: number;
+}) =>
+  !p.soldElsewhere ||
+  (p.editionSize != null && p.soldElsewhere <= p.editionSize);
+const soldElsewhereMessage =
+  "Copies sold elsewhere need an edition size and cannot exceed it";
 
 export const printsRouter = createTRPCRouter({
   /**
@@ -43,7 +54,11 @@ export const printsRouter = createTRPCRouter({
       ...s,
       prints: s.prints.map((p) => ({
         ...p,
-        remaining: remainingCopies(p.editionSize, sold.get(p.id) ?? 0),
+        remaining: remainingCopies(
+          p.editionSize,
+          sold.get(p.id) ?? 0,
+          p.soldElsewhere,
+        ),
       })),
     }));
   }),
@@ -60,7 +75,8 @@ export const printsRouter = createTRPCRouter({
           (p) =>
             (p.imageWidthInches === null) === (p.imageHeightInches === null),
           "Enter both image dimensions or leave both blank",
-        ),
+        )
+        .refine(soldElsewhereFitsEdition, soldElsewhereMessage),
     )
     .mutation(async ({ ctx, input }) => {
       const [{ max }] = (await ctx.db
@@ -103,6 +119,7 @@ export const printsRouter = createTRPCRouter({
           series_id: row.seriesId,
           has_price: row.priceCents != null,
           has_edition_limit: row.editionSize != null,
+          sold_elsewhere: row.soldElsewhere,
         });
       }
       return row;
@@ -116,7 +133,8 @@ export const printsRouter = createTRPCRouter({
           (p) =>
             (p.imageWidthInches === null) === (p.imageHeightInches === null),
           "Enter both image dimensions or leave both blank",
-        ),
+        )
+        .refine(soldElsewhereFitsEdition, soldElsewhereMessage),
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...values } = input;
@@ -153,6 +171,7 @@ export const printsRouter = createTRPCRouter({
           series_id: row.seriesId,
           has_price: row.priceCents != null,
           has_edition_limit: row.editionSize != null,
+          sold_elsewhere: row.soldElsewhere,
         });
       }
       return row;

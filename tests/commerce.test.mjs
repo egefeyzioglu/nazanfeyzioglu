@@ -75,6 +75,7 @@ function setup({ verifySignatures = false } = {}) {
       image: "/art.jpg",
       priceCents: 10000,
       editionSize: 3,
+      soldElsewhere: 0,
     },
   };
   const fields = (names) =>
@@ -105,7 +106,7 @@ function setup({ verifySignatures = false } = {}) {
       "createdAt",
     ]),
     works: fields(["id", "title"]),
-    prints: fields(["id", "title", "editionSize"]),
+    prints: fields(["id", "title", "editionSize", "soldElsewhere"]),
   };
   const orm = {
     eq: (key, value) => (row) => row[key] === value,
@@ -1234,16 +1235,22 @@ test("print inventory sums quantities by requested print and excludes full refun
   );
   assert.equal((await app.inventory.getSoldPrintQuantities([])).size, 0);
   assert.equal((await app.inventory.getSoldPrintQuantities([4])).size, 0);
-  for (const [edition, sold, expected] of [
-    [3, 0, 3],
-    [3, 2, 1],
-    [3, 3, 0],
-    [3, 5, 0],
-    [0, 0, 0],
-    [null, 0, null],
-    [null, 1000, null],
+  for (const [edition, sold, elsewhere, expected] of [
+    [3, 0, 0, 3],
+    [3, 2, 0, 1],
+    [3, 3, 0, 0],
+    [3, 5, 0, 0],
+    [0, 0, 0, 0],
+    [20, 0, 1, 19],
+    [20, 5, 3, 12],
+    [3, 2, 2, 0],
+    [null, 0, 0, null],
+    [null, 1000, 5, null],
   ]) {
-    assert.equal(app.inventory.remainingCopies(edition, sold), expected);
+    assert.equal(
+      app.inventory.remainingCopies(edition, sold, elsewhere),
+      expected,
+    );
   }
 });
 
@@ -1278,6 +1285,50 @@ test("print checkout limits quantity to remaining stock or ten for open editions
     assert.equal((await app.checkout("print")).status, 409);
     assert.equal(app.state.sessions.length, 0);
   }
+});
+
+test("copies sold elsewhere reduce checkout stock without changing the edition", async () => {
+  for (const [soldElsewhere, maximum] of [
+    [1, 2],
+    [2, null],
+  ]) {
+    const app = setup();
+    app.state.print.soldElsewhere = soldElsewhere;
+    assert.equal(
+      (await app.checkout("print", { quantity: 999, price: 1 })).status,
+      200,
+    );
+    assert.equal(
+      app.state.sessions[0].line_items[0].adjustable_quantity?.maximum,
+      maximum ?? undefined,
+    );
+  }
+  const app = setup();
+  app.state.print.soldElsewhere = 3;
+  assert.equal((await app.checkout("print")).status, 409);
+  assert.equal(app.state.sessions.length, 0);
+  assert.equal(app.state.print.editionSize, 3);
+});
+
+test("online orders beyond the copies left after offline sales are flagged oversold", async () => {
+  const app = setup();
+  app.state.print.editionSize = 5;
+  app.state.print.soldElsewhere = 2;
+  assert.equal(
+    (await app.pay("print", "cs_exact", printSession(3))).status,
+    200,
+  );
+  assert.equal(
+    (await app.pay("print", "cs_excess", printSession(1))).status,
+    200,
+  );
+  assert.deepEqual(
+    app.state.rows.map((row) => [row.quantity, row.fulfillmentStatus]),
+    [
+      [3, "pending"],
+      [1, "oversold"],
+    ],
+  );
 });
 
 /** Build consistent Stripe line-item and amount fixtures for multi-copy print purchases. */

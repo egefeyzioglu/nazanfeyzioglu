@@ -69,7 +69,11 @@ export const getPrintGroups = cache(async () => {
     ...s,
     prints: s.prints.map((p) => ({
       ...p,
-      remaining: remainingCopies(p.editionSize, sold.get(p.id) ?? 0),
+      remaining: remainingCopies(
+        p.editionSize,
+        sold.get(p.id) ?? 0,
+        p.soldElsewhere,
+      ),
     })),
   }));
 });

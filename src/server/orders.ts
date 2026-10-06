@@ -6,9 +6,10 @@ import { db } from "src/server/db";
 import { orders } from "src/server/db/schema";
 
 /**
- * Copies of each print already sold (non-refunded order quantities). Prints
- * with no sales are absent from the map. Used against `prints.editionSize`
- * to stop overselling; prints with a null editionSize are never limited.
+ * Copies of each print already sold online (non-refunded order quantities).
+ * Prints with no sales are absent from the map. Used with
+ * `prints.soldElsewhere` against `prints.editionSize` to stop overselling;
+ * prints with a null editionSize are never limited.
  */
 export async function getSoldPrintQuantities(
   printIds: number[],
@@ -34,13 +35,17 @@ export async function getSoldPrintQuantities(
   );
 }
 
-/** Remaining purchasable copies of a print, or null when unlimited. */
+/**
+ * Remaining purchasable copies of a print, or null when unlimited. `sold`
+ * counts online orders; `soldElsewhere` counts copies allocated offline.
+ */
 export function remainingCopies(
   editionSize: number | null,
   sold: number,
+  soldElsewhere: number,
 ): number | null {
   if (editionSize === null) return null;
-  return Math.max(0, editionSize - sold);
+  return Math.max(0, editionSize - sold - soldElsewhere);
 }
 
 /** Paid originals only: digital sales of the same work do not affect stock. */

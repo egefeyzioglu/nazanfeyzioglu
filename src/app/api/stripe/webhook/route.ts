@@ -282,7 +282,7 @@ async function recordPaidCheckout(
             ne(orders.paymentStatus, "refunded"),
           ),
         );
-      if ((row?.sold ?? 0) > item.editionSize) {
+      if ((row?.sold ?? 0) + item.soldElsewhere > item.editionSize) {
         oversold = true;
         await tx
           .update(orders)
@@ -420,6 +420,7 @@ async function loadItem(itemType: OrderItemType, id: number) {
         id: prints.id,
         title: prints.title,
         editionSize: prints.editionSize,
+        soldElsewhere: prints.soldElsewhere,
       })
       .from(prints)
       .where(eq(prints.id, id));
@@ -430,6 +431,10 @@ async function loadItem(itemType: OrderItemType, id: number) {
     .from(works)
     .where(eq(works.id, id));
   return rows[0]
-    ? { ...rows[0], editionSize: itemType === "original" ? 1 : null }
+    ? {
+        ...rows[0],
+        editionSize: itemType === "original" ? 1 : null,
+        soldElsewhere: 0,
+      }
     : null;
 }

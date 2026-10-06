@@ -129,6 +129,12 @@ export const prints = createTable(
      * availability is not enforced. Independent of the display `edition` text.
      */
     editionSize: d.integer(),
+    /**
+     * Copies allocated outside the website (in-person sales, art fairs,
+     * gallery sales, gifts). Counted against `editionSize` alongside online
+     * orders without changing the edition itself.
+     */
+    soldElsewhere: d.integer().notNull().default(0),
     /** Order within the series group on the Prints page. */
     position: d.integer().notNull().default(0),
     createdAt: d.timestamp({ withTimezone: true }).defaultNow().notNull(),
@@ -140,6 +146,7 @@ export const prints = createTable(
     check("print_not_own_parent", sql`"parentPrintId" <> id`),
     check("print_price_cents_positive", sql`"priceCents" > 0`),
     check("print_edition_size_positive", sql`"editionSize" > 0`),
+    check("print_sold_elsewhere_nonnegative", sql`"soldElsewhere" >= 0`),
     check(
       "print_image_dimensions_valid",
       sql`("imageWidthInches" IS NULL AND "imageHeightInches" IS NULL) OR ("imageWidthInches" IS NOT NULL AND "imageHeightInches" IS NOT NULL AND "imageWidthInches" > 0 AND "imageHeightInches" > 0 AND "imageWidthInches" < 'Infinity'::double precision AND "imageHeightInches" < 'Infinity'::double precision)`,

@@ -142,7 +142,11 @@ async function printLineItem(id: number, origin: string): Promise<ItemResult> {
   }
 
   const sold = await getSoldPrintQuantities([print.id]);
-  const remaining = remainingCopies(print.editionSize, sold.get(print.id) ?? 0);
+  const remaining = remainingCopies(
+    print.editionSize,
+    sold.get(print.id) ?? 0,
+    print.soldElsewhere,
+  );
   if (remaining !== null && remaining <= 0) {
     return { error: "This edition is sold out", status: 409 };
   }
