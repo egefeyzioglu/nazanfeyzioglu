@@ -19,6 +19,7 @@ import {
   inputCls,
   PageHeader,
 } from "src/app/admin/_components/ui";
+import { useUnsavedChanges } from "src/app/admin/_components/UnsavedChanges";
 import { PRINT_COPY_FIELDS } from "src/lib/content-keys";
 import { groupExhibitions } from "src/lib/exhibitions";
 import { api } from "src/trpc/react";
@@ -58,6 +59,7 @@ export default function AdminPagesEditor() {
   // Drafts live in a ref so typing never re-renders the editable regions
   // (which would fight the caret); dirtyCount drives the save bar.
   const drafts = useRef(new Map<string, string>());
+  useUnsavedChanges(dirtyCount > 0);
 
   const baseline = useMemo(
     () => Object.fromEntries((content.data ?? []).map((f) => [f.key, f.value])),
@@ -277,6 +279,7 @@ export default function AdminPagesEditor() {
         )}
         <div
           className={`cms-preview overflow-auto ${cardCls}`}
+          data-unsaved-guard="off"
           title="Not editable here — artwork, prints and exhibition entries are managed in their own admin sections."
           // The previews are the real page components; swallow link clicks so
           // editing text inside a link doesn't navigate away.

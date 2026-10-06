@@ -15,6 +15,7 @@ import {
   PageHeader,
   RowControls,
 } from "src/app/admin/_components/ui";
+import { useUnsavedChanges } from "src/app/admin/_components/UnsavedChanges";
 import {
   centsToDollarsString,
   dollarsStringToCents,
@@ -264,28 +265,28 @@ function PrintForm({
   error?: string;
   submitLabel: string;
 }) {
+  const initialWidth = initial?.imageWidthInches?.toString() ?? "";
+  const initialHeight = initial?.imageHeightInches?.toString() ?? "";
+  const initialPrice = centsToDollarsString(initial?.priceCents);
+  const initialEditionSize =
+    initial?.editionSize === null || initial?.editionSize === undefined
+      ? ""
+      : initial.editionSize.toString();
+  const initialSoldElsewhere = initial?.soldElsewhere
+    ? initial.soldElsewhere.toString()
+    : "";
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [width, setWidth] = useState(
-    initial?.imageWidthInches?.toString() ?? "",
-  );
-  const [height, setHeight] = useState(
-    initial?.imageHeightInches?.toString() ?? "",
-  );
+  const [width, setWidth] = useState(initialWidth);
+  const [height, setHeight] = useState(initialHeight);
   const dimensions = {
     imageWidthInches: width.trim() === "" ? null : Number(width),
     imageHeightInches: height.trim() === "" ? null : Number(height),
   };
   const sizes = getPrintSizes(dimensions);
   const [edition, setEdition] = useState(initial?.edition ?? "");
-  const [price, setPrice] = useState(centsToDollarsString(initial?.priceCents));
-  const [editionSize, setEditionSize] = useState(
-    initial?.editionSize === null || initial?.editionSize === undefined
-      ? ""
-      : initial.editionSize.toString(),
-  );
-  const [soldElsewhere, setSoldElsewhere] = useState(
-    initial?.soldElsewhere ? initial.soldElsewhere.toString() : "",
-  );
+  const [price, setPrice] = useState(initialPrice);
+  const [editionSize, setEditionSize] = useState(initialEditionSize);
+  const [soldElsewhere, setSoldElsewhere] = useState(initialSoldElsewhere);
   const [image, setImage] = useState<ImageValue | null>(
     initial
       ? {
@@ -294,6 +295,16 @@ function PrintForm({
           height: initial.imageHeight,
         }
       : null,
+  );
+  useUnsavedChanges(
+    title !== (initial?.title ?? "") ||
+      width !== initialWidth ||
+      height !== initialHeight ||
+      edition !== (initial?.edition ?? "") ||
+      price !== initialPrice ||
+      editionSize !== initialEditionSize ||
+      soldElsewhere !== initialSoldElsewhere ||
+      image?.image !== initial?.image,
   );
 
   return (

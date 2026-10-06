@@ -9,6 +9,7 @@ import {
   inputCls,
   PageHeader,
 } from "src/app/admin/_components/ui";
+import { useUnsavedChanges } from "src/app/admin/_components/UnsavedChanges";
 import {
   centsToDollarsString,
   dollarsStringToCents,
@@ -87,6 +88,10 @@ function OriginalRow({
   );
   const [unavailable, setUnavailable] = useState(work.originalUnavailable);
   const [validationError, setValidationError] = useState<string | null>(null);
+  useUnsavedChanges(
+    price !== centsToDollarsString(work.originalPriceCents) ||
+      unavailable !== work.originalUnavailable,
+  );
   const save = api.works.setOriginalSale.useMutation({
     onSuccess: async () => {
       await Promise.all([

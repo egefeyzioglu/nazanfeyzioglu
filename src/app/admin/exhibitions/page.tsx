@@ -12,6 +12,7 @@ import {
   PageHeader,
   RowControls,
 } from "src/app/admin/_components/ui";
+import { useUnsavedChanges } from "src/app/admin/_components/UnsavedChanges";
 import {
   EXHIBITION_CATEGORIES,
   EXHIBITION_CATEGORY_LABELS as CATEGORY_LABELS,
@@ -164,6 +165,12 @@ function ExhibitionForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [location, setLocation] = useState(initial?.location ?? "");
   const [date, setDate] = useState(initial?.date ?? "");
+  useUnsavedChanges(
+    category !== (initial?.category ?? "solo") ||
+      name !== (initial?.name ?? "") ||
+      location !== (initial?.location ?? "") ||
+      date !== (initial?.date ?? ""),
+  );
 
   return (
     <form

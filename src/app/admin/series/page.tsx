@@ -15,6 +15,7 @@ import {
   PageHeader,
   RowControls,
 } from "src/app/admin/_components/ui";
+import { useUnsavedChanges } from "src/app/admin/_components/UnsavedChanges";
 import { api } from "src/trpc/react";
 
 function slugify(title: string): string {
@@ -42,6 +43,10 @@ export default function AdminSeriesPage() {
   const [statusNote, setStatusNote] = useState("");
   const [cover, setCover] = useState<ImageValue | null>(null);
   const [showForm, setShowForm] = useState(false);
+  useUnsavedChanges(
+    showForm &&
+      (title !== "" || slug !== "" || statusNote !== "" || cover !== null),
+  );
 
   const rows = list.data ?? [];
   const ids = rows.map((r) => r.id);

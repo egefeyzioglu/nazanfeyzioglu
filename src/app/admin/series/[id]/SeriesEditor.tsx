@@ -16,6 +16,7 @@ import {
   movedIds,
   RowControls,
 } from "src/app/admin/_components/ui";
+import { useUnsavedChanges } from "src/app/admin/_components/UnsavedChanges";
 import {
   centsToDollarsString,
   dollarsStringToCents,
@@ -73,6 +74,14 @@ export default function SeriesEditor({ id }: { id: number }) {
       });
     }
   }, [s, form]);
+  useUnsavedChanges(
+    !!s &&
+      !!form &&
+      (form.title !== s.title ||
+        form.slug !== s.slug ||
+        form.statusNote !== (s.statusNote ?? "") ||
+        form.cover?.image !== s.coverImage),
+  );
 
   const [addingWork, setAddingWork] = useState(false);
 
@@ -282,6 +291,15 @@ function WorkForm({
           height: initial.imageHeight,
         }
       : null,
+  );
+  useUnsavedChanges(
+    title !== (initial?.title ?? "") ||
+      medium !== (initial?.medium ?? "") ||
+      price !== (initial?.price ?? "") ||
+      digital !== (initial?.digital ?? false) ||
+      digitalPrice !== centsToDollarsString(initial?.digitalPriceCents) ||
+      note !== (initial?.note ?? "") ||
+      image?.image !== initial?.image,
   );
 
   return (
