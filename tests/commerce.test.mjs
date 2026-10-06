@@ -48,6 +48,8 @@ function setup({ verifySignatures = false } = {}) {
     emailFailure: null,
     /** When set, the mocked Resend client rejects sends to this address. */
     rejectTo: null,
+    /** When set, called as the webhook takes an inventory lock (once). */
+    onLock: null,
     /** When set, awaited by the mocked Resend client mid-send (once). */
     onSend: null,
     /** CMS content overrides applied on top of the defaults. */
@@ -75,6 +77,7 @@ function setup({ verifySignatures = false } = {}) {
       image: "/art.jpg",
       priceCents: 10000,
       editionSize: 3,
+      soldElsewhere: 0,
     },
   };
   const fields = (names) =>
@@ -105,7 +108,7 @@ function setup({ verifySignatures = false } = {}) {
       "createdAt",
     ]),
     works: fields(["id", "title"]),
-    prints: fields(["id", "title", "editionSize"]),
+    prints: fields(["id", "title", "editionSize", "soldElsewhere"]),
   };
   const orm = {
     eq: (key, value) => (row) => row[key] === value,
@@ -182,6 +185,11 @@ function setup({ verifySignatures = false } = {}) {
     transaction: async (callback) => callback(db),
     execute: async (statement) => {
       state.locks.push(statement);
+      if (state.onLock) {
+        const hook = state.onLock;
+        state.onLock = null;
+        hook();
+      }
     },
     insert: () => ({
       values: (values) => ({
@@ -1234,16 +1242,22 @@ test("print inventory sums quantities by requested print and excludes full refun
   );
   assert.equal((await app.inventory.getSoldPrintQuantities([])).size, 0);
   assert.equal((await app.inventory.getSoldPrintQuantities([4])).size, 0);
-  for (const [edition, sold, expected] of [
-    [3, 0, 3],
-    [3, 2, 1],
-    [3, 3, 0],
-    [3, 5, 0],
-    [0, 0, 0],
-    [null, 0, null],
-    [null, 1000, null],
+  for (const [edition, sold, elsewhere, expected] of [
+    [3, 0, 0, 3],
+    [3, 2, 0, 1],
+    [3, 3, 0, 0],
+    [3, 5, 0, 0],
+    [0, 0, 0, 0],
+    [20, 0, 1, 19],
+    [20, 5, 3, 12],
+    [3, 2, 2, 0],
+    [null, 0, 0, null],
+    [null, 1000, 5, null],
   ]) {
-    assert.equal(app.inventory.remainingCopies(edition, sold), expected);
+    assert.equal(
+      app.inventory.remainingCopies(edition, sold, elsewhere),
+      expected,
+    );
   }
 });
 
@@ -1278,6 +1292,67 @@ test("print checkout limits quantity to remaining stock or ten for open editions
     assert.equal((await app.checkout("print")).status, 409);
     assert.equal(app.state.sessions.length, 0);
   }
+});
+
+test("copies sold elsewhere reduce checkout stock without changing the edition", async () => {
+  for (const [soldElsewhere, maximum] of [
+    [1, 2],
+    [2, null],
+  ]) {
+    const app = setup();
+    app.state.print.soldElsewhere = soldElsewhere;
+    assert.equal(
+      (await app.checkout("print", { quantity: 999, price: 1 })).status,
+      200,
+    );
+    assert.equal(
+      app.state.sessions[0].line_items[0].adjustable_quantity?.maximum,
+      maximum ?? undefined,
+    );
+  }
+  const app = setup();
+  app.state.print.soldElsewhere = 3;
+  assert.equal((await app.checkout("print")).status, 409);
+  assert.equal(app.state.sessions.length, 0);
+  assert.equal(app.state.print.editionSize, 3);
+});
+
+test("online orders beyond the copies left after offline sales are flagged oversold", async () => {
+  const app = setup();
+  app.state.print.editionSize = 5;
+  app.state.print.soldElsewhere = 2;
+  assert.equal(
+    (await app.pay("print", "cs_exact", printSession(3))).status,
+    200,
+  );
+  assert.equal(
+    (await app.pay("print", "cs_excess", printSession(1))).status,
+    200,
+  );
+  assert.deepEqual(
+    app.state.rows.map((row) => [row.quantity, row.fulfillmentStatus]),
+    [
+      [3, "pending"],
+      [1, "oversold"],
+    ],
+  );
+});
+
+test("the webhook enforces stock limits as they stand once it holds the lock", async () => {
+  const app = setup();
+  app.state.print.editionSize = null;
+  // An admin limits the edition and allocates its only copy offline after
+  // the webhook loaded the print but before it took the inventory lock.
+  app.state.onLock = () => {
+    app.state.print.editionSize = 1;
+    app.state.print.soldElsewhere = 1;
+  };
+  assert.equal(
+    (await app.pay("print", "cs_raced", printSession(1))).status,
+    200,
+  );
+  assert.equal(app.state.rows[0].fulfillmentStatus, "oversold");
+  assert.deepEqual(app.state.locks[0].values, ["nazanfeyzioglu_print", 1]);
 });
 
 /** Build consistent Stripe line-item and amount fixtures for multi-copy print purchases. */
@@ -1502,7 +1577,7 @@ test("variant purchases and refunds consume only the selected size and snapshot 
   assert.equal((await app.inventory.getSoldPrintQuantities([1, 2])).size, 0);
 });
 
-function variantAdmin(rows) {
+function variantAdmin(rows, soldOnline = new Map(), locks = []) {
   const prints = {
     id: "id",
     parentPrintId: "parentPrintId",
@@ -1578,6 +1653,7 @@ function variantAdmin(rows) {
       };
     },
     transaction: (run) => run(db),
+    execute: async () => {},
   };
   const { printsRouter } = load("src/server/api/routers/prints.ts", {
     "drizzle-orm": {
@@ -1600,7 +1676,17 @@ function variantAdmin(rows) {
     "src/server/db/schema": { prints },
     "src/lib/prints": load("src/lib/prints.ts"),
     "src/lib/posthog-server": { captureServerEvent() {} },
-    "src/server/orders": {},
+    "src/server/orders": {
+      lockItemInventory: async (_tx, itemType, id) => {
+        locks.push([itemType, id]);
+      },
+      getSoldPrintQuantities: async (ids) =>
+        new Map(
+          ids.flatMap((id) =>
+            soldOnline.has(id) ? [[id, soldOnline.get(id)]] : [],
+          ),
+        ),
+    },
   });
   return printsRouter;
 }
@@ -1619,6 +1705,7 @@ test("admin validates size variants on creation and edits", async () => {
     edition: "Edition of 10",
     priceCents: 10000,
     editionSize: 10,
+    soldElsewhere: 0,
   };
   const rows = [{ ...base }];
   const api = variantAdmin(rows);
@@ -1664,4 +1751,77 @@ test("admin validates size variants on creation and edits", async () => {
   await api.update({ ...variant, id: 2, editionSize: 5 });
   assert.equal(rows[1].editionSize, 5);
   assert.equal(rows[0].editionSize, 10);
+});
+
+test("admin edits cannot allocate more copies than the edition after online sales", async () => {
+  const print = {
+    id: 1,
+    parentPrintId: null,
+    seriesId: 1,
+    title: "Print",
+    image: "/art.jpg",
+    imageWidth: 100,
+    imageHeight: 100,
+    imageWidthInches: 24,
+    imageHeightInches: 18,
+    edition: "Edition of 20",
+    priceCents: 10000,
+    editionSize: 20,
+    soldElsewhere: 0,
+  };
+  const rows = [{ ...print }];
+  const locks = [];
+  const api = variantAdmin(rows, new Map([[1, 15]]), locks);
+  await assert.rejects(
+    api.update({ ...print, soldElsewhere: 6 }),
+    /15 copies have sold online/,
+  );
+  await assert.rejects(
+    api.update({ ...print, editionSize: 14 }),
+    /edition size must cover/,
+  );
+  await assert.rejects(
+    api.update({ ...print, soldElsewhere: 21 }),
+    /cannot exceed/,
+  );
+  await api.update({ ...print, soldElsewhere: 5 });
+  assert.equal(rows[0].soldElsewhere, 5);
+  assert.equal(rows[0].editionSize, 20);
+  // Online sales are read under the same per-print lock the webhook takes.
+  assert.deepEqual(locks.at(-1), ["print", 1]);
+
+  // The count can be updated alone, validated against the stored edition.
+  const { editionSize: _stored, ...withoutEdition } = print;
+  await api.update({ ...withoutEdition, soldElsewhere: 4 });
+  assert.equal(rows[0].soldElsewhere, 4);
+  await assert.rejects(
+    api.update({ ...withoutEdition, soldElsewhere: 6 }),
+    /15 copies have sold online/,
+  );
+
+  // Omitting soldElsewhere keeps the stored count, so the edition cannot be
+  // made unlimited underneath it.
+  const { soldElsewhere: _omitted, ...withoutCount } = print;
+  await assert.rejects(
+    api.update({ ...withoutCount, editionSize: null }),
+    /need an edition size/,
+  );
+  assert.equal(rows[0].editionSize, 20);
+
+  // A print already oversold online stays editable and can be reduced.
+  const oversold = [{ ...print, editionSize: 10, soldElsewhere: 3 }];
+  const oversoldApi = variantAdmin(oversold, new Map([[1, 12]]));
+  await oversoldApi.update({
+    ...print,
+    editionSize: 10,
+    soldElsewhere: 3,
+    title: "Renamed",
+  });
+  assert.equal(oversold[0].title, "Renamed");
+  await oversoldApi.update({ ...print, editionSize: 10, soldElsewhere: 0 });
+  assert.equal(oversold[0].soldElsewhere, 0);
+  await assert.rejects(
+    oversoldApi.update({ ...print, editionSize: 9, soldElsewhere: 0 }),
+    /12 copies have sold online/,
+  );
 });

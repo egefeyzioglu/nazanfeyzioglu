@@ -1,0 +1,3 @@
+ALTER TABLE "nazanfeyzioglu_print" ADD COLUMN IF NOT EXISTS "soldElsewhere" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "nazanfeyzioglu_print" DROP CONSTRAINT IF EXISTS "print_sold_elsewhere_nonnegative";--> statement-breakpoint
+ALTER TABLE "nazanfeyzioglu_print" ADD CONSTRAINT "print_sold_elsewhere_nonnegative" CHECK ("soldElsewhere" >= 0);

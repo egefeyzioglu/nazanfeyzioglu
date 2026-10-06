@@ -10,7 +10,11 @@ import {
   uniqueIds,
 } from "src/server/api/trpc";
 import { prints } from "src/server/db/schema";
-import { getSoldPrintQuantities, remainingCopies } from "src/server/orders";
+import {
+  getSoldPrintQuantities,
+  lockItemInventory,
+  remainingCopies,
+} from "src/server/orders";
 
 const printFields = {
   title: z.string().min(1).max(256),
@@ -22,7 +26,26 @@ const printFields = {
   edition: z.string().min(1),
   priceCents: z.number().int().positive().nullish(),
   editionSize: z.number().int().positive().nullish(),
+  soldElsewhere: z.number().int().nonnegative().optional(),
 };
+
+/** Offline sales only count against a limited edition, and cannot exceed it. */
+const soldElsewhereFitsEdition = (p: {
+  editionSize?: number | null;
+  soldElsewhere?: number;
+}) =>
+  !p.soldElsewhere ||
+  (p.editionSize != null && p.soldElsewhere <= p.editionSize);
+const soldElsewhereMessage =
+  "Copies sold elsewhere need an edition size and cannot exceed it";
+
+/** Copies allocated beyond a limited edition by online and offline sales. */
+const overAllocation = (
+  editionSize: number | null,
+  sold: number,
+  soldElsewhere: number,
+) =>
+  editionSize === null ? 0 : Math.max(0, sold + soldElsewhere - editionSize);
 
 export const printsRouter = createTRPCRouter({
   /**
@@ -43,7 +66,11 @@ export const printsRouter = createTRPCRouter({
       ...s,
       prints: s.prints.map((p) => ({
         ...p,
-        remaining: remainingCopies(p.editionSize, sold.get(p.id) ?? 0),
+        remaining: remainingCopies(
+          p.editionSize,
+          sold.get(p.id) ?? 0,
+          p.soldElsewhere,
+        ),
       })),
     }));
   }),
@@ -60,7 +87,8 @@ export const printsRouter = createTRPCRouter({
           (p) =>
             (p.imageWidthInches === null) === (p.imageHeightInches === null),
           "Enter both image dimensions or leave both blank",
-        ),
+        )
+        .refine(soldElsewhereFitsEdition, soldElsewhereMessage),
     )
     .mutation(async ({ ctx, input }) => {
       const [{ max }] = (await ctx.db
@@ -103,6 +131,7 @@ export const printsRouter = createTRPCRouter({
           series_id: row.seriesId,
           has_price: row.priceCents != null,
           has_edition_limit: row.editionSize != null,
+          sold_elsewhere: row.soldElsewhere,
         });
       }
       return row;
@@ -112,6 +141,8 @@ export const printsRouter = createTRPCRouter({
     .input(
       z
         .object({ id: z.number().int(), ...printFields })
+        // soldElsewhere is checked against the stored edition size in the
+        // transaction, since either field may be omitted.
         .refine(
           (p) =>
             (p.imageWidthInches === null) === (p.imageHeightInches === null),
@@ -140,6 +171,46 @@ export const printsRouter = createTRPCRouter({
             values,
             siblings.filter((p) => p.id !== id),
           );
+        // The root row lock serializes admin edits within the family, so this
+        // read is current. Omitted fields keep their stored values; validate
+        // the allocation that will actually be saved.
+        const current = siblings.find((p) => p.id === id) ?? existing;
+        const next = {
+          editionSize:
+            values.editionSize === undefined
+              ? current.editionSize
+              : values.editionSize,
+          soldElsewhere: values.soldElsewhere ?? current.soldElsewhere,
+        };
+        if (!soldElsewhereFitsEdition(next)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: soldElsewhereMessage,
+          });
+        }
+        // Reject edits that allocate more copies than the edition holds once
+        // online sales are counted. Only a worsening is rejected, so a print
+        // already oversold online stays editable and can be corrected. Taken
+        // after the row lock: order inserts hold a key-share lock on the print
+        // before the webhook takes this one, so the reverse order deadlocks.
+        await lockItemInventory(tx, "print", id);
+        const sold = (await getSoldPrintQuantities([id], tx)).get(id) ?? 0;
+        const before = overAllocation(
+          current.editionSize,
+          sold,
+          current.soldElsewhere,
+        );
+        const after = overAllocation(
+          next.editionSize,
+          sold,
+          next.soldElsewhere,
+        );
+        if (after > before) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `${sold} ${sold === 1 ? "copy has" : "copies have"} sold online, so the edition size must cover those plus the copies sold elsewhere.`,
+          });
+        }
         const [updated] = await tx
           .update(prints)
           .set({ ...values, spec: formatPrintSpec(values) })
@@ -153,6 +224,7 @@ export const printsRouter = createTRPCRouter({
           series_id: row.seriesId,
           has_price: row.priceCents != null,
           has_edition_limit: row.editionSize != null,
+          sold_elsewhere: row.soldElsewhere,
         });
       }
       return row;

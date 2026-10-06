@@ -40,6 +40,7 @@ type PrintRow = PrintDimensions & {
   edition: string;
   priceCents: number | null;
   editionSize: number | null;
+  soldElsewhere: number;
 };
 
 type PrintFormValues = Omit<
@@ -176,6 +177,7 @@ export default function AdminPrintsPage() {
                                       imageHeightInches: null,
                                       priceCents: null,
                                       editionSize: null,
+                                      soldElsewhere: 0,
                                     }}
                                     pending={create.isPending}
                                     error={create.error?.message}
@@ -281,6 +283,9 @@ function PrintForm({
       ? ""
       : initial.editionSize.toString(),
   );
+  const [soldElsewhere, setSoldElsewhere] = useState(
+    initial?.soldElsewhere ? initial.soldElsewhere.toString() : "",
+  );
   const [image, setImage] = useState<ImageValue | null>(
     initial
       ? {
@@ -307,6 +312,11 @@ function PrintForm({
           priceCents: dollarsStringToCents(price),
           editionSize:
             editionSize.trim() === "" ? null : parseInt(editionSize, 10),
+          // Offline sales are only tracked against a limited edition.
+          soldElsewhere:
+            editionSize.trim() === "" || soldElsewhere.trim() === ""
+              ? 0
+              : parseInt(soldElsewhere, 10),
         });
       }}
     >
@@ -370,6 +380,19 @@ function PrintForm({
             className={inputCls}
             value={editionSize}
             onChange={(e) => setEditionSize(e.target.value)}
+          />
+        </Field>
+        <Field label="Copies sold elsewhere (in person, gifts…)">
+          <input
+            type="number"
+            min="0"
+            max={editionSize.trim() === "" ? undefined : editionSize}
+            step="1"
+            className={inputCls}
+            value={soldElsewhere}
+            disabled={editionSize.trim() === ""}
+            placeholder="0"
+            onChange={(e) => setSoldElsewhere(e.target.value)}
           />
         </Field>
       </div>
