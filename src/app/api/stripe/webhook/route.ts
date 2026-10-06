@@ -259,9 +259,10 @@ async function recordPaidCheckout(
 
     // The availability check at session creation can be raced by a concurrent
     // buyer; detect it here and flag the order for a manual refund.
-    if (itemType !== "digital" && item?.editionSize != null) {
+    if (item && itemType !== "digital") {
       // Serialize with concurrent deliveries and admin allocation edits for
-      // this item, then read the limits as they stand under the lock.
+      // this item, then read the limits as they stand under the lock: an
+      // admin may have limited the edition since the item was loaded.
       await lockItemInventory(tx, itemType, item.id);
       const [limits] =
         itemType === "print"
@@ -272,7 +273,7 @@ async function recordPaidCheckout(
               })
               .from(prints)
               .where(eq(prints.id, item.id))
-          : [{ editionSize: item.editionSize, soldElsewhere: 0 }];
+          : [{ editionSize: 1, soldElsewhere: 0 }];
       const [row] = await tx
         .select({
           sold: sql<number>`coalesce(sum(${orders.quantity}), 0)::int`,
@@ -421,23 +422,12 @@ async function owedEmails(
   };
 }
 
+/** Identity of the purchased item; stock limits are read under the inventory lock. */
 async function loadItem(itemType: OrderItemType, id: number) {
-  if (itemType === "print") {
-    const rows = await db
-      .select({
-        id: prints.id,
-        title: prints.title,
-        editionSize: prints.editionSize,
-      })
-      .from(prints)
-      .where(eq(prints.id, id));
-    return rows[0] ?? null;
-  }
+  const table = itemType === "print" ? prints : works;
   const rows = await db
-    .select({ id: works.id, title: works.title })
-    .from(works)
-    .where(eq(works.id, id));
-  return rows[0]
-    ? { ...rows[0], editionSize: itemType === "original" ? 1 : null }
-    : null;
+    .select({ id: table.id, title: table.title })
+    .from(table)
+    .where(eq(table.id, id));
+  return rows[0] ?? null;
 }

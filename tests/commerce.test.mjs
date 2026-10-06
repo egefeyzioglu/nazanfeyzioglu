@@ -48,6 +48,8 @@ function setup({ verifySignatures = false } = {}) {
     emailFailure: null,
     /** When set, the mocked Resend client rejects sends to this address. */
     rejectTo: null,
+    /** When set, called as the webhook takes an inventory lock (once). */
+    onLock: null,
     /** When set, awaited by the mocked Resend client mid-send (once). */
     onSend: null,
     /** CMS content overrides applied on top of the defaults. */
@@ -183,6 +185,11 @@ function setup({ verifySignatures = false } = {}) {
     transaction: async (callback) => callback(db),
     execute: async (statement) => {
       state.locks.push(statement);
+      if (state.onLock) {
+        const hook = state.onLock;
+        state.onLock = null;
+        hook();
+      }
     },
     insert: () => ({
       values: (values) => ({
@@ -1329,6 +1336,23 @@ test("online orders beyond the copies left after offline sales are flagged overs
       [1, "oversold"],
     ],
   );
+});
+
+test("the webhook enforces stock limits as they stand once it holds the lock", async () => {
+  const app = setup();
+  app.state.print.editionSize = null;
+  // An admin limits the edition and allocates its only copy offline after
+  // the webhook loaded the print but before it took the inventory lock.
+  app.state.onLock = () => {
+    app.state.print.editionSize = 1;
+    app.state.print.soldElsewhere = 1;
+  };
+  assert.equal(
+    (await app.pay("print", "cs_raced", printSession(1))).status,
+    200,
+  );
+  assert.equal(app.state.rows[0].fulfillmentStatus, "oversold");
+  assert.deepEqual(app.state.locks[0].values, ["nazanfeyzioglu_print", 1]);
 });
 
 /** Build consistent Stripe line-item and amount fixtures for multi-copy print purchases. */
