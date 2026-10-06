@@ -141,12 +141,13 @@ export const printsRouter = createTRPCRouter({
     .input(
       z
         .object({ id: z.number().int(), ...printFields })
+        // soldElsewhere is checked against the stored edition size in the
+        // transaction, since either field may be omitted.
         .refine(
           (p) =>
             (p.imageWidthInches === null) === (p.imageHeightInches === null),
           "Enter both image dimensions or leave both blank",
-        )
-        .refine(soldElsewhereFitsEdition, soldElsewhereMessage),
+        ),
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...values } = input;

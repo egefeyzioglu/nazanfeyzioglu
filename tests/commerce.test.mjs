@@ -1781,7 +1781,7 @@ test("admin edits cannot allocate more copies than the edition after online sale
     /edition size must cover/,
   );
   await assert.rejects(
-    async () => api.update({ ...print, soldElsewhere: 21 }),
+    api.update({ ...print, soldElsewhere: 21 }),
     /cannot exceed/,
   );
   await api.update({ ...print, soldElsewhere: 5 });
@@ -1789,6 +1789,15 @@ test("admin edits cannot allocate more copies than the edition after online sale
   assert.equal(rows[0].editionSize, 20);
   // Online sales are read under the same per-print lock the webhook takes.
   assert.deepEqual(locks.at(-1), ["print", 1]);
+
+  // The count can be updated alone, validated against the stored edition.
+  const { editionSize: _stored, ...withoutEdition } = print;
+  await api.update({ ...withoutEdition, soldElsewhere: 4 });
+  assert.equal(rows[0].soldElsewhere, 4);
+  await assert.rejects(
+    api.update({ ...withoutEdition, soldElsewhere: 6 }),
+    /15 copies have sold online/,
+  );
 
   // Omitting soldElsewhere keeps the stored count, so the edition cannot be
   // made unlimited underneath it.
