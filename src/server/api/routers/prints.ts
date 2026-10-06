@@ -10,7 +10,11 @@ import {
   uniqueIds,
 } from "src/server/api/trpc";
 import { prints } from "src/server/db/schema";
-import { getSoldPrintQuantities, remainingCopies } from "src/server/orders";
+import {
+  getSoldPrintQuantities,
+  lockItemInventory,
+  remainingCopies,
+} from "src/server/orders";
 
 const printFields = {
   title: z.string().min(1).max(256),
@@ -166,21 +170,39 @@ export const printsRouter = createTRPCRouter({
             values,
             siblings.filter((p) => p.id !== id),
           );
+        // The root row lock serializes admin edits within the family, so this
+        // read is current. Omitted fields keep their stored values; validate
+        // the allocation that will actually be saved.
+        const current = siblings.find((p) => p.id === id) ?? existing;
+        const next = {
+          editionSize:
+            values.editionSize === undefined
+              ? current.editionSize
+              : values.editionSize,
+          soldElsewhere: values.soldElsewhere ?? current.soldElsewhere,
+        };
+        if (!soldElsewhereFitsEdition(next)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: soldElsewhereMessage,
+          });
+        }
         // Reject edits that allocate more copies than the edition holds once
         // online sales are counted. Only a worsening is rejected, so a print
-        // already oversold online stays editable and can be corrected.
-        const sold = (await getSoldPrintQuantities([id])).get(id) ?? 0;
+        // already oversold online stays editable and can be corrected. Taken
+        // after the row lock: order inserts hold a key-share lock on the print
+        // before the webhook takes this one, so the reverse order deadlocks.
+        await lockItemInventory(tx, "print", id);
+        const sold = (await getSoldPrintQuantities([id], tx)).get(id) ?? 0;
         const before = overAllocation(
-          existing.editionSize,
+          current.editionSize,
           sold,
-          existing.soldElsewhere,
+          current.soldElsewhere,
         );
         const after = overAllocation(
-          values.editionSize === undefined
-            ? existing.editionSize
-            : values.editionSize,
+          next.editionSize,
           sold,
-          values.soldElsewhere ?? existing.soldElsewhere,
+          next.soldElsewhere,
         );
         if (after > before) {
           throw new TRPCError({

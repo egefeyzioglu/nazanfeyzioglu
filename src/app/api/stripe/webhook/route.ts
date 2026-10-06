@@ -22,6 +22,7 @@ import {
   type OrderEmailKind,
   sendOrderEmails,
 } from "src/server/email";
+import { lockItemInventory } from "src/server/orders";
 import { getContent } from "src/server/queries";
 import { getStripe, stripeConfigured } from "src/server/stripe";
 
@@ -259,15 +260,19 @@ async function recordPaidCheckout(
     // The availability check at session creation can be raced by a concurrent
     // buyer; detect it here and flag the order for a manual refund.
     if (itemType !== "digital" && item?.editionSize != null) {
-      // Serialize concurrent webhook transactions for the same physical item: under
-      // READ COMMITTED, two simultaneous deliveries would each miss the
-      // other's uncommitted insert and both pass the editionSize check. The
-      // transaction-scoped advisory lock makes the later committer see the
-      // earlier one's row and flag itself oversold. Namespaced with the table
-      // name because the database may host multiple projects.
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${`nazanfeyzioglu_${itemType}`}), ${item.id})`,
-      );
+      // Serialize with concurrent deliveries and admin allocation edits for
+      // this item, then read the limits as they stand under the lock.
+      await lockItemInventory(tx, itemType, item.id);
+      const [limits] =
+        itemType === "print"
+          ? await tx
+              .select({
+                editionSize: prints.editionSize,
+                soldElsewhere: prints.soldElsewhere,
+              })
+              .from(prints)
+              .where(eq(prints.id, item.id))
+          : [{ editionSize: item.editionSize, soldElsewhere: 0 }];
       const [row] = await tx
         .select({
           sold: sql<number>`coalesce(sum(${orders.quantity}), 0)::int`,
@@ -282,7 +287,10 @@ async function recordPaidCheckout(
             ne(orders.paymentStatus, "refunded"),
           ),
         );
-      if ((row?.sold ?? 0) + item.soldElsewhere > item.editionSize) {
+      if (
+        limits?.editionSize != null &&
+        (row?.sold ?? 0) + limits.soldElsewhere > limits.editionSize
+      ) {
         oversold = true;
         await tx
           .update(orders)
@@ -420,7 +428,6 @@ async function loadItem(itemType: OrderItemType, id: number) {
         id: prints.id,
         title: prints.title,
         editionSize: prints.editionSize,
-        soldElsewhere: prints.soldElsewhere,
       })
       .from(prints)
       .where(eq(prints.id, id));
@@ -431,10 +438,6 @@ async function loadItem(itemType: OrderItemType, id: number) {
     .from(works)
     .where(eq(works.id, id));
   return rows[0]
-    ? {
-        ...rows[0],
-        editionSize: itemType === "original" ? 1 : null,
-        soldElsewhere: 0,
-      }
+    ? { ...rows[0], editionSize: itemType === "original" ? 1 : null }
     : null;
 }

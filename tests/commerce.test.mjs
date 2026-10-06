@@ -1553,7 +1553,7 @@ test("variant purchases and refunds consume only the selected size and snapshot 
   assert.equal((await app.inventory.getSoldPrintQuantities([1, 2])).size, 0);
 });
 
-function variantAdmin(rows, soldOnline = new Map()) {
+function variantAdmin(rows, soldOnline = new Map(), locks = []) {
   const prints = {
     id: "id",
     parentPrintId: "parentPrintId",
@@ -1629,6 +1629,7 @@ function variantAdmin(rows, soldOnline = new Map()) {
       };
     },
     transaction: (run) => run(db),
+    execute: async () => {},
   };
   const { printsRouter } = load("src/server/api/routers/prints.ts", {
     "drizzle-orm": {
@@ -1652,6 +1653,9 @@ function variantAdmin(rows, soldOnline = new Map()) {
     "src/lib/prints": load("src/lib/prints.ts"),
     "src/lib/posthog-server": { captureServerEvent() {} },
     "src/server/orders": {
+      lockItemInventory: async (_tx, itemType, id) => {
+        locks.push([itemType, id]);
+      },
       getSoldPrintQuantities: async (ids) =>
         new Map(
           ids.flatMap((id) =>
@@ -1742,7 +1746,8 @@ test("admin edits cannot allocate more copies than the edition after online sale
     soldElsewhere: 0,
   };
   const rows = [{ ...print }];
-  const api = variantAdmin(rows, new Map([[1, 15]]));
+  const locks = [];
+  const api = variantAdmin(rows, new Map([[1, 15]]), locks);
   await assert.rejects(
     api.update({ ...print, soldElsewhere: 6 }),
     /15 copies have sold online/,
@@ -1757,6 +1762,17 @@ test("admin edits cannot allocate more copies than the edition after online sale
   );
   await api.update({ ...print, soldElsewhere: 5 });
   assert.equal(rows[0].soldElsewhere, 5);
+  assert.equal(rows[0].editionSize, 20);
+  // Online sales are read under the same per-print lock the webhook takes.
+  assert.deepEqual(locks.at(-1), ["print", 1]);
+
+  // Omitting soldElsewhere keeps the stored count, so the edition cannot be
+  // made unlimited underneath it.
+  const { soldElsewhere: _omitted, ...withoutCount } = print;
+  await assert.rejects(
+    api.update({ ...withoutCount, editionSize: null }),
+    /need an edition size/,
+  );
   assert.equal(rows[0].editionSize, 20);
 
   // A print already oversold online stays editable and can be reduced.
