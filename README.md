@@ -42,9 +42,12 @@ it can also be re-run safely from the Actions tab (**Run workflow**).
 One-time setup: in the GitHub repository open **Settings → Environments → New
 environment**, name it `production-database`, and add an environment secret
 `PROD_DATABASE_URL` with the production connection string. Prefer Neon's
-**unpooled** (direct) connection string for migrations. Optionally add
-required reviewers or restrict the environment to the `main` branch. Until the
-secret is set, the workflow fails with an error instead of migrating.
+**unpooled** (direct) connection string for migrations. Under **Deployment
+branches and tags**, choose **Selected branches and tags** and allow only
+`main`. This is required: otherwise a workflow on any branch could read the
+secret or apply unreviewed migrations. Optionally add required reviewers.
+Until the secret is set, the workflow fails with an error instead of
+migrating.
 
 The workflow runs alongside Vercel's production deploy, not before it, so keep
 migrations backwards-compatible with the code that is still live (add columns

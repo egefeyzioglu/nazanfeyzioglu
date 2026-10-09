@@ -39,6 +39,9 @@ jobs:
 
   migrate:
     needs: test
+    # Guards against dispatching from another branch by accident. The real
+    # boundary is the environment's deployment-branch rule (see README).
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-database
