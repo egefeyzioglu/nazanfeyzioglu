@@ -30,6 +30,28 @@ dashboard so everything stays native to Vercel:
 3. Deploy. The app connects through `pg` with a shared pool, so it works with
    Neon's PgBouncer endpoint on serverless functions.
 
+### Automatic production migrations
+
+The **Migrate production database** GitHub Actions workflow
+(`.github/workflows/migrate.yml`) runs `pnpm db:migrate` against production
+whenever a push to `main` (including a merged PR) changes `drizzle/` or
+`drizzle.config.ts`. It runs the test suite first, never runs two migrations
+at once, and applies only migrations not already recorded in the database, so
+it can also be re-run safely from the Actions tab (**Run workflow**).
+
+One-time setup: in the GitHub repository open **Settings → Environments → New
+environment**, name it `production-database`, and add an environment secret
+`PROD_DATABASE_URL` with the production connection string. Prefer Neon's
+**unpooled** (direct) connection string for migrations. Optionally add
+required reviewers or restrict the environment to the `main` branch. Until the
+secret is set, the workflow fails with an error instead of migrating.
+
+The workflow runs alongside Vercel's production deploy, not before it, so keep
+migrations backwards-compatible with the code that is still live (add columns
+before using them; drop them in a later change). The manual
+`pnpm db:migrate` steps mentioned below are only needed for databases this
+workflow does not cover, such as local or preview databases.
+
 ## CMS / admin panel
 
 All site content — series, works, prints, exhibitions, page text, and the shop policies — lives in the database and is edited at `/admin`. Public pages render dynamically, so edits show up immediately.
